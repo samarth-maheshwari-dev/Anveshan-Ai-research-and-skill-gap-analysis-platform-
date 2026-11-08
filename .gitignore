@@ -1,0 +1,40 @@
+# Markdown stays local (project rule). README.md on the remote is already tracked and unaffected.
+*.md
+ALL MD file DO not Push/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.keyset
+*.keyset.json
+*.pem
+*.key
+*.p12
+*.jks
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.dump
+*.sql.gz
+
+# Build output
+target/
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Tooling
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+.claude/
+graphify-out/
+*.log

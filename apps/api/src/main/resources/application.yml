@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: anveshan-api
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${ANV_DB_URL:jdbc:postgresql://localhost:5432/anveshan}
+    username: ${ANV_DB_USER:anveshan}
+    password: ${ANV_DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+    include-message: never
+
+# Actuator lives on an internal port; only health is exposed (TECHSPEC §16.2).
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
