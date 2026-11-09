@@ -1,5 +1,6 @@
-# Markdown stays local (project rule). README.md on the remote is already tracked and unaffected.
+# Markdown stays local (project rule) — only the root README.md is published.
 *.md
+!/README.md
 ALL MD file DO not Push/
 
 # Secrets
