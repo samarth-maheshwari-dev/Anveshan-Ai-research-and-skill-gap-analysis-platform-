@@ -35,6 +35,9 @@ spring:
             client-secret: ${GITHUB_CLIENT_SECRET:not-configured}
             scope: [read:user, user:email]
 
+logging:
+  exception-conversion-word: "%maskedEx"   # masked stack traces (logback-spring.xml)
+
 server:
   port: 8080
   error:
@@ -56,6 +59,11 @@ anveshan:
   cookie-domain: ${ANV_COOKIE_DOMAIN:}
   cookie-secure: ${ANV_COOKIE_SECURE:false}
   github-api-base: https://api.github.com
+  secrets:
+    # Tink AES-256-GCM keyset for user API keys (TECHSPEC §6.2). Never put the keyset itself here.
+    tink-keyset: ${ANV_TINK_KEYSET:}
+    tink-keyset-file: ${ANV_TINK_KEYSET_FILE:}
+    tink-ephemeral: ${ANV_TINK_EPHEMERAL:false}   # tests/CI only
   embeddings:
     # multilingual-e5-small ONNX files; fetch with apps/api/scripts/fetch-model.sh
     model-dir: ${ANV_EMBEDDINGS_MODEL_DIR:${user.home}/.cache/anveshan/models/multilingual-e5-small}

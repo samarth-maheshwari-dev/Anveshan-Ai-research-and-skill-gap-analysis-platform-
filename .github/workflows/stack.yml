@@ -43,6 +43,7 @@ jobs:
             echo "API_TAG=ci"
             echo "WEB_TAG=ci"
             echo "BACKUP_DIR=./backups"
+            echo "ANV_TINK_EPHEMERAL=true"
           } > .env
           mkdir -p backups
 
@@ -51,6 +52,12 @@ jobs:
 
       - name: Smoke test (T-02-01, T-02-02, T-02-06)
         run: bash smoke-test.sh
+
+      - name: No secrets in logs (TECHSPEC §6.3)
+        run: |
+          if docker compose logs --no-color | grep -E "(gsk_|AIza|sk-(proj-|ant-|or-v1-)?|tvly-|gh[pousr]_|anv_pat_|GOCSPX-)[A-Za-z0-9_-]{12,}"; then
+            echo "::error::Unmasked credential-like value found in container logs"; exit 1
+          fi
 
       - name: Backup (T-02-05)
         run: |

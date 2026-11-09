@@ -57,6 +57,16 @@
 			<artifactId>bucket4j_jdk17-core</artifactId>
 			<version>8.22.0</version>
 		</dependency>
+		<!-- Shared security (TECHSPEC §6): Tink AEAD for user keys, Apache HttpClient 5 for SafeHttp -->
+		<dependency>
+			<groupId>com.google.crypto.tink</groupId>
+			<artifactId>tink</artifactId>
+			<version>1.24.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+		</dependency>
 		<!-- Embeddings (TECHSPEC §12.5): ONNX Runtime + HF tokenizer, natives bundled in the jars -->
 		<dependency>
 			<groupId>com.microsoft.onnxruntime</groupId>
