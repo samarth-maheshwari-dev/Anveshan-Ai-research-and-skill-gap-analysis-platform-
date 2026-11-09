@@ -38,6 +38,4 @@ next-env.d.ts
 *.iml
 .DS_Store
 Thumbs.db
-.claude/
-graphify-out/
 *.log
