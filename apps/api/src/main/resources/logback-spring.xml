@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Spring Boot's default console logging, with every message and stack trace passed through
+     SecretMasker (TECHSPEC §6.3). Conversion rules must come before the appender. -->
+<configuration>
+	<conversionRule conversionWord="m" class="dev.anveshan.shared.logging.MaskingMessageConverter"/>
+	<conversionRule conversionWord="msg" class="dev.anveshan.shared.logging.MaskingMessageConverter"/>
+	<conversionRule conversionWord="message" class="dev.anveshan.shared.logging.MaskingMessageConverter"/>
+	<conversionRule conversionWord="maskedEx" class="dev.anveshan.shared.logging.MaskingThrowableConverter"/>
+	<property name="LOG_EXCEPTION_CONVERSION_WORD" value="%maskedEx"/>
+
+	<include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+	<include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+	<root level="INFO">
+		<appender-ref ref="CONSOLE"/>
+	</root>
+</configuration>

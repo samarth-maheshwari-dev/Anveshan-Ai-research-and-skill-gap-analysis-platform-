@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P05 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login). See [Progress](#progress).
+> **Status:** early development. Phases P00–P06 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security). See [Progress](#progress).
 
 ## What it does
 
@@ -51,7 +51,7 @@ infra/
 
 ```bash
 cd infra
-cp .env.example .env               # set PG_PASSWORD (e.g. openssl rand -hex 24)
+cp .env.example .env               # set PG_PASSWORD (openssl rand -hex 24) and TINK_KEYSET_FILE
 docker compose up -d --build --wait
 bash smoke-test.sh                 # expect: ALL SMOKE CHECKS PASSED
 ```
@@ -108,8 +108,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P03 | Embeddings: multilingual-e5-small (ONNX, in-JVM, CPU) — ~12 chunks/s on 2 threads | ✅ Done |
 | P04 | Database schema v1 (identity + BYOK), Flyway migrations | ✅ Done |
 | P05 | Login with Google / GitHub, server-side sessions, CSRF, CORS, login rate limit | ✅ Done |
-| P06 | Shared security (safe outbound HTTP, key encryption, log masking) | Next |
-| P07 | Bring-your-own-key backend | Planned |
+| P06 | Shared security: SSRF-safe HTTP client, Tink encryption for user keys, log masking | ✅ Done |
+| P07 | Bring-your-own-key backend | Next |
 | P08 | Frontend foundation + connect-your-AI wizard | Planned |
 
 ## Security
@@ -117,7 +117,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 - Sign-in only through Google / GitHub; sessions live server-side (HttpOnly cookie), CSRF and strict CORS on every API call.
 - Accounts are linked by email only when the provider has verified it (no account takeover via unverified emails).
 - User AI keys are encrypted at rest and never logged or returned (only the last 4 characters are shown).
-- Every outbound request to a user-supplied URL goes through an SSRF guard.
+- Every outbound request to a user-supplied URL goes through an SSRF guard: private/loopback/metadata IPs and odd IP spellings are refused, DNS answers are checked at connect time (no rebinding), redirects are re-checked (max 3) and bodies are size-capped.
+- Credential-like values (API keys, tokens, `Bearer …`) are masked in every log line and stack trace; CI fails if one shows up in container logs.
 - Secrets live only in environment variables, never in this repository.
 
 Found a security issue? Please open a private security advisory on this repository instead of a public issue.

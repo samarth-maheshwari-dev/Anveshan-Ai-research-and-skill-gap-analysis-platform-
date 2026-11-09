@@ -42,6 +42,9 @@ services:
       ANV_DB_URL: jdbc:postgresql://postgres:5432/anveshan
       ANV_DB_USER: anveshan
       ANV_DB_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in infra/.env}
+      ANV_TINK_KEYSET_FILE: /run/secrets/tink_keyset
+      ANV_TINK_EPHEMERAL: ${ANV_TINK_EPHEMERAL:-false}   # true only in CI (throwaway key)
+    secrets: [tink_keyset]
     ports: ["127.0.0.1:8080:8080"]          # 8081 (actuator) is NOT published
     depends_on:
       postgres: { condition: service_healthy }
@@ -90,3 +93,10 @@ services:
 
 volumes:
   pg_data: {}
+
+secrets:
+  # Tink AES-256-GCM keyset that encrypts users' AI keys. Keep it OUTSIDE the repo and point
+  # TINK_KEYSET_FILE at it in infra/.env. The committed placeholder is empty on purpose:
+  # the API refuses to start with it unless ANV_TINK_EPHEMERAL=true (CI only).
+  tink_keyset:
+    file: ${TINK_KEYSET_FILE:-./tink-keyset.placeholder}
