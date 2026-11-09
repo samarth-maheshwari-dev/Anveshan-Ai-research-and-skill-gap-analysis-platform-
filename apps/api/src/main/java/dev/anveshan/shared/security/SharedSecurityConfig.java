@@ -20,7 +20,12 @@ class SharedSecurityConfig {
 	private static final Logger log = LoggerFactory.getLogger(SharedSecurityConfig.class);
 
 	@Bean
-	OutboundUrlGuard outboundUrlGuard() {
+	OutboundUrlGuard outboundUrlGuard(
+			@org.springframework.beans.factory.annotation.Value("${anveshan.outbound.allow-loopback:false}") boolean allowLoopback) {
+		if (allowLoopback) {
+			log.warn("anveshan.outbound.allow-loopback=true: loopback counts as public. Tests only — never in production.");
+			return new OutboundUrlGuard(a -> !a.isLoopbackAddress() && OutboundUrlGuard.isBlocked(a));
+		}
 		return new OutboundUrlGuard();
 	}
 

@@ -1,0 +1,232 @@
+package dev.anveshan.byok.app;
+
+import java.net.URI;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import dev.anveshan.byok.app.ProviderModels.ModelInfo;
+import dev.anveshan.byok.app.ProviderModels.ProviderAuthException;
+import dev.anveshan.byok.app.ProviderModels.ProviderException;
+import dev.anveshan.byok.app.ProviderModels.ProviderModelNotFoundException;
+import dev.anveshan.byok.app.ProviderModels.ProviderRateLimitException;
+import dev.anveshan.byok.app.ProviderModels.ResolvedConnection;
+import dev.anveshan.byok.domain.AiConnection;
+import dev.anveshan.byok.domain.ByokEnums.AiProvider;
+import dev.anveshan.byok.domain.ByokEnums.ConnectionKind;
+import dev.anveshan.byok.domain.ByokEnums.ConnectionStatus;
+import dev.anveshan.byok.domain.ProviderPreset;
+import dev.anveshan.byok.infra.AiConnectionRepository;
+import dev.anveshan.byok.infra.ByokProperties;
+import dev.anveshan.shared.security.OutboundUrlGuard;
+import dev.anveshan.shared.security.Secret;
+import dev.anveshan.shared.web.ApiException;
+import jakarta.persistence.EntityManager;
+
+/** AI connections: add, list, delete, test, list models (Module A, TECHSPEC §8.5 / §10.7). */
+@Service
+public class ConnectionService {
+
+	static final Duration MODELS_CACHE = Duration.ofHours(1);
+
+	public record CreateCommand(ConnectionKind kind, AiProvider provider, String label, String apiKey, String baseUrl) {
+	}
+
+	/** What the API returns — never the key, only its last 4 characters (AC-A2). */
+	public record ConnectionView(UUID id, ConnectionKind kind, AiProvider provider, String label, String baseUrl,
+			String keyLast4, ConnectionStatus status, String statusDetail, Instant lastTestedAt, Instant createdAt) {
+
+		static ConnectionView of(AiConnection c) {
+			return new ConnectionView(c.getId(), c.getKind(), c.getProvider(), c.getLabel(), c.getBaseUrl(),
+					c.getKeyLast4(), c.getStatus(), c.getStatusDetail(), c.getLastTestedAt(), c.getCreatedAt());
+		}
+
+	}
+
+	public record TestResult(ConnectionStatus status, long latencyMs, String sampleModel, String note) {
+	}
+
+	private record CachedModels(Instant at, List<ModelInfo> models) {
+	}
+
+	private final AiConnectionRepository connections;
+	private final EntityManager em;
+	private final KeyVault vault;
+	private final ByokProperties props;
+	private final OutboundUrlGuard guard;
+	private final Clock clock;
+	private final Map<UUID, CachedModels> modelsCache = new ConcurrentHashMap<>();
+
+	ConnectionService(AiConnectionRepository connections, EntityManager em, KeyVault vault, ByokProperties props,
+			OutboundUrlGuard guard, Clock clock) {
+		this.connections = connections;
+		this.em = em;
+		this.vault = vault;
+		this.props = props;
+		this.guard = guard;
+		this.clock = clock;
+	}
+
+	@Transactional
+	public ConnectionView create(UUID owner, CreateCommand cmd) {
+		if (cmd.kind() == null || cmd.provider() == null) {
+			throw ApiException.badRequest("kind and provider are required.");
+		}
+		boolean search = cmd.provider() == AiProvider.TAVILY;
+		if (search != (cmd.kind() == ConnectionKind.SEARCH)) {
+			throw ApiException.badRequest("Tavily is a SEARCH key; every other provider is an LLM key.");
+		}
+		String label = cmd.label() == null ? "" : cmd.label().strip();
+		if (label.isEmpty() || label.length() > 80) {
+			throw ApiException.badRequest("Label must be 1–80 characters.");
+		}
+		String key = cmd.apiKey() == null ? "" : cmd.apiKey().strip();
+		if (key.length() < 8 || key.length() > 512 || key.chars().anyMatch(Character::isWhitespace)) {
+			throw ApiException.badRequest("The API key looks wrong (8–512 characters, no spaces).");
+		}
+		ProviderPreset preset = props.preset(cmd.provider());
+		String baseUrl;
+		if (cmd.provider() == AiProvider.CUSTOM) {
+			if (cmd.baseUrl() == null || cmd.baseUrl().isBlank()) {
+				throw ApiException.badRequest("A base URL is required for a custom provider.");
+			}
+			URI safe;
+			try {
+				safe = guard.requireSafe(URI.create(cmd.baseUrl().strip()), OutboundUrlGuard.HTTPS_ONLY);
+			}
+			catch (IllegalArgumentException e) {
+				throw ApiException.badRequest("The base URL is not a valid URL.");
+			}
+			baseUrl = safe.toString().endsWith("/") ? safe.toString() : safe + "/";
+		}
+		else {
+			baseUrl = preset.baseUrl().toString(); // presets ignore any client-supplied URL
+		}
+
+		Secret secret = Secret.of(key);
+		UUID id = UUID.randomUUID();
+		var entity = new AiConnection(id, owner, cmd.kind(), cmd.provider(), label, baseUrl,
+				vault.seal(id, owner, secret), secret.last4());
+		em.persist(entity);
+		em.flush();
+		return ConnectionView.of(entity);
+	}
+
+	@Transactional(readOnly = true)
+	public List<ConnectionView> list(UUID owner) {
+		return connections.findByOwnerIdOrderByCreatedAt(owner).stream().map(ConnectionView::of).toList();
+	}
+
+	@Transactional
+	public void delete(UUID owner, UUID id) {
+		if (connections.deleteByIdAndOwnerId(id, owner) == 0) {
+			throw ApiException.notFound();
+		}
+		modelsCache.remove(id);
+	}
+
+	/** Not transactional: the provider call happens outside any DB transaction. */
+	public TestResult test(UUID owner, UUID id, String requestedModel) {
+		AiConnection c = owned(owner, id);
+		ResolvedConnection rc = resolveOrFail(c);
+		LlmTransport transport = vault.transportFor(rc.preset());
+		long t0 = System.nanoTime();
+		try {
+			String model = c.getKind() == ConnectionKind.SEARCH ? null : pickModel(rc, transport, requestedModel);
+			String used = transport.test(rc, model);
+			long ms = (System.nanoTime() - t0) / 1_000_000;
+			save(c, ConnectionStatus.VERIFIED, null);
+			return new TestResult(ConnectionStatus.VERIFIED, ms, used, null);
+		}
+		catch (ProviderRateLimitException e) {
+			save(c, ConnectionStatus.VERIFIED, "Key is valid but rate-limited right now");
+			return new TestResult(ConnectionStatus.VERIFIED, e.latencyMs(), requestedModel,
+					"Key is valid but rate-limited right now");
+		}
+		catch (ProviderAuthException e) {
+			save(c, ConnectionStatus.FAILING, e.getMessage());
+			throw testFailed(e.getMessage());
+		}
+		catch (ProviderModelNotFoundException e) {
+			save(c, ConnectionStatus.FAILING, "Model not found");
+			throw testFailed("Model not found");
+		}
+		catch (ProviderException e) {
+			save(c, ConnectionStatus.FAILING, e.getMessage());
+			throw testFailed(e.getMessage());
+		}
+	}
+
+	/** Live model list, cached per connection for 1 hour (A-FR-5). */
+	public List<ModelInfo> models(UUID owner, UUID id, boolean freeOnly) {
+		AiConnection c = owned(owner, id);
+		if (c.getKind() == ConnectionKind.SEARCH) {
+			return List.of();
+		}
+		Instant now = clock.instant();
+		CachedModels cached = modelsCache.get(id);
+		List<ModelInfo> models;
+		if (cached != null && cached.at().plus(MODELS_CACHE).isAfter(now)) {
+			models = cached.models();
+		}
+		else {
+			ResolvedConnection rc = resolveOrFail(c);
+			try {
+				models = List.copyOf(vault.transportFor(rc.preset()).models(rc));
+			}
+			catch (ProviderException e) {
+				throw ApiException.unprocessable("CONNECTION_TEST_FAILED", "Couldn't load models", e.getMessage());
+			}
+			modelsCache.put(id, new CachedModels(now, models));
+		}
+		return freeOnly ? models.stream().filter(ModelInfo::free).toList() : models;
+	}
+
+	private AiConnection owned(UUID owner, UUID id) {
+		return connections.findByIdAndOwnerId(id, owner).orElseThrow(ApiException::notFound);
+	}
+
+	private ResolvedConnection resolveOrFail(AiConnection c) {
+		try {
+			return vault.resolve(c.getId(), c.getOwnerId(), c.getProvider(), c.getBaseUrl(), c.getKeyCiphertext());
+		}
+		catch (KeyVault.KeyUnreadableException e) {
+			save(c, ConnectionStatus.FAILING, e.getMessage());
+			throw testFailed(e.getMessage());
+		}
+	}
+
+	/** Requested model, else the first chat-capable model the provider lists. */
+	private static String pickModel(ResolvedConnection rc, LlmTransport transport, String requested) {
+		if (requested != null && !requested.isBlank()) {
+			return requested.strip();
+		}
+		if (rc.preset().testModel() != null) {
+			return rc.preset().testModel();
+		}
+		return transport.models(rc).stream().map(ModelInfo::id)
+				.filter(id -> !id.toLowerCase(Locale.ROOT).matches(".*(embed|whisper|tts|image|imagen|vision-only|guard|moderation|audio|veo).*"))
+				.findFirst()
+				.orElseThrow(() -> testFailed("The provider lists no chat models for this key"));
+	}
+
+	private void save(AiConnection c, ConnectionStatus status, String detail) {
+		c.recordTest(status, detail, clock.instant());
+		connections.save(c);
+	}
+
+	private static ApiException testFailed(String detail) {
+		return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "CONNECTION_TEST_FAILED", "Connection test failed",
+				detail);
+	}
+
+}

@@ -70,6 +70,10 @@ class SafeHttpIT {
 				case "/to-public-then-metadata" -> redirect(ex, "http://public.test:" + port + "/to-metadata");
 				case "/to-rebind" -> redirect(ex, "http://rebind.test:" + port + "/ok");
 				case "/loop" -> redirect(ex, "/loop");
+				case "/limited" -> {
+					ex.getResponseHeaders().add("Retry-After", "30");
+					send(ex, 429, "slow down");
+				}
 				case "/big-chunked" -> sendBig(ex, 3 * 1024 * 1024, false);
 				case "/big-declared" -> sendBig(ex, 3 * 1024 * 1024, true);
 				default -> send(ex, 404, "nope");
@@ -139,6 +143,17 @@ class SafeHttpIT {
 		assertThatThrownBy(() -> http.get(URI.create("http://metadata.test/latest"), OutboundUrlGuard.WEB_PAGE,
 				SafeHttp.PAGE_LIMIT_BYTES)).isInstanceOf(SafeDnsResolver.BlockedAddressException.class);
 		assertThat(hits.get()).isZero();
+	}
+
+	@Test
+	@DisplayName("T-06-04 a 429 with Retry-After is returned at once — never slept on and resent")
+	void noAutomaticRetry() throws IOException {
+		long t0 = System.nanoTime();
+		var res = http.get(url("/limited"), policy(), SafeHttp.PAGE_LIMIT_BYTES);
+
+		assertThat(res.status()).isEqualTo(429);
+		assertThat(hits.get()).isEqualTo(1);
+		assertThat((System.nanoTime() - t0) / 1_000_000).isLessThan(5_000);
 	}
 
 	@Test

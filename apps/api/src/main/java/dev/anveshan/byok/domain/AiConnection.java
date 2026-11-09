@@ -14,8 +14,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -27,8 +25,8 @@ import jakarta.persistence.Table;
 @Table(name = "ai_connection")
 public class AiConnection {
 
+	/** Assigned by the caller: the id is part of the encryption's associated data, so it must exist first. */
 	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
 	@Column(nullable = false)
@@ -73,8 +71,9 @@ public class AiConnection {
 	protected AiConnection() {
 	}
 
-	public AiConnection(UUID ownerId, ConnectionKind kind, AiProvider provider, String label, String baseUrl,
+	public AiConnection(UUID id, UUID ownerId, ConnectionKind kind, AiProvider provider, String label, String baseUrl,
 			byte[] keyCiphertext, String keyLast4) {
+		this.id = Objects.requireNonNull(id);
 		this.ownerId = Objects.requireNonNull(ownerId);
 		this.kind = Objects.requireNonNull(kind);
 		this.provider = Objects.requireNonNull(provider);

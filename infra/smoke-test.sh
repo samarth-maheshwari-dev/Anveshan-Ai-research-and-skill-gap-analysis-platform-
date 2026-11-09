@@ -34,6 +34,10 @@ resp=$(curl -s -D - -o /dev/null http://127.0.0.1:8080/api/v1/me)
   && pass "T-05-05 GET /api/v1/me without cookie -> 401 problem+json" \
   || bad  "T-05-05 /me without cookie"
 
+# T-07 BYOK endpoints are private
+code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/v1/connections)
+[[ "$code" == "401" ]] && pass "T-07 GET /api/v1/connections without login -> 401" || bad "T-07 /connections without login -> $code"
+
 # T-02-06 web placeholder
 page=$(curl -s -w '\n%{http_code}' http://127.0.0.1:3000/)
 code=${page##*$'\n'}

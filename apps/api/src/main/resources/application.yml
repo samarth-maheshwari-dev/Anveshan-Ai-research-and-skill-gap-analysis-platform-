@@ -64,6 +64,17 @@ anveshan:
     tink-keyset: ${ANV_TINK_KEYSET:}
     tink-keyset-file: ${ANV_TINK_KEYSET_FILE:}
     tink-ephemeral: ${ANV_TINK_EPHEMERAL:false}   # tests/CI only
+  # BYOK provider presets (TECHSPEC §10.1). Data, not code: fix a URL/path here without a rebuild.
+  providers:
+    GEMINI:     { transport: OPENAI_COMPATIBLE, base-url: "https://generativelanguage.googleapis.com/v1beta/openai/", chat-path: chat/completions, models-path: models, json-mode: true }
+    GROQ:       { transport: OPENAI_COMPATIBLE, base-url: "https://api.groq.com/openai/v1/", chat-path: chat/completions, models-path: models, json-mode: true }
+    OPENROUTER: { transport: OPENAI_COMPATIBLE, base-url: "https://openrouter.ai/api/v1/", chat-path: chat/completions, models-path: models, json-mode: true }
+    OPENAI:     { transport: OPENAI_COMPATIBLE, base-url: "https://api.openai.com/v1/", chat-path: chat/completions, models-path: models, json-mode: true }
+    ANTHROPIC:  { transport: ANTHROPIC, base-url: "https://api.anthropic.com/v1/", chat-path: messages, models-path: models, json-mode: false }
+    CUSTOM:     { transport: OPENAI_COMPATIBLE, chat-path: chat/completions, models-path: models, json-mode: false }
+    TAVILY:     { transport: TAVILY, base-url: "https://api.tavily.com/", chat-path: search, json-mode: false }
+  outbound:
+    allow-loopback: false     # tests only — lets a local fake provider count as "public"
   embeddings:
     # multilingual-e5-small ONNX files; fetch with apps/api/scripts/fetch-model.sh
     model-dir: ${ANV_EMBEDDINGS_MODEL_DIR:${user.home}/.cache/anveshan/models/multilingual-e5-small}
