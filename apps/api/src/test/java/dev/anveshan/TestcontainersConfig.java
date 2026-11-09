@@ -9,7 +9,7 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfig {
 
-	static final DockerImageName PGVECTOR = DockerImageName.parse("pgvector/pgvector:pg17")
+	static final DockerImageName PGVECTOR = DockerImageName.parse("pgvector/pgvector:0.8.4-pg17")
 			.asCompatibleSubstituteFor("postgres");
 
 	@Bean

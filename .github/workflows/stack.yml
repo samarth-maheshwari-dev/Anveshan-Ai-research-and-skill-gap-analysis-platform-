@@ -1,0 +1,66 @@
+name: stack
+
+# P02 (local, zero-budget): every push builds both images, boots the full
+# Compose stack, runs the smoke test and a backup. Replaces the VM deploy job
+# until there is a server to deploy to.
+
+on:
+  push:
+    paths:
+      - "apps/**"
+      - "infra/**"
+      - ".github/workflows/stack.yml"
+  pull_request:
+    paths:
+      - "apps/**"
+      - "infra/**"
+      - ".github/workflows/stack.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stack-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Create throwaway .env
+        run: |
+          umask 077
+          {
+            echo "PG_PASSWORD=$(openssl rand -hex 24)"
+            echo "API_TAG=ci"
+            echo "WEB_TAG=ci"
+            echo "BACKUP_DIR=./backups"
+          } > .env
+          mkdir -p backups
+
+      - name: Build and start stack
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Smoke test (T-02-01, T-02-02, T-02-06)
+        run: bash smoke-test.sh
+
+      - name: Backup (T-02-05)
+        run: |
+          docker compose --profile backup run --rm backup
+          ls backups/anveshan-*.dump
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose --profile backup down -v
