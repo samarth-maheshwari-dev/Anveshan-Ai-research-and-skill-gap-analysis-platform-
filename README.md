@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P06 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security). See [Progress](#progress).
+> **Status:** early development. Phases P00–P07 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security, bring-your-own-key backend). See [Progress](#progress).
 
 ## What it does
 
@@ -109,14 +109,15 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P04 | Database schema v1 (identity + BYOK), Flyway migrations | ✅ Done |
 | P05 | Login with Google / GitHub, server-side sessions, CSRF, CORS, login rate limit | ✅ Done |
 | P06 | Shared security: SSRF-safe HTTP client, Tink encryption for user keys, log masking | ✅ Done |
-| P07 | Bring-your-own-key backend | Next |
-| P08 | Frontend foundation + connect-your-AI wizard | Planned |
+| P07 | Bring-your-own-key backend: connections, model lists, task routing, LLM gateway with rate-limit fallback | ✅ Done |
+| P08 | Frontend foundation + connect-your-AI wizard | Next |
 
 ## Security
 
 - Sign-in only through Google / GitHub; sessions live server-side (HttpOnly cookie), CSRF and strict CORS on every API call.
 - Accounts are linked by email only when the provider has verified it (no account takeover via unverified emails).
-- User AI keys are encrypted at rest and never logged or returned (only the last 4 characters are shown).
+- User AI keys are encrypted at rest (Tink AES-256-GCM, bound to their row and owner) and never logged or returned (only the last 4 characters are shown); provider error messages are never passed through, since they can echo the key.
+- Every LLM call goes through one gateway: the reply must parse into a typed record and pass validation (max 3 tries), and a rate-limited key falls back to the user's next key instead of waiting.
 - Every outbound request to a user-supplied URL goes through an SSRF guard: private/loopback/metadata IPs and odd IP spellings are refused, DNS answers are checked at connect time (no rebinding), redirects are re-checked (max 3) and bodies are size-capped.
 - Credential-like values (API keys, tokens, `Bearer …`) are masked in every log line and stack trace; CI fails if one shows up in container logs.
 - Secrets live only in environment variables, never in this repository.

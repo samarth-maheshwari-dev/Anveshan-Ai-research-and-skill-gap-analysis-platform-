@@ -6,7 +6,7 @@ import org.springframework.security.authentication.AuthenticationCredentialsNotF
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.identity.api.CurrentUser;
+import dev.anveshan.shared.security.CurrentUser;
 
 @Component
 class SecurityContextCurrentUser implements CurrentUser {

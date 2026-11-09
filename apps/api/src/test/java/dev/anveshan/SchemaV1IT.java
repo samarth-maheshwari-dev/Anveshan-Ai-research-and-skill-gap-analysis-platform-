@@ -84,7 +84,7 @@ class SchemaV1IT {
 			em.persist(user);
 			em.persist(new UserIdentity(user.getId(), AuthProvider.GITHUB, "12345", "octocat"));
 			em.persist(new PersonalToken(user.getId(), "laptop", "anv_abcd", new byte[32], List.of("mcp.read"), null));
-			var conn = new AiConnection(user.getId(), ConnectionKind.LLM, AiProvider.GROQ, "My Groq",
+			var conn = new AiConnection(UUID.randomUUID(), user.getId(), ConnectionKind.LLM, AiProvider.GROQ, "My Groq",
 					"https://api.groq.com/openai/v1", new byte[] { 1, 2, 3 }, "x9Q2");
 			em.persist(conn);
 			em.persist(new SlotRoute(new SlotRoute.Key(user.getId(), TaskSlot.PLAN, (short) 0), conn.getId(), "llama"));
