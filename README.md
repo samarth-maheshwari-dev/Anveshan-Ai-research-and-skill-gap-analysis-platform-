@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P04 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema). See [Progress](#progress).
+> **Status:** early development. Phases P00–P05 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login). See [Progress](#progress).
 
 ## What it does
 
@@ -63,6 +63,12 @@ bash smoke-test.sh                 # expect: ALL SMOKE CHECKS PASSED
 
 All ports are bound to `127.0.0.1` only; the actuator port (8081) is not published at all.
 
+**Sign in locally (optional).** Create Google and GitHub OAuth apps with redirect URIs
+`http://localhost:8080/login/oauth2/code/google` and `http://localhost:8080/login/oauth2/code/github`,
+put `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` in an env file
+**outside the repo**, and set `OAUTH_ENV_FILE` to its path in `infra/.env`. Then open
+http://localhost:8080/oauth2/authorization/google and afterwards http://localhost:8080/api/v1/me.
+
 ```bash
 docker compose --profile backup run --rm backup   # backup → $BACKUP_DIR
 API_TAG=<older-tag> docker compose up -d --no-build api   # roll back the API image
@@ -101,13 +107,15 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P02 | Local Docker Compose stack, public health endpoint, backups | ✅ Done |
 | P03 | Embeddings: multilingual-e5-small (ONNX, in-JVM, CPU) — ~12 chunks/s on 2 threads | ✅ Done |
 | P04 | Database schema v1 (identity + BYOK), Flyway migrations | ✅ Done |
-| P05 | Login with Google / GitHub | Next |
-| P06 | Shared security (safe outbound HTTP, key encryption, log masking) | Planned |
+| P05 | Login with Google / GitHub, server-side sessions, CSRF, CORS, login rate limit | ✅ Done |
+| P06 | Shared security (safe outbound HTTP, key encryption, log masking) | Next |
 | P07 | Bring-your-own-key backend | Planned |
 | P08 | Frontend foundation + connect-your-AI wizard | Planned |
 
 ## Security
 
+- Sign-in only through Google / GitHub; sessions live server-side (HttpOnly cookie), CSRF and strict CORS on every API call.
+- Accounts are linked by email only when the provider has verified it (no account takeover via unverified emails).
 - User AI keys are encrypted at rest and never logged or returned (only the last 4 characters are shown).
 - Every outbound request to a user-supplied URL goes through an SSRF guard.
 - Secrets live only in environment variables, never in this repository.

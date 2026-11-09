@@ -32,7 +32,13 @@ services:
   api:
     build: ../apps/api
     image: anveshan-api:${API_TAG:-dev}
+    env_file:
+      # OAuth client ids/secrets (GOOGLE_CLIENT_ID=…, GITHUB_CLIENT_SECRET=…). Keep this file OUTSIDE
+      # the repo; point OAUTH_ENV_FILE at it in infra/.env. Optional: without it login is disabled.
+      - path: ${OAUTH_ENV_FILE:-./oauth.env}
+        required: false
     environment:
+      ANV_APP_ORIGIN: http://localhost:3000
       ANV_DB_URL: jdbc:postgresql://postgres:5432/anveshan
       ANV_DB_USER: anveshan
       ANV_DB_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in infra/.env}

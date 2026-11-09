@@ -34,11 +34,12 @@ class PublicHealthIT {
 	@Test
 	@DisplayName("T-02-02 actuator is not reachable on the public app port")
 	void actuatorNotOnAppPort() {
-		var status = RestClient.create("http://localhost:" + port)
+		var result = RestClient.create("http://localhost:" + port)
 				.get().uri("/actuator/health")
-				.exchange((req, resp) -> resp.getStatusCode().value());
+				.exchange((req, resp) -> resp.getStatusCode().value() + " " + new String(resp.getBody().readAllBytes()));
 
-		assertThat(status).isEqualTo(404);
+		// 401 since P05 (anonymous) or 404 (signed in) — never the health payload
+		assertThat(result).matches("^(401|404) .*").doesNotContain("\"UP\"");
 	}
 
 }
