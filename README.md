@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P03 are done (accounts, project skeleton + CI, local Docker stack, embeddings). See [Progress](#progress).
+> **Status:** early development. Phases P00–P04 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema). See [Progress](#progress).
 
 ## What it does
 
@@ -36,6 +36,7 @@ apps/
 ├── api/    Spring Boot backend — one package per module under dev.anveshan
 │           (identity, byok, research, sources, report, knowledge, skills,
 │            team, notify, search, export, mcp, shared)
+│           DB migrations: src/main/resources/db/migration/<module>/
 └── web/    Next.js frontend
 infra/
 ├── compose.yml      local stack: Postgres (pgvector) + API + Web
@@ -99,8 +100,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P01 | Monorepo skeleton + CI | ✅ Done |
 | P02 | Local Docker Compose stack, public health endpoint, backups | ✅ Done |
 | P03 | Embeddings: multilingual-e5-small (ONNX, in-JVM, CPU) — ~12 chunks/s on 2 threads | ✅ Done |
-| P04 | Database schema v1 (identity + BYOK) | Next |
-| P05 | Login with Google / GitHub | Planned |
+| P04 | Database schema v1 (identity + BYOK), Flyway migrations | ✅ Done |
+| P05 | Login with Google / GitHub | Next |
 | P06 | Shared security (safe outbound HTTP, key encryption, log masking) | Planned |
 | P07 | Bring-your-own-key backend | Planned |
 | P08 | Frontend foundation + connect-your-AI wizard | Planned |
