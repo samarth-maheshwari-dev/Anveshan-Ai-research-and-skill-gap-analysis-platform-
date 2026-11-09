@@ -21,6 +21,13 @@ server:
     include-stacktrace: never
     include-message: never
 
+anveshan:
+  embeddings:
+    # multilingual-e5-small ONNX files; fetch with apps/api/scripts/fetch-model.sh
+    model-dir: ${ANV_EMBEDDINGS_MODEL_DIR:${user.home}/.cache/anveshan/models/multilingual-e5-small}
+    batch-size: 32
+    threads: ${ANV_EMBEDDINGS_THREADS:2}
+
 # Actuator lives on an internal port; only health is exposed (TECHSPEC §16.2).
 management:
   server:

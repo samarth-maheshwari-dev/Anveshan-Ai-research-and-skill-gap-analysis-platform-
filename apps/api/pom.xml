@@ -43,6 +43,17 @@
 			<groupId>org.springframework.modulith</groupId>
 			<artifactId>spring-modulith-starter-core</artifactId>
 		</dependency>
+		<!-- Embeddings (TECHSPEC §12.5): ONNX Runtime + HF tokenizer, natives bundled in the jars -->
+		<dependency>
+			<groupId>com.microsoft.onnxruntime</groupId>
+			<artifactId>onnxruntime</artifactId>
+			<version>1.31.1</version>
+		</dependency>
+		<dependency>
+			<groupId>ai.djl.huggingface</groupId>
+			<artifactId>tokenizers</artifactId>
+			<version>0.40.0</version>
+		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
@@ -69,6 +80,12 @@
 			<artifactId>spring-modulith-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- Testcontainers needs it; DJL's dependency path excludes it -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<scope>test</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-junit-jupiter</artifactId>
@@ -89,6 +106,12 @@
 				<version>${spring-modulith.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
+			</dependency>
+			<!-- DJL pulls 1.27.1, which breaks Testcontainers (needs 1.28.x); newer also has fixes -->
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-compress</artifactId>
+				<version>1.28.0</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

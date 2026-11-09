@@ -46,7 +46,7 @@ services:
       retries: 12
       start_period: 60s
     restart: unless-stopped
-    mem_limit: 1536m
+    mem_limit: 2560m                      # ~1.25 GB heap + ONNX embedding model (native)
 
   web:
     build: ../apps/web
