@@ -82,6 +82,16 @@ public class AppUser {
 		this.avatarUrl = avatarUrl;
 	}
 
+	/** Fills profile fields the user doesn't have yet; never overwrites existing values. */
+	public void fillProfile(String name, String avatarUrl) {
+		if (this.name == null && name != null && !name.isBlank()) {
+			this.name = name.strip();
+		}
+		if (this.avatarUrl == null && avatarUrl != null && !avatarUrl.isBlank()) {
+			this.avatarUrl = avatarUrl;
+		}
+	}
+
 	public String getLocale() {
 		return locale;
 	}

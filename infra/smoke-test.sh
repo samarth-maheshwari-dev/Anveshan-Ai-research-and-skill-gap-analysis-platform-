@@ -22,8 +22,17 @@ for svc_port in "postgres 5432" "api 8080" "web 3000"; do
   bind=$(docker compose port "$1" "$2" 2>/dev/null)
   [[ "$bind" == 127.0.0.1:* ]] && pass "T-02-02 $1:$2 bound to $bind only" || bad "T-02-02 $1:$2 bound to '${bind:-none}'"
 done
-code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/actuator/health)
-[[ "$code" == "404" ]] && pass "T-02-02 /actuator not served on app port (404)" || bad "T-02-02 /actuator on app port -> $code"
+resp=$(curl -s -w '\n%{http_code}' http://127.0.0.1:8080/actuator/health)
+code=${resp##*$'\n'}
+[[ ( "$code" == "401" || "$code" == "404" ) && "$resp" != *'"UP"'* ]] \
+  && pass "T-02-02 /actuator not served on app port ($code)" \
+  || bad  "T-02-02 /actuator on app port -> $code"
+
+# T-05-05 /me without a session -> 401 Problem Details (no HTML login page)
+resp=$(curl -s -D - -o /dev/null http://127.0.0.1:8080/api/v1/me)
+[[ "$resp" == *" 401"* && "$resp" == *"application/problem+json"* ]] \
+  && pass "T-05-05 GET /api/v1/me without cookie -> 401 problem+json" \
+  || bad  "T-05-05 /me without cookie"
 
 # T-02-06 web placeholder
 page=$(curl -s -w '\n%{http_code}' http://127.0.0.1:3000/)

@@ -6,6 +6,7 @@ ALL MD file DO not Push/
 # Secrets
 .env
 .env.*
+*.env
 !.env.example
 *.keyset
 *.keyset.json
