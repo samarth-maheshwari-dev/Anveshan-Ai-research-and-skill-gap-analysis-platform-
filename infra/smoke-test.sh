@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 fail=0
 pass() { echo "PASS  $1"; }
-bad()  { echo "FAIL  $1"; fail=1; }
+bad()  { echo "FAIL  $1"; [[ -n "${GITHUB_ACTIONS:-}" ]] && echo "::error::$1"; fail=1; }
 
 # T-02-01 public health
 body=$(curl -s -o - -w '\n%{http_code}' http://127.0.0.1:8080/api/v1/health)
@@ -15,7 +15,8 @@ code=${body##*$'\n'}; json=${body%$'\n'*}
   || bad  "T-02-01 GET /api/v1/health -> $code $json"
 
 # T-02-02 nothing exposed beyond localhost; actuator not published at all
-if docker compose port api 8081 >/dev/null 2>&1; then bad "T-02-02 actuator 8081 is published"; else pass "T-02-02 actuator 8081 not published"; fi
+mgmt=$(docker compose port api 8081 2>/dev/null)
+[[ "$mgmt" == *:[1-9]* ]] && bad "T-02-02 actuator 8081 is published at $mgmt" || pass "T-02-02 actuator 8081 not published"
 for svc_port in "postgres 5432" "api 8080" "web 3000"; do
   set -- $svc_port
   bind=$(docker compose port "$1" "$2" 2>/dev/null)
