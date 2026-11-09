@@ -17,7 +17,9 @@ ALL MD file DO not Push/
 *.tfstate.*
 *.tfvars
 *.dump
+*.dump.part
 *.sql.gz
+infra/backups/
 
 # Build output
 target/

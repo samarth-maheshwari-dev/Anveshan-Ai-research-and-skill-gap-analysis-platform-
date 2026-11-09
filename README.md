@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phase P01 (project skeleton + CI) is done. See [Progress](#progress).
+> **Status:** early development. Phases P00–P02 are done (accounts, project skeleton + CI, local Docker stack). See [Progress](#progress).
 
 ## What it does
 
@@ -36,10 +36,38 @@ apps/
 │           (identity, byok, research, sources, report, knowledge, skills,
 │            team, notify, search, export, mcp, shared)
 └── web/    Next.js frontend
-.github/workflows/   api.yml, web.yml
+infra/
+├── compose.yml      local stack: Postgres (pgvector) + API + Web
+├── smoke-test.sh    checks a running stack
+└── backup/run.sh    pg_dump backup with verify + 14-day rotation
+.github/workflows/   api.yml, web.yml, stack.yml
 ```
 
-## Run locally
+## Run the whole stack (Docker only)
+
+**Requirements:** Docker Desktop (running) and Git Bash (on Windows).
+
+```bash
+cd infra
+cp .env.example .env               # set PG_PASSWORD (e.g. openssl rand -hex 24)
+docker compose up -d --build --wait
+bash smoke-test.sh                 # expect: ALL SMOKE CHECKS PASSED
+```
+
+| URL | What |
+|---|---|
+| http://localhost:3000 | Web app |
+| http://localhost:8080/api/v1/health | Public health → `{"status":"UP"}` |
+
+All ports are bound to `127.0.0.1` only; the actuator port (8081) is not published at all.
+
+```bash
+docker compose --profile backup run --rm backup   # backup → $BACKUP_DIR
+API_TAG=<older-tag> docker compose up -d --no-build api   # roll back the API image
+docker compose down                                 # stop (data kept); add -v to delete data
+```
+
+## Develop locally
 
 **Requirements:** JDK 21, Node 24, pnpm 10, Docker Desktop (running).
 
@@ -63,10 +91,10 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 
 | Phase | What | Status |
 |---|---|---|
-| P00 | Accounts and keys (OAuth apps, API keys, encryption keyset) | In progress |
+| P00 | Accounts and keys (OAuth apps, API keys, encryption keyset) | ✅ Done |
 | P01 | Monorepo skeleton + CI | ✅ Done |
-| P02 | Local Docker Compose stack | Next |
-| P03 | Embedding model smoke test | Planned |
+| P02 | Local Docker Compose stack, public health endpoint, backups | ✅ Done |
+| P03 | Embedding model smoke test | Next |
 | P04 | Database schema v1 (identity + BYOK) | Planned |
 | P05 | Login with Google / GitHub | Planned |
 | P06 | Shared security (safe outbound HTTP, key encryption, log masking) | Planned |

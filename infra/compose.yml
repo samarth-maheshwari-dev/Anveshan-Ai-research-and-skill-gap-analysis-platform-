@@ -1,0 +1,86 @@
+# Anveshan local stack (zero-budget P02): Postgres + API + Web on one laptop.
+# Based on TECHSPEC §16.2. Caddy/HTTPS, SearXNG, Prometheus and Grafana come later.
+#
+#   cd infra
+#   cp .env.example .env        # then set PG_PASSWORD
+#   docker compose up -d --build --wait
+#   bash smoke-test.sh
+#
+# Every published port is bound to 127.0.0.1 only — nothing is reachable from the network.
+
+name: anveshan
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.4-pg17
+    environment:
+      POSTGRES_DB: anveshan
+      POSTGRES_USER: anveshan
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in infra/.env}
+    ports: ["127.0.0.1:5432:5432"]          # for running the API from the IDE; localhost only
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anveshan -d anveshan"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    mem_limit: 1g
+
+  api:
+    build: ../apps/api
+    image: anveshan-api:${API_TAG:-dev}
+    environment:
+      ANV_DB_URL: jdbc:postgresql://postgres:5432/anveshan
+      ANV_DB_USER: anveshan
+      ANV_DB_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in infra/.env}
+    ports: ["127.0.0.1:8080:8080"]          # 8081 (actuator) is NOT published
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+    mem_limit: 1536m
+
+  web:
+    build: ../apps/web
+    image: anveshan-web:${WEB_TAG:-dev}
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    mem_limit: 512m
+
+  # On-demand backup (TECHSPEC §16.7, local version):
+  #   docker compose --profile backup run --rm backup
+  backup:
+    profiles: ["backup"]
+    image: pgvector/pgvector:0.8.4-pg17     # same major version as the server → matching pg_dump
+    environment:
+      PGHOST: postgres
+      PGUSER: anveshan
+      PGDATABASE: anveshan
+      PGPASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in infra/.env}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backup/run.sh:/run.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["bash", "/run.sh"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+volumes:
+  pg_data: {}
