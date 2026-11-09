@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P02 are done (accounts, project skeleton + CI, local Docker stack). See [Progress](#progress).
+> **Status:** early development. Phases P00–P03 are done (accounts, project skeleton + CI, local Docker stack, embeddings). See [Progress](#progress).
 
 ## What it does
 
@@ -23,6 +23,7 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 | Part | Technology |
 |---|---|
 | Backend | Java 21, Spring Boot 4.1, Spring Modulith (modular monolith) |
+| Embeddings | multilingual-e5-small via ONNX Runtime (runs inside the backend, no external API) |
 | Database | PostgreSQL 17 + pgvector, Flyway migrations |
 | Frontend | Next.js 16 (App Router), TypeScript (strict), Tailwind CSS, shadcn/ui |
 | Tests | JUnit 5, Testcontainers (real Postgres), Vitest, Playwright |
@@ -72,6 +73,9 @@ docker compose down                                 # stop (data kept); add -v t
 **Requirements:** JDK 21, Node 24, pnpm 10, Docker Desktop (running).
 
 ```bash
+# One-time: download the embedding model (~490 MB, checksum-verified, stored in ~/.cache/anveshan)
+bash apps/api/scripts/fetch-model.sh
+
 # Backend: build + all tests (starts a throwaway Postgres in Docker)
 cd apps/api
 ./mvnw verify            # Windows: .\mvnw verify
@@ -94,8 +98,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P00 | Accounts and keys (OAuth apps, API keys, encryption keyset) | ✅ Done |
 | P01 | Monorepo skeleton + CI | ✅ Done |
 | P02 | Local Docker Compose stack, public health endpoint, backups | ✅ Done |
-| P03 | Embedding model smoke test | Next |
-| P04 | Database schema v1 (identity + BYOK) | Planned |
+| P03 | Embeddings: multilingual-e5-small (ONNX, in-JVM, CPU) — ~12 chunks/s on 2 threads | ✅ Done |
+| P04 | Database schema v1 (identity + BYOK) | Next |
 | P05 | Login with Google / GitHub | Planned |
 | P06 | Shared security (safe outbound HTTP, key encryption, log masking) | Planned |
 | P07 | Bring-your-own-key backend | Planned |

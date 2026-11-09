@@ -33,5 +33,12 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/anveshan/models
+          key: e5-small-614241f
+      - name: Fetch embedding model (verified by SHA-256)
+        run: bash scripts/fetch-model.sh
       - name: Build and test (unit + integration)
         run: ./mvnw -B verify
