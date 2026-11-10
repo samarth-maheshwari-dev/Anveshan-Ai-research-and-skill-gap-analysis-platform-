@@ -3,30 +3,32 @@ import { cn } from "@/lib/utils";
 import { LoaderCircle } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 
-/** Button (DESIGN §9.1). One `primary` per screen region; destructive actions are never primary. */
+/**
+ * Button (DESIGN §9.1). Green `primary` is the 10 % — one per screen region. Everything else is
+ * black/white. Flat, 4px radius, ≥ 44px tall on phones. Destructive actions are never primary.
+ */
 export const buttonVariants = cva(
   "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md border font-medium " +
-    "transition-[background-color,border-color,color,transform,box-shadow] duration-150 ease-standard " +
-    "active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 " +
+    "transition-[background-color,border-color,color,opacity] duration-150 ease-standard " +
+    "disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 " +
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "border-transparent bg-primary text-primary-foreground hover:-translate-y-px hover:bg-primary-hover",
-        secondary: "border-border-strong bg-surface text-foreground hover:bg-surface-2",
+        primary: "border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover",
+        secondary: "border-border-strong bg-transparent text-foreground hover:border-foreground",
         ghost: "border-transparent bg-transparent text-foreground hover:bg-surface-2",
-        soft: "border-transparent bg-primary-soft text-primary hover:bg-surface-3",
-        danger: "border-transparent bg-danger text-primary-foreground hover:opacity-90 dark:text-background",
-        link: "h-auto border-transparent bg-transparent p-0 text-primary underline-offset-4 hover:underline",
+        danger: "border-danger bg-transparent text-danger hover:bg-danger-soft",
+        link: "h-auto border-transparent bg-transparent p-0 text-primary underline underline-offset-4 decoration-1 hover:decoration-2",
       },
       size: {
-        sm: "h-8 px-3 text-body-sm [&_svg]:size-4",
-        md: "h-10 px-4 text-body [&_svg]:size-4",
-        lg: "h-12 px-5 text-base font-semibold [&_svg]:size-5",
-        icon: "size-10 [&_svg]:size-5",
+        sm: "h-8 px-3 text-body-sm max-sm:h-11 [&_svg]:size-4",
+        md: "h-10 px-4 text-body max-sm:h-11 [&_svg]:size-4",
+        lg: "h-12 px-6 text-body [&_svg]:size-4",
+        icon: "size-10 max-sm:size-11 [&_svg]:size-5",
       },
     },
-    compoundVariants: [{ variant: "link", className: "h-auto px-0" }],
+    compoundVariants: [{ variant: "link", className: "h-auto px-0 max-sm:min-h-11" }],
     defaultVariants: { variant: "secondary", size: "md" },
   },
 );

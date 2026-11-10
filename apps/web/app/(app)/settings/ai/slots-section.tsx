@@ -1,16 +1,16 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { CircleAlert, Plus, X } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardTitle, Skeleton } from "@/components/ui/card";
+import { ErrorLine } from "@/components/anveshan/error-line";
+import { Card, CardTitle, Overline, Skeleton } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
 import { ApiError } from "@/lib/api/errors";
 import { useConnections, useModels, type Connection } from "@/lib/api/hooks/connections";
 import { SLOT_LABELS, TASK_SLOTS, useSaveSlots, useSlots, type RouteChoice, type Slots } from "@/lib/api/hooks/slots";
-import { cn } from "@/lib/utils";
 
 /** Settings → AI: task routing — primary model + up to 4 fallbacks per slot (A-FR-5). */
 export function SlotsSection() {
@@ -46,11 +46,20 @@ export function SlotsSection() {
 
   return (
     <Card>
-      <CardTitle>Task routing</CardTitle>
+      <Overline>02 — Routing</Overline>
+      <CardTitle className="mt-2">Task routing</CardTitle>
       <p className="mt-1 text-body-sm text-muted-foreground">
         Which model does each job. If the first one hits its limit, Anveshan moves to the next (up to 5).
       </p>
-      {slots.isPending || connections.isPending || !draft ? (
+      {slots.isError || connections.isError ? (
+        <ErrorLine
+          message="Couldn't load your task routing."
+          onRetry={() => {
+            void slots.refetch();
+            void connections.refetch();
+          }}
+        />
+      ) : slots.isPending || connections.isPending || !draft ? (
         <div className="mt-6 space-y-3">
           {TASK_SLOTS.map((s) => (
             <Skeleton key={s} className="h-10 w-full" />
@@ -72,7 +81,11 @@ export function SlotsSection() {
             ))}
           </div>
           {error && (
-            <p role="alert" className="mt-4 rounded-md bg-danger-soft p-3 text-body-sm">
+            <p
+              role="alert"
+              className="mt-4 flex items-start gap-2 rounded-md border border-danger/40 bg-danger-soft p-3 text-body-sm"
+            >
+              <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-danger" />
               {error}
             </p>
           )}
@@ -117,9 +130,9 @@ function SlotEditor({ slot, routes, connections, onChange }: SlotEditorProps) {
       </div>
       {rows.length < 5 && (
         <Button
-          variant="link"
+          variant="ghost"
           size="sm"
-          className="mt-2"
+          className="mt-2 -ml-3 text-muted-foreground hover:text-foreground"
           onClick={() => onChange([...rows, { connectionId: connections[0]?.id ?? "", model: "" }])}
         >
           <Plus aria-hidden /> Add fallback
@@ -142,7 +155,7 @@ function RouteRow({ idPrefix, index, route, connections, onChange, onRemove }: R
   const models = useModels(route.connectionId || undefined);
   const listId = `${idPrefix}-models`;
   return (
-    <div className={cn("grid items-end gap-2 sm:grid-cols-[1fr_1fr_auto]")}>
+    <div className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_auto]">
       <div className="flex flex-col gap-1">
         <Label htmlFor={`${idPrefix}-c`} className={index > 0 ? "sr-only sm:not-sr-only" : undefined}>
           {index === 0 ? "Connection" : `Fallback ${index}`}
@@ -171,7 +184,7 @@ function RouteRow({ idPrefix, index, route, connections, onChange, onRemove }: R
           onChange={(e) => onChange({ ...route, model: e.target.value })}
         />
         <datalist id={listId}>
-          {(models.data ?? []).map((m) => (
+          {(models.data ?? []).filter((m) => m.chat !== false).map((m) => (
             <option key={m.id} value={m.id}>
               {m.free ? "free" : undefined}
             </option>

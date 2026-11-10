@@ -34,19 +34,24 @@ const PAIRS: [string, string, number][] = [
   ["foreground", "surface", 4.5],
   ["muted-foreground", "surface", 4.5],
   ["muted-foreground", "surface-2", 4.5],
+  ["muted-foreground", "background", 4.5],
   ["subtle-foreground", "surface", 3.0],
   ["primary-foreground", "primary", 4.5],
   ["primary", "surface", 4.5],
+  ["primary", "background", 4.5],
   ["primary", "primary-soft", 4.5],
-  ["accent-foreground", "accent", 4.5],
+  ["inverse-foreground", "inverse", 4.5],
+  ["inverse-muted", "inverse", 4.5],
   ["foreground", "marker", 4.5],
   ["danger", "surface", 4.5],
+  ["foreground", "danger-soft", 4.5],
   ["trust-supported", "trust-supported-bg", 4.5],
   ["trust-weak", "trust-weak-bg", 4.5],
   ["trust-conflict", "trust-conflict-bg", 4.5],
   ["trust-none", "trust-none-bg", 4.5],
   ["trust-approved", "trust-approved-bg", 4.5],
   ["input", "surface", 3.0],
+  ["ring", "background", 3.0],
 ];
 
 describe.each([":root", ".dark"] as const)("T-08-06 contrast in %s", (theme) => {
@@ -64,10 +69,17 @@ describe.each([":root", ".dark"] as const)("T-08-06 contrast in %s", (theme) => 
   });
 });
 
-describe("contrast() matches DESIGN §13.2's published numbers", () => {
-  test("light foreground on background = 16.06, Supported = 5.06", () => {
-    const t = tokens(":root");
-    expect(contrast(t["foreground"]!, t["background"]!)).toBeCloseTo(16.06, 1);
-    expect(contrast(t["trust-supported"]!, t["trust-supported-bg"]!)).toBeCloseTo(5.06, 1);
+describe("contrast() is the WCAG formula and matches DESIGN §13.2's published numbers", () => {
+  test("canonical WCAG values: black on white = 21, white on white = 1", () => {
+    expect(contrast("#000000", "#FFFFFF")).toBeCloseTo(21, 2);
+    expect(contrast("#FFFFFF", "#FFFFFF")).toBeCloseTo(1, 5);
+  });
+
+  test("light foreground on background = 18.97, Supported = 5.74; dark primary button text = 9.85", () => {
+    const light = tokens(":root");
+    const dark = tokens(".dark");
+    expect(contrast(light["foreground"]!, light["background"]!)).toBeCloseTo(18.97, 1);
+    expect(contrast(light["trust-supported"]!, light["trust-supported-bg"]!)).toBeCloseTo(5.74, 1);
+    expect(contrast(dark["primary-foreground"]!, dark["primary"]!)).toBeCloseTo(9.85, 1);
   });
 });

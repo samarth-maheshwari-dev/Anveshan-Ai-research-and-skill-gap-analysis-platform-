@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -52,8 +54,11 @@ final class FakeProvider {
 
 	static final List<String> PROVIDERS = List.of("gemini", "groq", "openrouter", "openai", "anthropic", "tavily");
 
+	private static final Pattern MODEL = Pattern.compile("\"model\"\\s*:\\s*\"([^\"]+)\"");
+
 	private final HttpServer server;
 	private final Map<String, Deque<Reply>> scripts = new ConcurrentHashMap<>();
+	private final Map<String, Map<String, Reply>> modelReplies = new ConcurrentHashMap<>();
 	final List<Request> requests = Collections.synchronizedList(new ArrayList<>());
 
 	FakeProvider() {
@@ -76,10 +81,41 @@ final class FakeProvider {
 		scripts.computeIfAbsent(apiKey, k -> new ArrayDeque<>()).addAll(List.of(replies));
 	}
 
+	/** Every request with {@code apiKey} asking for {@code model} gets {@code reply} (not consumed; wins over the queue). */
+	void whenModel(String apiKey, String model, Reply reply) {
+		modelReplies.computeIfAbsent(apiKey, k -> new ConcurrentHashMap<>()).put(model, reply);
+	}
+
 	List<Request> requestsWithKey(String apiKey) {
 		synchronized (requests) {
 			return requests.stream().filter(r -> apiKey.equals(keyOf(r.headers()))).toList();
 		}
+	}
+
+	/** Models asked for in chat/test calls made with {@code apiKey}, in order. */
+	List<String> chatModels(String apiKey) {
+		return requestsWithKey(apiKey).stream().map(r -> modelOf(r.body())).filter(m -> m != null).toList();
+	}
+
+	/** A Gemini-style {@code /models} reply ({@code models/} prefix, as Google sends it). */
+	static Reply geminiModels(String... ids) {
+		StringBuilder data = new StringBuilder();
+		for (String id : ids) {
+			data.append(data.isEmpty() ? "" : ",").append("{\"id\":\"models/").append(id)
+					.append("\",\"object\":\"model\",\"owned_by\":\"google\"}");
+		}
+		return Reply.json(200, "{\"object\":\"list\",\"data\":[" + data + "]}");
+	}
+
+	/** What Gemini answers for a model this (new) project can't use. */
+	static Reply retired(String model) {
+		return Reply.json(404, "{\"error\":{\"code\":404,\"message\":\"models/" + model
+				+ " is not found for API version v1beta, or is not supported for generateContent.\",\"status\":\"NOT_FOUND\"}}");
+	}
+
+	static String modelOf(String body) {
+		Matcher m = MODEL.matcher(body == null ? "" : body);
+		return m.find() ? m.group(1) : null;
 	}
 
 	private void handle(HttpExchange ex) throws IOException {
@@ -90,8 +126,13 @@ final class FakeProvider {
 		requests.add(new Request(ex.getRequestMethod(), path, headers, body));
 
 		String key = keyOf(headers);
+		String model = modelOf(body);
+		Map<String, Reply> byModel = key == null ? null : modelReplies.get(key);
+		Reply reply = byModel == null || model == null ? null : byModel.get(model);
 		Deque<Reply> q = key == null ? null : scripts.get(key);
-		Reply reply = q == null ? null : q.poll();
+		if (reply == null && q != null) {
+			reply = q.poll();
+		}
 		if (reply == null) {
 			reply = defaultReply(path);
 		}

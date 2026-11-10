@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/errors";
-import type { ModelInfo, Provider } from "@/lib/api/hooks/connections";
+import type { Provider } from "@/lib/api/hooks/connections";
 
 export type ProviderInfo = {
   id: Provider;
@@ -17,7 +17,7 @@ export const PROVIDERS: Record<Exclude<Provider, "TAVILY">, ProviderInfo> = {
   GEMINI: {
     id: "GEMINI",
     name: "Google Gemini",
-    tagline: "Recommended · free tier",
+    tagline: "Recommended",
     free: true,
     keyUrl: "https://aistudio.google.com/app/apikey",
     keyUrlLabel: "Open Google AI Studio",
@@ -31,7 +31,7 @@ export const PROVIDERS: Record<Exclude<Provider, "TAVILY">, ProviderInfo> = {
   GROQ: {
     id: "GROQ",
     name: "Groq",
-    tagline: "Free tier · very fast",
+    tagline: "Very fast",
     free: true,
     keyUrl: "https://console.groq.com/keys",
     keyUrlLabel: "Open Groq console",
@@ -79,51 +79,61 @@ export const PROVIDERS: Record<Exclude<Provider, "TAVILY">, ProviderInfo> = {
   },
 };
 
-const NOT_CHAT = /(embed|whisper|tts|audio|image|imagen|vision-only|guard|moderation|veo|transcribe|realtime|search)/i;
-
-/** Per-provider taste: a fast, cheap, general chat model is the best default for every task. */
-const PREFERRED: Partial<Record<Provider, RegExp[]>> = {
-  GEMINI: [/^gemini-[\d.]+-flash$/, /^gemini-.*flash(?!.*(lite|thinking|exp|preview))/, /^gemini-.*flash/],
-  GROQ: [/llama.*(versatile|instant)/, /llama/],
-  OPENROUTER: [/:free$/],
-  OPENAI: [/^gpt-[\d.o]+-mini$/, /mini/],
-  ANTHROPIC: [/haiku/, /sonnet/],
-};
-
-/** The model the wizard tests with and fills into every slot. Undefined if the list has no chat model. */
-export function preferredModel(provider: Provider, models: ModelInfo[]): string | undefined {
-  const chat = models.map((m) => m.id ?? "").filter((id) => id && !NOT_CHAT.test(id));
-  for (const pattern of PREFERRED[provider] ?? []) {
-    const hit = chat.find((id) => pattern.test(id));
-    if (hit) return hit;
-  }
-  return chat[0];
+/** Human name for a provider id ("GEMINI" → "Google Gemini"); Tavily isn't in the LLM catalogue. */
+export function providerName(id: Provider | undefined): string {
+  if (!id) return "the provider";
+  return id === "TAVILY" ? "Tavily" : PROVIDERS[id].name;
 }
 
 export type WizardError = { kind: "key" | "model" | "network" | "url" | "other"; message: string };
 
-/** Plain-language wizard errors (APPFLOW §4.3, DESIGN §12.2: say what happened + what to do, no blame). */
-export function describeTestError(error: unknown, providerName: string): WizardError {
+/**
+ * Where the message is shown, which decides what "pick another model" means there: the wizard's model
+ * list, the wizard's typed field (the provider gave no list), or Task routing (Settings has no picker).
+ */
+export type ErrorPlace = "wizard" | "wizard-typed" | "settings";
+
+const PICK_MODEL: Record<ErrorPlace, string> = {
+  wizard: "Choose one from the model list.",
+  "wizard-typed": "Type a model name below.",
+  settings: "Set a model for this key in Task routing.",
+};
+
+/**
+ * Plain-language test errors (APPFLOW §4.3, DESIGN §12.2: say what happened + what to do, no blame).
+ * Maps the API's machine-readable Problem `reason` (CONNECTION_TEST_FAILED) — never its wording.
+ * `kind` drives the wizard: "key" clears the input, "model" offers the model picker.
+ */
+export function describeTestError(error: unknown, providerName: string, place: ErrorPlace = "wizard"): WizardError {
+  const pickModel = PICK_MODEL[place];
   if (error instanceof ApiError) {
-    const detail = (error.problem.detail ?? "").toLowerCase();
+    const unreachable: WizardError = { kind: "network", message: `Couldn't reach ${providerName} right now. Try again in a minute.` };
     if (error.code === "UNSAFE_URL") {
       return { kind: "url", message: "This address can't be used. Use a public https URL." };
     }
     if (error.code === "VALIDATION_FAILED") {
       return { kind: "key", message: error.problem.detail ?? "Please check the key and try again." };
     }
-    if (detail.includes("key invalid") || detail.includes("no credit") || detail.includes("can't be read")) {
-      return { kind: "key", message: "This key didn't work. Check that you copied the whole key." };
-    }
-    if (detail.includes("model not found") || detail.includes("no chat models")) {
-      return { kind: "model", message: "Your key works, but this model isn't available. Pick another." };
-    }
-    if (detail.includes("reach") || detail.includes("unavailable") || detail.includes("http 5") || error.status >= 500) {
-      return { kind: "network", message: `Couldn't reach ${providerName} right now. Try again in a minute.` };
-    }
     if (error.code === "RATE_LIMITED" && error.status === 429) {
       return { kind: "other", message: "Too many tests in the last hour. Try again later." };
     }
+    switch (error.problem.reason) {
+      case "KEY_INVALID":
+        return { kind: "key", message: "This key didn't work. Check that you copied the whole key." };
+      case "KEY_UNREADABLE":
+        return { kind: "key", message: "The saved key can't be read anymore. Paste it again." };
+      case "NO_CREDIT":
+        return { kind: "key", message: `Your ${providerName} account has no credit left. Add credit or use a free provider.` };
+      case "MODEL_NOT_FOUND":
+        return { kind: "model", message: `Your key works, but this model isn't available. ${pickModel}` };
+      case "NO_CHAT_MODEL":
+        return { kind: "model", message: `Your key works, but we couldn't find a model it can use. ${pickModel}` };
+      case "PROVIDER_ERROR":
+        return { kind: "model", message: `${providerName} didn't accept the test request with this model. ${pickModel}` };
+      case "PROVIDER_UNAVAILABLE":
+        return unreachable;
+    }
+    if (error.status >= 500) return unreachable;
   }
   if (error instanceof TypeError) {
     return { kind: "network", message: "Couldn't reach Anveshan. Check your connection and try again." };

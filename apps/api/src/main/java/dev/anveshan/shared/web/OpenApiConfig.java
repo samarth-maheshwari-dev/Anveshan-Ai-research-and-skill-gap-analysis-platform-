@@ -46,7 +46,7 @@ class OpenApiConfig {
 							"type", new StringSchema(), "title", new StringSchema(), "status", new IntegerSchema(),
 							"detail", new StringSchema(), "instance", new StringSchema(), "code", new StringSchema(),
 							"errors", new ArraySchema().items(fieldError), "resumeAt", new StringSchema(),
-							"slot", new StringSchema())));
+							"slot", new StringSchema(), "reason", new StringSchema())));
 			api.getComponents().addSchemas("Problem", problem);
 			// Logout is a Spring Security filter, not a controller, so springdoc can't see it.
 			api.getPaths().addPathItem("/api/v1/auth/logout", new io.swagger.v3.oas.models.PathItem()

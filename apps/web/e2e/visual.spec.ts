@@ -5,7 +5,7 @@ import { installFakeApi, verifiedConnection } from "./fake-api";
 /**
  * T-08-08 support: every P08 screen in light + dark at 1440 px and 390 px. Saves screenshots to
  * test-results/screens for a human review, and checks what a machine can: no horizontal scroll,
- * the theme class applied, and the page background is the theme's paper color.
+ * the theme class applied, and the page background is the theme's base color (globals.css).
  */
 const SCREENS = [
   { name: "landing", path: "/", signedIn: false },
@@ -15,14 +15,15 @@ const SCREENS = [
   { name: "settings-ai", path: "/settings/ai", signedIn: true },
 ] as const;
 
-const BG = { light: "rgb(250, 248, 245)", dark: "rgb(14, 13, 26)" };
+const BG = { light: "rgb(250, 250, 250)", dark: "rgb(10, 10, 10)" };
 
 for (const theme of ["light", "dark"] as const) {
   for (const width of [1440, 390]) {
     for (const screen of SCREENS) {
       test(`T-08-08 ${screen.name} · ${theme} · ${width}px`, async ({ page, context }) => {
         await page.setViewportSize({ width, height: width > 500 ? 900 : 844 });
-        await page.emulateMedia({ colorScheme: theme });
+        // The user's choice in the menu (next-themes stores it as "theme"); dark is the default.
+        await page.addInitScript((t) => window.localStorage.setItem("theme", t), theme);
         await installFakeApi(page, context, {
           signedIn: screen.signedIn,
           connections: screen.signedIn ? [verifiedConnection({ label: "My Gemini", provider: "GEMINI" })] : [],
@@ -42,3 +43,12 @@ for (const theme of ["light", "dark"] as const) {
     }
   }
 }
+
+test("T-08-19 black-first: a first visit is dark even when the OS prefers light", async ({ page, context }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await installFakeApi(page, context);
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(true);
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(BG.dark);
+});

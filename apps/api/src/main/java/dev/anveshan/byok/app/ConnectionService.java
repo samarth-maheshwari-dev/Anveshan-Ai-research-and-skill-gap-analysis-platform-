@@ -2,13 +2,15 @@ package dev.anveshan.byok.app;
 
 import java.net.URI;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ import dev.anveshan.byok.domain.AiConnection;
 import dev.anveshan.byok.domain.ByokEnums.AiProvider;
 import dev.anveshan.byok.domain.ByokEnums.ConnectionKind;
 import dev.anveshan.byok.domain.ByokEnums.ConnectionStatus;
+import dev.anveshan.byok.domain.ModelRanking;
 import dev.anveshan.byok.domain.ProviderPreset;
 import dev.anveshan.byok.infra.AiConnectionRepository;
 import dev.anveshan.byok.infra.ByokProperties;
@@ -36,7 +39,24 @@ import jakarta.persistence.EntityManager;
 @Service
 public class ConnectionService {
 
-	static final Duration MODELS_CACHE = Duration.ofHours(1);
+	static final String RATE_LIMITED_NOTE = "Key is valid but rate-limited right now";
+
+	/** Machine-readable cause of a failed test, sent as the Problem {@code reason}; the UI words it. */
+	public enum TestFailure {
+
+		KEY_INVALID, NO_CREDIT, KEY_UNREADABLE, MODEL_NOT_FOUND, NO_CHAT_MODEL, PROVIDER_UNAVAILABLE, PROVIDER_ERROR;
+
+		static TestFailure of(ProviderException e) {
+			return switch (e.code()) {
+				case "AUTH_ERROR" -> KEY_INVALID;
+				case "PAYMENT_REQUIRED" -> NO_CREDIT;
+				case "MODEL_NOT_FOUND" -> MODEL_NOT_FOUND;
+				case "UNREACHABLE", "PROVIDER_UNAVAILABLE" -> PROVIDER_UNAVAILABLE;
+				default -> PROVIDER_ERROR;
+			};
+		}
+
+	}
 
 	public record CreateCommand(ConnectionKind kind, AiProvider provider, String label, String apiKey, String baseUrl) {
 	}
@@ -52,7 +72,10 @@ public class ConnectionService {
 
 	}
 
-	/** {@code defaultSlotsSet}: this test filled the user's empty task slots with this model (A-FR-6). */
+	/**
+	 * {@code sampleModel}: the model that answered (the backend picks it when none was asked for).
+	 * {@code defaultSlotsSet}: this test filled the user's empty task slots with that model (A-FR-6).
+	 */
 	public record TestResult(ConnectionStatus status, long latencyMs, String sampleModel, String note,
 			boolean defaultSlotsSet) {
 	}
@@ -138,61 +161,170 @@ public class ConnectionService {
 		modelsCache.remove(id);
 	}
 
-	/** Not transactional: the provider call happens outside any DB transaction. */
+	/**
+	 * Proves the key works (A-FR-4). Without a model the backend picks: routed models → preset hint →
+	 * ranked live list, trying up to {@code anveshan.models.test-candidates}. Only key problems (auth, no
+	 * credit, unreadable) mark the connection FAILING; a missing model or a provider outage keeps the last
+	 * status.
+	 * Not transactional: the provider calls happen outside any DB transaction.
+	 */
 	public TestResult test(UUID owner, UUID id, String requestedModel) {
 		AiConnection c = owned(owner, id);
 		ResolvedConnection rc = resolveOrFail(c);
 		LlmTransport transport = vault.transportFor(rc.preset());
-		long t0 = System.nanoTime();
+		String explicit = requestedModel == null || requestedModel.isBlank() ? null : requestedModel.strip();
 		try {
-			String model = c.getKind() == ConnectionKind.SEARCH ? null : pickModel(rc, transport, requestedModel);
-			String used = transport.test(rc, model);
-			long ms = (System.nanoTime() - t0) / 1_000_000;
-			save(c, ConnectionStatus.VERIFIED, null);
-			return new TestResult(ConnectionStatus.VERIFIED, ms, used, null, fillSlots(c, used));
+			if (c.getKind() == ConnectionKind.SEARCH) {
+				long t0 = System.nanoTime();
+				transport.test(rc, null);
+				save(c, ConnectionStatus.VERIFIED, null);
+				return new TestResult(ConnectionStatus.VERIFIED, msSince(t0), null, null, false);
+			}
+			List<String> routed = explicit != null ? List.of() : slots.modelsRoutedTo(owner, c.getId());
+			List<String> candidates = explicit != null ? List.of(explicit) : candidates(routed, c, rc);
+			return testModels(c, rc, transport, candidates, explicit != null, routed);
 		}
 		catch (ProviderRateLimitException e) {
-			save(c, ConnectionStatus.VERIFIED, "Key is valid but rate-limited right now");
-			return new TestResult(ConnectionStatus.VERIFIED, e.latencyMs(), requestedModel,
-					"Key is valid but rate-limited right now", fillSlots(c, requestedModel));
+			// e.g. the model list itself was rate-limited: the key is valid, no model is proven yet
+			save(c, ConnectionStatus.VERIFIED, RATE_LIMITED_NOTE);
+			return new TestResult(ConnectionStatus.VERIFIED, e.latencyMs(), null, RATE_LIMITED_NOTE, false);
 		}
 		catch (ProviderAuthException e) {
 			save(c, ConnectionStatus.FAILING, e.getMessage());
-			throw testFailed(e.getMessage());
-		}
-		catch (ProviderModelNotFoundException e) {
-			save(c, ConnectionStatus.FAILING, "Model not found");
-			throw testFailed("Model not found");
+			throw testFailed(TestFailure.of(e), e.getMessage());
 		}
 		catch (ProviderException e) {
-			save(c, ConnectionStatus.FAILING, e.getMessage());
-			throw testFailed(e.getMessage());
+			throw testFailed(TestFailure.of(e), e.getMessage()); // the provider failed, not the key
 		}
 	}
 
-	/** Live model list, cached per connection for 1 hour (A-FR-5). */
+	/**
+	 * Live model list, cached per connection for {@code anveshan.models.cache-ttl} (A-FR-5): chat models
+	 * first, best first.
+	 */
 	public List<ModelInfo> models(UUID owner, UUID id, boolean freeOnly) {
 		AiConnection c = owned(owner, id);
 		if (c.getKind() == ConnectionKind.SEARCH) {
 			return List.of();
 		}
-		Instant now = clock.instant();
-		CachedModels cached = modelsCache.get(id);
-		List<ModelInfo> models;
-		if (cached != null && cached.at().plus(MODELS_CACHE).isAfter(now)) {
-			models = cached.models();
+		List<ModelInfo> listed;
+		try {
+			listed = listModels(c, () -> resolveOrFail(c));
 		}
-		else {
-			ResolvedConnection rc = resolveOrFail(c);
+		catch (ProviderException e) {
+			throw ApiException.unprocessable("CONNECTION_TEST_FAILED", "Couldn't load models", e.getMessage())
+					.withProperty("reason", TestFailure.of(e).name());
+		}
+		List<String> ranked = ModelRanking.rank(listed.stream().map(ModelInfo::id).toList(),
+				props.rankingRules(c.getProvider()));
+		Map<String, Integer> rank = new HashMap<>();
+		for (int i = 0; i < ranked.size(); i++) {
+			rank.put(ranked.get(i), i);
+		}
+		return listed.stream()
+				.map(m -> m.withChat(rank.containsKey(m.id())))
+				.filter(m -> !freeOnly || m.free())
+				.sorted(Comparator.comparingInt(m -> rank.getOrDefault(m.id(), Integer.MAX_VALUE)))
+				.toList();
+	}
+
+	/**
+	 * Tries each candidate once. Not found or rate-limited → next (a free tier can have a 0 limit on one
+	 * model while another works); any other error stops the test. If a routed model was skipped, the
+	 * result says so — research would still use it until the user changes Task routing.
+	 */
+	private TestResult testModels(AiConnection c, ResolvedConnection rc, LlmTransport transport, List<String> candidates,
+			boolean explicit, List<String> routed) {
+		String skippedRouted = null;
+		boolean skippedForLimit = false;
+		ProviderRateLimitException limited = null;
+		String limitedModel = null;
+		for (String model : candidates) {
+			long t0 = System.nanoTime();
 			try {
-				models = List.copyOf(vault.transportFor(rc.preset()).models(rc));
+				transport.test(rc, model);
+				String note = skippedRouted == null ? null : skippedNote(skippedRouted, model, skippedForLimit);
+				save(c, ConnectionStatus.VERIFIED, note);
+				return new TestResult(ConnectionStatus.VERIFIED, msSince(t0), model, note, fillSlots(c, model));
 			}
-			catch (ProviderException e) {
-				throw ApiException.unprocessable("CONNECTION_TEST_FAILED", "Couldn't load models", e.getMessage());
+			catch (ProviderModelNotFoundException e) {
+				// auth passed, this model just can't be used with this key: try the next one
+				skippedRouted = skippedRouted == null && routed.contains(model) ? model : skippedRouted;
 			}
-			modelsCache.put(id, new CachedModels(now, models));
+			catch (ProviderRateLimitException e) {
+				if (skippedRouted == null && routed.contains(model)) {
+					skippedRouted = model;
+					skippedForLimit = true;
+				}
+				if (limited == null) {
+					limited = e;
+					limitedModel = model;
+				}
+			}
 		}
-		return freeOnly ? models.stream().filter(ModelInfo::free).toList() : models;
+		if (limited != null) {
+			save(c, ConnectionStatus.VERIFIED, RATE_LIMITED_NOTE);
+			return new TestResult(ConnectionStatus.VERIFIED, limited.latencyMs(), limitedModel, RATE_LIMITED_NOTE,
+					fillSlots(c, limitedModel));
+		}
+		throw explicit ? testFailed(TestFailure.MODEL_NOT_FOUND, "Model not found")
+				: testFailed(TestFailure.NO_CHAT_MODEL, "No usable chat model found for this key");
+	}
+
+	/**
+	 * What a test without an explicit model tries, best first: the models this connection is routed to →
+	 * the preset's known-good hint (only if the provider lists it, or lists nothing — so a retired hint
+	 * can't break the test) → the live list ranked by {@link ModelRanking}.
+	 */
+	private List<String> candidates(List<String> routed, AiConnection c, ResolvedConnection rc) {
+		LinkedHashSet<String> out = new LinkedHashSet<>(routed);
+		String hint = rc.preset().testModel();
+		List<String> listed;
+		try {
+			listed = listModels(c, () -> rc).stream().map(ModelInfo::id).toList();
+		}
+		catch (ProviderModelNotFoundException e) {
+			listed = List.of(); // this endpoint has no model list
+		}
+		catch (ProviderAuthException e) {
+			throw e; // a key problem: stop here
+		}
+		catch (ProviderException e) {
+			// list rate-limited or unavailable: the routed models and the hint can still be tried
+			if (out.isEmpty() && hint == null) {
+				throw e; // nothing else to try: report the provider problem
+			}
+			listed = List.of();
+		}
+		if (hint != null && (listed.isEmpty() || listed.contains(hint))) {
+			out.add(hint);
+		}
+		out.addAll(ModelRanking.rank(listed, props.rankingRules(c.getProvider())));
+		return out.stream().limit(props.models().testCandidates()).toList();
+	}
+
+	/** The provider's raw list, cached per connection; the key is only decrypted on a cache miss. */
+	private List<ModelInfo> listModels(AiConnection c, Supplier<ResolvedConnection> resolver) {
+		Instant now = clock.instant();
+		CachedModels cached = modelsCache.get(c.getId());
+		if (cached != null && cached.at().plus(props.models().cacheTtl()).isAfter(now)) {
+			return cached.models();
+		}
+		ResolvedConnection rc = resolver.get();
+		List<ModelInfo> models = List.copyOf(vault.transportFor(rc.preset()).models(rc));
+		modelsCache.put(c.getId(), new CachedModels(now, models));
+		return models;
+	}
+
+	/**
+	 * A rate limit is temporary (research falls back on 429 by itself), so it only gets a heads-up; a model
+	 * that's gone needs the user to change Task routing.
+	 */
+	static String skippedNote(String routedModel, String usedModel, boolean rateLimited) {
+		return rateLimited
+				? routedModel + " is rate-limited right now; " + usedModel + " answered"
+				: routedModel + " didn't answer, " + usedModel + " did. Research still uses " + routedModel
+						+ " — change it in Task routing";
 	}
 
 	private boolean fillSlots(AiConnection c, String model) {
@@ -209,22 +341,8 @@ public class ConnectionService {
 		}
 		catch (KeyVault.KeyUnreadableException e) {
 			save(c, ConnectionStatus.FAILING, e.getMessage());
-			throw testFailed(e.getMessage());
+			throw testFailed(TestFailure.KEY_UNREADABLE, e.getMessage());
 		}
-	}
-
-	/** Requested model, else the first chat-capable model the provider lists. */
-	private static String pickModel(ResolvedConnection rc, LlmTransport transport, String requested) {
-		if (requested != null && !requested.isBlank()) {
-			return requested.strip();
-		}
-		if (rc.preset().testModel() != null) {
-			return rc.preset().testModel();
-		}
-		return transport.models(rc).stream().map(ModelInfo::id)
-				.filter(id -> !id.toLowerCase(Locale.ROOT).matches(".*(embed|whisper|tts|image|imagen|vision-only|guard|moderation|audio|veo).*"))
-				.findFirst()
-				.orElseThrow(() -> testFailed("The provider lists no chat models for this key"));
 	}
 
 	private void save(AiConnection c, ConnectionStatus status, String detail) {
@@ -232,9 +350,13 @@ public class ConnectionService {
 		connections.save(c);
 	}
 
-	private static ApiException testFailed(String detail) {
+	private static long msSince(long t0) {
+		return (System.nanoTime() - t0) / 1_000_000;
+	}
+
+	private static ApiException testFailed(TestFailure reason, String detail) {
 		return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "CONNECTION_TEST_FAILED", "Connection test failed",
-				detail);
+				detail).withProperty("reason", reason.name());
 	}
 
 }

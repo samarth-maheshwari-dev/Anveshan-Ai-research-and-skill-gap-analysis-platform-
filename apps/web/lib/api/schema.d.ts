@@ -210,6 +210,7 @@ export interface components {
             timezone?: string;
         };
         ModelInfo: {
+            chat?: boolean;
             displayName?: string;
             free?: boolean;
             id?: string;
@@ -229,6 +230,7 @@ export interface components {
                 message?: string;
             }[];
             instance?: string;
+            reason?: string;
             resumeAt?: string;
             slot?: string;
             /** Format: int32 */

@@ -1,40 +1,46 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
-/* Pramaan design tokens (DESIGN.md §2, §5, §8, §15.1). The ONLY place colors are defined:
-   components use token utilities (bg-surface, text-muted-foreground, …), never hex values. */
+/* Design tokens (DESIGN.md §2, §3, §5, §15.1) — the ONLY place colors are defined; components use
+   token utilities (bg-surface, text-muted-foreground, …), never hex values.
+   Palette rule 60 · 30 · 10 (owner decision, 2026-11-10):
+     60 % black  — background, shell, surfaces
+     30 % white  — text, hairlines, inverted bands, secondary actions
+     10 % green  — one calm, natural accent: primary action, focus, active state, "verified"
+   Semantic status colors (trust labels, danger) appear only in small icon + word elements.
+   Dark is the default theme (components/providers.tsx); light is the exact inverse. */
 
 @custom-variant dark (&:is(.dark *));
 
+/* Light = inverse: white-dominant, black secondary, the same green darkened for contrast. */
 :root {
-  --background: #FAF8F5;
+  --background: #FAFAFA;
   --surface: #FFFFFF;
-  --surface-2: #F3F0EA;
-  --surface-3: #EAE5DC;
-  --border: #E4DFD6;
-  --border-strong: #CFC8BB;
-  --foreground: #1B1A2E;
-  --muted-foreground: #5E5B70;
-  --subtle-foreground: #8A8799;
-  --primary: #3D3FC4;
-  --primary-hover: #3234A8;
+  --surface-2: #F4F4F4;
+  --surface-3: #EBEBEB;
+  --border: #E5E5E5;
+  --border-strong: #D4D4D4;
+  --foreground: #0A0A0A;
+  --muted-foreground: #525252;
+  --subtle-foreground: #6B6B6B;
+  --inverse: #0A0A0A;
+  --inverse-foreground: #FAFAFA;
+  --inverse-muted: #A3A3A3;
+  --primary: #2E6B47;
+  --primary-hover: #245A3A;
   --primary-foreground: #FFFFFF;
-  --primary-soft: #ECECFB;
-  --accent: #F2A324;
-  --accent-foreground: #1B1A2E;
-  --marker: #FFE7A3;
-  --danger: #C2272D;
-  --danger-soft: #FDECEC;
-  --success: #137544;
-  --ring: #3D3FC4;
-  --input: #8F897C;
+  --primary-soft: #E8F3EC;
+  --marker: #D3ECDB;
+  --danger: #B42318;
+  --danger-soft: #FDECEA;
+  --ring: #2E6B47;
+  --input: #8A8A8A;
 
-  /* trust (fg / bg) — reserved meanings (DESIGN §2.4) */
-  --trust-supported: #137544;  --trust-supported-bg: #E3F5EA;
+  /* trust (fg / bg) — reserved meanings, always icon + word (DESIGN §2.4) */
+  --trust-supported: #1F6B3A;  --trust-supported-bg: #E6F4EA;
   --trust-weak: #8A5200;       --trust-weak-bg: #FFF1D6;
   --trust-conflict: #B4233C;   --trust-conflict-bg: #FDE6EA;
-  --trust-none: #4B5563;       --trust-none-bg: #ECEEF2;
-  --trust-approved: #3D3FC4;   --trust-approved-bg: #ECECFB;
+  --trust-none: #525252;       --trust-none-bg: #F0F0F0;
+  --trust-approved: #0A0A0A;   --trust-approved-bg: #EBEBEB;
 
   /* shadcn aliases so generated components work unchanged */
   --card: var(--surface);          --card-foreground: var(--foreground);
@@ -43,46 +49,41 @@
   --muted: var(--surface-2);
   --destructive: var(--danger);
 
-  --radius: 0.625rem; /* 10px = md */
-
-  /* elevation (DESIGN §5.3) */
-  --shadow-e1: 0 1px 2px rgb(27 26 46 / 0.06);
-  --shadow-e2: 0 4px 12px -2px rgb(27 26 46 / 0.10);
-  --shadow-e4: 0 24px 60px -12px rgb(27 26 46 / 0.28);
+  /* Flat by design: depth comes from hairlines and contrast. Only floating layers (menus) get a shadow. */
+  --shadow-float: 0 12px 32px -12px rgb(10 10 10 / 0.22);
 }
 
+/* Dark (default) = black-dominant. */
 .dark {
-  --background: #0E0D1A;
-  --surface: #16152A;
-  --surface-2: #1E1C36;
-  --surface-3: #272545;
-  --border: #2C2A4A;
-  --border-strong: #3D3A63;
-  --foreground: #ECEAF6;
-  --muted-foreground: #A3A0BC;
-  --subtle-foreground: #75728F;
-  --primary: #8B8DFF;
-  --primary-hover: #A3A5FF;
-  --primary-foreground: #0E0D1A;
-  --primary-soft: #23224A;
-  --accent: #FFB547;
-  --accent-foreground: #0E0D1A;
-  --marker: #5A4410;
+  --background: #0A0A0A;
+  --surface: #111111;
+  --surface-2: #181818;
+  --surface-3: #222222;
+  --border: #262626;
+  --border-strong: #3A3A3A;
+  --foreground: #FAFAFA;
+  --muted-foreground: #A3A3A3;
+  --subtle-foreground: #7C7C7C;
+  --inverse: #FAFAFA;
+  --inverse-foreground: #0A0A0A;
+  --inverse-muted: #525252;
+  --primary: #86C597;
+  --primary-hover: #9DD2AB;
+  --primary-foreground: #0A0A0A;
+  --primary-soft: #14221A;
+  --marker: #1E3A28;
   --danger: #FF6B6B;
-  --danger-soft: #3A1518;
-  --success: #52D18A;
-  --ring: #8B8DFF;
-  --input: #6A6690;
+  --danger-soft: #2A1414;
+  --ring: #86C597;
+  --input: #6B6B6B;
 
-  --trust-supported: #52D18A;  --trust-supported-bg: #0F2A1D;
-  --trust-weak: #FFC14D;       --trust-weak-bg: #2E2208;
-  --trust-conflict: #FF7A8E;   --trust-conflict-bg: #33121A;
-  --trust-none: #A7AEBB;       --trust-none-bg: #1F2230;
-  --trust-approved: #8B8DFF;   --trust-approved-bg: #23224A;
+  --trust-supported: #8FD0A3;  --trust-supported-bg: #12241A;
+  --trust-weak: #F0B54A;       --trust-weak-bg: #2A2009;
+  --trust-conflict: #FF8A97;   --trust-conflict-bg: #2E1216;
+  --trust-none: #A3A3A3;       --trust-none-bg: #1C1C1C;
+  --trust-approved: #F5F5F5;   --trust-approved-bg: #262626;
 
-  --shadow-e1: inset 0 1px 0 rgb(255 255 255 / 0.04);
-  --shadow-e2: inset 0 1px 0 rgb(255 255 255 / 0.06);
-  --shadow-e4: 0 24px 60px -12px rgb(0 0 0 / 0.7);
+  --shadow-float: 0 16px 40px -12px rgb(0 0 0 / 0.8);
 }
 
 @theme inline {
@@ -95,16 +96,16 @@
   --color-border-strong: var(--border-strong);
   --color-muted-foreground: var(--muted-foreground);
   --color-subtle-foreground: var(--subtle-foreground);
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
+  --color-inverse-muted: var(--inverse-muted);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-soft: var(--primary-soft);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-marker: var(--marker);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
-  --color-success: var(--success);
   --color-ring: var(--ring);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -127,36 +128,35 @@
   --color-trust-approved: var(--trust-approved);
   --color-trust-approved-bg: var(--trust-approved-bg);
 
+  /* One grotesk family for display + UI, its mono sibling for labels, numbers and IDs (DESIGN §3.1). */
   --font-sans: var(--font-geist-sans), "Noto Sans Devanagari", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-display: var(--font-fraunces), Georgia, serif;
 
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  /* Small, consistent radii (DESIGN §5.1); circles use rounded-full. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
 
-  --shadow-e1: var(--shadow-e1);
-  --shadow-e2: var(--shadow-e2);
-  --shadow-e4: var(--shadow-e4);
+  --shadow-float: var(--shadow-float);
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
   --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
-  --ease-marker: cubic-bezier(0.65, 0, 0.35, 1);
 
-  /* type scale (DESIGN §3.2) */
-  --text-display-2xl: 3.75rem;  --text-display-2xl--line-height: 4rem;
-  --text-display-lg: 2.25rem;   --text-display-lg--line-height: 2.625rem;
-  --text-heading-lg: 1.5rem;    --text-heading-lg--line-height: 2rem;
-  --text-heading-md: 1.25rem;   --text-heading-md--line-height: 1.75rem;
+  /* type scale (DESIGN §3.2): tight tracking at display sizes, Swiss-style */
+  --text-display-2xl: 4.5rem;   --text-display-2xl--line-height: 4.5rem;  --text-display-2xl--letter-spacing: -0.045em;
+  --text-display-xl: 3rem;      --text-display-xl--line-height: 3.125rem; --text-display-xl--letter-spacing: -0.035em;
+  --text-display-lg: 2.25rem;   --text-display-lg--line-height: 2.5rem;   --text-display-lg--letter-spacing: -0.03em;
+  --text-heading-lg: 1.5rem;    --text-heading-lg--line-height: 2rem;     --text-heading-lg--letter-spacing: -0.02em;
+  --text-heading-md: 1.25rem;   --text-heading-md--line-height: 1.75rem;  --text-heading-md--letter-spacing: -0.015em;
   --text-heading-sm: 1rem;      --text-heading-sm--line-height: 1.5rem;
-  --text-body-lg: 1.125rem;     --text-body-lg--line-height: 1.875rem;
+  --text-body-lg: 1.125rem;     --text-body-lg--line-height: 1.75rem;
   --text-body: 0.9375rem;       --text-body--line-height: 1.5rem;
   --text-body-sm: 0.875rem;     --text-body-sm--line-height: 1.25rem;
   --text-caption: 0.8125rem;    --text-caption--line-height: 1.125rem;
-  --text-micro: 0.75rem;        --text-micro--line-height: 1rem;
+  --text-micro: 0.75rem;        --text-micro--line-height: 1rem;          --text-micro--letter-spacing: 0.06em;
 }
 
 @layer base {
@@ -169,31 +169,30 @@
   }
   /* Visible focus everywhere, never removed (DESIGN §5.2, §13.1) */
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::selection { background: var(--primary); color: var(--primary-foreground); }
+  /* Tailwind v4 dropped the pointer cursor on buttons; everything clickable shows it again. */
+  button:not(:disabled), [role="button"], [role="menuitem"], [role="menuitemradio"], select, summary, label[for] {
+    cursor: pointer;
+  }
   .tabular { font-variant-numeric: tabular-nums; }
 }
 
-/* Marker sweep (§10.2) */
+/* Exact-quote highlight in a claim (DESIGN §10.2): a calm green wash behind the quoted words. */
 .marker {
-  background-image: linear-gradient(var(--marker), var(--marker));
-  background-repeat: no-repeat;
-  background-position: 0 60%;
-  background-size: 0% 92%;
+  background-color: var(--marker);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  transition: background-size 560ms var(--ease-marker);
+  padding: 0 0.15em;
 }
-.marker[data-active="true"] { background-size: 100% 92%; }
 
-/* Skeleton shimmer (§9.10) */
+/* Skeleton: a quiet pulse, no shimmer sweep (§9.10). */
 .skeleton {
-  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.6s linear infinite;
+  background: var(--surface-2);
+  animation: pulse-soft 1.6s var(--ease-standard) infinite;
 }
-@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes pulse-soft { 50% { opacity: 0.55; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .marker { transition: none; }
   .skeleton { animation: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

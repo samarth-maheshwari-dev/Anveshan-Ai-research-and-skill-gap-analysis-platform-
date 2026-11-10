@@ -70,15 +70,61 @@ anveshan:
     tink-keyset: ${ANV_TINK_KEYSET:}
     tink-keyset-file: ${ANV_TINK_KEYSET_FILE:}
     tink-ephemeral: ${ANV_TINK_EPHEMERAL:false}   # tests/CI only
-  # BYOK provider presets (TECHSPEC §10.1). Data, not code: fix a URL/path here without a rebuild.
+  # BYOK provider presets (TECHSPEC §10.1). Data, not code: fix a URL/path/model here without a rebuild.
+  #   test-model:       known-good model the key test tries first — skipped when the provider doesn't list it,
+  #                     so a retired hint costs nothing (the ranked live list takes over)
+  #   preferred-models: regexes, best first, that order the live model list (ModelRanking)
   providers:
-    GEMINI:     { transport: OPENAI_COMPATIBLE, base-url: "https://generativelanguage.googleapis.com/v1beta/openai/", chat-path: chat/completions, models-path: models, json-mode: true }
-    GROQ:       { transport: OPENAI_COMPATIBLE, base-url: "https://api.groq.com/openai/v1/", chat-path: chat/completions, models-path: models, json-mode: true }
-    OPENROUTER: { transport: OPENAI_COMPATIBLE, base-url: "https://openrouter.ai/api/v1/", chat-path: chat/completions, models-path: models, json-mode: true }
-    OPENAI:     { transport: OPENAI_COMPATIBLE, base-url: "https://api.openai.com/v1/", chat-path: chat/completions, models-path: models, json-mode: true }
-    ANTHROPIC:  { transport: ANTHROPIC, base-url: "https://api.anthropic.com/v1/", chat-path: messages, models-path: models, json-mode: false }
+    GEMINI:
+      transport: OPENAI_COMPATIBLE
+      base-url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+      chat-path: chat/completions
+      models-path: models
+      json-mode: true
+      test-model: gemini-2.5-flash
+      preferred-models: ["^gemini-\\d+(\\.\\d+)?-flash$", "^gemini-\\d+(\\.\\d+)?-flash-lite$", "^gemini-flash-latest$", "^gemini-"]
+    GROQ:
+      transport: OPENAI_COMPATIBLE
+      base-url: "https://api.groq.com/openai/v1/"
+      chat-path: chat/completions
+      models-path: models
+      json-mode: true
+      test-model: llama-3.3-70b-versatile
+      preferred-models: ["^llama-\\d+(\\.\\d+)?-70b-versatile$", "versatile", "^llama-\\d+(\\.\\d+)?-8b-instant$", "instant", "llama", "gpt-oss"]
+    OPENROUTER:
+      transport: OPENAI_COMPATIBLE
+      base-url: "https://openrouter.ai/api/v1/"
+      chat-path: chat/completions
+      models-path: models
+      json-mode: true
+      preferred-models: [":free$"]
+    OPENAI:
+      transport: OPENAI_COMPATIBLE
+      base-url: "https://api.openai.com/v1/"
+      chat-path: chat/completions
+      models-path: models
+      json-mode: true
+      test-model: gpt-4.1-mini
+      preferred-models: ["^gpt-4\\.1-mini$", "^gpt-4o-mini$", "^gpt-4\\.1-nano$", "mini"]
+    ANTHROPIC:
+      transport: ANTHROPIC
+      base-url: "https://api.anthropic.com/v1/"
+      chat-path: messages
+      models-path: models
+      json-mode: false
+      preferred-models: ["haiku", "sonnet"]
     CUSTOM:     { transport: OPENAI_COMPATIBLE, chat-path: chat/completions, models-path: models, json-mode: false }
     TAVILY:     { transport: TAVILY, base-url: "https://api.tavily.com/", chat-path: search, json-mode: false }
+  # How the key test and default routing order a provider's model list (ModelRanking).
+  model-ranking:
+    # ids that can't answer a chat request: embeddings, speech, images, video, safety classifiers, Responses-only …
+    exclude: [embed, tts, audio, image, vision, veo, aqa, guard, moderation, whisper, transcri, realtime, "(^|[-_/.:])live([-_/.:]|$)", computer-use, robotics, learnlm, search, dall-e, sora, codex, babbage, davinci]
+    # pre-release names rank after stable ones
+    unstable: ["(^|[-_/.:])(preview|exp|experimental|beta|alpha)([-_/.:]|\\d|$)"]
+  # A provider's live model list (A-FR-5) and the key test that uses it.
+  models:
+    cache-ttl: 1h           # the raw list is cached per connection this long (key decrypted only on a miss)
+    test-candidates: 3      # a test without an explicit model tries at most this many models
   outbound:
     allow-loopback: false     # tests only — lets a local fake provider count as "public"
   embeddings:

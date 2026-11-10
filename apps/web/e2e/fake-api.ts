@@ -2,8 +2,11 @@ import type { BrowserContext, Page, Route } from "@playwright/test";
 
 /**
  * An in-memory stand-in for the Anveshan API (http://localhost:8080), installed per test with
- * page.route. It behaves like the real backend where the UI depends on it: session cookie, CSRF
- * header on writes, 401 without a session, 422 for a bad key, default slots after the first test.
+ * page.route. It behaves like the real backend where the UI depends on it (ByokIT proves the real
+ * one): session cookie, CSRF header on writes, 401 without a session, and the connection test —
+ * the backend picks the model (routed → preset hint → ranked list, max 3, skipping retired ones), a
+ * skipped routed model comes back as a `note`, a missing model never marks the key FAILING, errors
+ * carry a machine-readable `reason`, first success fills slots.
  */
 export const API = "http://localhost:8080";
 export const APP = "http://localhost:3100";
@@ -26,9 +29,24 @@ export type FakeState = {
   signedIn: boolean;
   connections: Conn[];
   slots: Record<string, { connectionId: string; model: string }[]>;
+  /** Chat models the provider lists, best first (what the backend's ranking would produce). */
+  listedModels: string[];
+  /** Listed but answering "model not found" for this key (e.g. retired for new projects). */
+  retiredModels: string[];
   writesWithoutCsrf: string[];
   deleted: string[];
   calls: string[];
+  /** The `model` each POST …/test request carried (undefined = "backend, you choose"). */
+  testModelsAsked: (string | undefined)[];
+};
+
+const SLOTS = ["PLAN", "EXTRACT", "VERIFY", "WRITE", "ASK", "INTERVIEW"];
+
+/** The presets' known-good `test-model` (application.yml); OpenRouter, Anthropic and Custom have none. */
+const HINTS: Record<string, string> = {
+  GEMINI: "gemini-2.5-flash",
+  GROQ: "llama-3.3-70b-versatile",
+  OPENAI: "gpt-4.1-mini",
 };
 
 export async function installFakeApi(page: Page, context: BrowserContext, init: Partial<FakeState> = {}) {
@@ -36,9 +54,12 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
     signedIn: false,
     connections: [],
     slots: {},
+    listedModels: ["gemini-2.5-flash", "gemini-2.0-flash"],
+    retiredModels: [],
     writesWithoutCsrf: [],
     deleted: [],
     calls: [],
+    testModelsAsked: [],
     ...init,
   };
   let seq = 0;
@@ -55,14 +76,29 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
   const cors = { "access-control-allow-origin": APP, "access-control-allow-credentials": "true" };
   const json = (route: Route, status: number, body: unknown) =>
     route.fulfill({ status, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify(body) });
-  const problem = (route: Route, status: number, code: string, detail: string) =>
+  const problem = (route: Route, status: number, code: string, detail: string, reason?: string) =>
     route.fulfill({
       status,
       headers: { ...cors, "content-type": "application/problem+json" },
-      body: JSON.stringify({ status, code, title: "Error", detail }),
+      body: JSON.stringify({ status, code, title: "Error", detail, ...(reason ? { reason } : {}) }),
     });
+  const keyInvalid = (route: Route) => problem(route, 422, "CONNECTION_TEST_FAILED", "Key invalid", "KEY_INVALID");
   /** What the API returns: everything except the key. */
   const view = (c: Conn) => Object.fromEntries(Object.entries(c).filter(([k]) => k !== "key"));
+  const routedTo = (c: Conn) =>
+    Object.values(state.slots)
+      .flat()
+      .filter((r) => r.connectionId === c.id)
+      .map((r) => r.model);
+  /**
+   * Like ConnectionService.candidates: routed models → the preset hint (only if the provider lists it,
+   * or lists nothing) → the ranked list; at most 3.
+   */
+  const candidatesFor = (c: Conn, routed: string[]) => {
+    const hint = HINTS[c.provider];
+    const useHint = hint && (state.listedModels.length === 0 || state.listedModels.includes(hint));
+    return [...new Set([...routed, ...(useHint ? [hint] : []), ...state.listedModels])].slice(0, 3);
+  };
 
   // OAuth start: the real API redirects to Google; here "Google" approves at once and comes back.
   await page.route(`${API}/oauth2/authorization/**`, async (route) => {
@@ -132,29 +168,43 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
         return route.fulfill({ status: 204, headers: cors });
       }
       if (byId[2] === "/models") {
-        if (c.key === BAD_KEY) return problem(route, 422, "CONNECTION_TEST_FAILED", "Key invalid");
+        if (c.key === BAD_KEY) return keyInvalid(route);
+        // Chat models first (ranked), non-chat ones last and flagged — like the real endpoint.
         return json(route, 200, {
           items: [
-            { id: "text-embedding-004", displayName: "Embedding", free: true },
-            { id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", free: false },
-            { id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", free: true },
+            ...state.listedModels.map((id) => ({ id, displayName: id, free: true, chat: true })),
+            { id: "text-embedding-004", displayName: "Embedding", free: true, chat: false },
           ],
         });
       }
       if (byId[2] === "/test") {
-        const model = (req.postDataJSON() as { model?: string } | null)?.model ?? "gemini-2.5-flash";
+        const asked = (req.postDataJSON() as { model?: string } | null)?.model;
+        state.testModelsAsked.push(asked);
         if (c.key === BAD_KEY) {
           c.status = "FAILING";
-          return problem(route, 422, "CONNECTION_TEST_FAILED", "Key invalid");
+          c.statusDetail = "Key invalid";
+          return keyInvalid(route);
         }
+        const routed = asked ? [] : routedTo(c);
+        const working = (asked ? [asked] : candidatesFor(c, routed)).find((m) => !state.retiredModels.includes(m));
+        if (!working) {
+          // a missing model is not a broken key: status stays as it was
+          return asked
+            ? problem(route, 422, "CONNECTION_TEST_FAILED", "Model not found", "MODEL_NOT_FOUND")
+            : problem(route, 422, "CONNECTION_TEST_FAILED", "No usable chat model found for this key", "NO_CHAT_MODEL");
+        }
+        // like ConnectionService.skippedNote: a routed model that's gone is reported, research still uses it
+        const skipped = routed.find((m) => state.retiredModels.includes(m));
+        const note = skipped
+          ? `${skipped} didn't answer, ${working} did. Research still uses ${skipped} — change it in Task routing`
+          : undefined;
         c.status = "VERIFIED";
+        c.statusDetail = note;
         const fill = Object.keys(state.slots).length === 0;
         if (fill) {
-          for (const s of ["PLAN", "EXTRACT", "VERIFY", "WRITE", "ASK", "INTERVIEW"]) {
-            state.slots[s] = [{ connectionId: c.id, model }];
-          }
+          for (const s of SLOTS) state.slots[s] = [{ connectionId: c.id, model: working }];
         }
-        return json(route, 200, { status: "VERIFIED", latencyMs: 420, sampleModel: model, defaultSlotsSet: fill });
+        return json(route, 200, { status: "VERIFIED", latencyMs: 420, sampleModel: working, note, defaultSlotsSet: fill });
       }
     }
     if (path === "/slots" && method === "GET") return json(route, 200, state.slots);

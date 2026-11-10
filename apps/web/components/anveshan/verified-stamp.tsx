@@ -5,19 +5,21 @@ import * as m from "motion/react-m";
 
 import { stamp } from "@/lib/motion";
 
+type VerifiedStampProps = { label?: string };
+
 /**
- * The Pramaan stamp (DESIGN §10.1): the first proof moment a user ever sees — their key, verified.
- * Reduced motion: MotionConfig turns this into a plain fade.
+ * "Verified" (DESIGN §10.1): the first proof moment a user sees — their key, checked. Icon + word,
+ * mono caps, a short settle. Reduced motion: MotionConfig turns this into a plain fade.
  */
-export function VerifiedStamp({ label = "Verified" }: { label?: string }) {
+export function VerifiedStamp({ label = "Verified" }: VerifiedStampProps) {
   return (
     <m.span
       variants={stamp}
       initial="hidden"
       animate="show"
-      className="inline-flex items-center gap-2 rounded-sm border-2 border-trust-supported bg-trust-supported-bg px-3 py-1 font-display text-heading-md font-semibold uppercase tracking-wide text-trust-supported"
+      className="inline-flex items-center gap-2 rounded-sm border border-trust-supported bg-trust-supported-bg px-3 py-1.5 font-mono text-caption font-medium uppercase tracking-wider text-trust-supported"
     >
-      <CircleCheck aria-hidden strokeWidth={2} className="size-5" />
+      <CircleCheck aria-hidden strokeWidth={2} className="size-4" />
       {label}
     </m.span>
   );

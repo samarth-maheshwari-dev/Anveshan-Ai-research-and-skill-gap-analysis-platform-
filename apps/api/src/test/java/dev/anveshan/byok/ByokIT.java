@@ -60,12 +60,16 @@ class ByokIT {
 
 	static final FakeProvider FAKE = new FakeProvider();
 
+	/** Test value for the Gemini preset hint, so these tests don't depend on the production model name. */
+	static final String GEMINI_HINT = "gemini-hint";
+
 	@DynamicPropertySource
 	static void props(DynamicPropertyRegistry r) {
 		r.add("anveshan.outbound.allow-loopback", () -> "true");
 		for (String p : FakeProvider.PROVIDERS) {
 			r.add("anveshan.providers." + p.toUpperCase() + ".base-url", () -> FAKE.baseUrl(p));
 		}
+		r.add("anveshan.providers.GEMINI.test-model", () -> GEMINI_HINT);
 	}
 
 	/** What the gateway tests ask the model to return. */
@@ -225,25 +229,247 @@ class ByokIT {
 
 		var chat = FAKE.requestsWithKey(key).getFirst();
 		assertThat(chat.path()).isEqualTo("/groq/chat/completions");
-		assertThat(chat.body()).contains("\"max_tokens\":5", "\"model\":\"llama-test\"");
+		// P08: the test request is the smallest one every model accepts (T-08-14)
+		assertThat(chat.body()).contains("\"model\":\"llama-test\"").doesNotContain("max_tokens")
+				.doesNotContain("temperature").doesNotContain("response_format");
 	}
 
 	@Test
-	@DisplayName("T-07-02 test without a model picks the first chat model; models list is cached and free-filterable")
+	@DisplayName("T-07-02 test without a model picks the best-ranked chat model (OpenRouter: :free first, never an embedding); the list is cached, ranked, flagged and free-filterable")
 	void modelsAndDefaultTestModel() throws Exception {
 		String key = newKey("sk-or-v1-");
 		UUID id = createConnection(alice, "OPENROUTER", key);
 
 		var test = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
-		assertThat(jsonOf(test).path("sampleModel").asString()).isEqualTo("chat-pro"); // embedding model skipped
+		assertThat(jsonOf(test).path("sampleModel").asString()).isEqualTo("chat-free:free");
 
 		var all = jsonOf(perform(alice, get("/api/v1/connections/" + id + "/models")));
 		var free = jsonOf(perform(alice, get("/api/v1/connections/" + id + "/models?freeOnly=true")));
 		assertThat(all.path("items").size()).isEqualTo(3);
+		assertThat(all.path("items").path(0).path("id").asString()).isEqualTo("chat-free:free");
+		assertThat(all.path("items").path(1).path("id").asString()).isEqualTo("chat-pro");
+		assertThat(all.path("items").path(2).path("id").asString()).isEqualTo("text-embedding-3");
+		assertThat(all.path("items").path(2).path("chat").asBoolean()).as("embeddings are not chat models").isFalse();
+		assertThat(all.path("items").path(0).path("chat").asBoolean()).isTrue();
 		assertThat(free.path("items").size()).isEqualTo(1);
 		assertThat(free.path("items").path(0).path("id").asString()).isEqualTo("chat-free:free");
 		long modelCalls = FAKE.requestsWithKey(key).stream().filter(r -> r.path().endsWith("/models")).count();
-		assertThat(modelCalls).as("1 for the test + 1 for the list, then cached").isEqualTo(2);
+		assertThat(modelCalls).as("the test fills the 1-hour cache; both list calls reuse it").isEqualTo(1);
+		assertThat(FAKE.chatModels(key)).containsExactly("chat-free:free");
+	}
+
+	// ---------------------------------------------------------------- P08 key-test rework (Samarth's bug report)
+
+	@Test
+	@DisplayName("T-08-10 wizard test without a model: first-ranked model retired (404) → next one works → VERIFIED, slots use it, never FAILING")
+	void fallbackWhenFirstModelIsRetired() throws Exception {
+		String key = newKey("AIzaWizard");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("embedding-gecko-001", "gemini-1.0-pro-vision-latest",
+				"gemini-2.0-flash", "gemini-3-flash", "aqa"));
+		FAKE.whenModel(key, "gemini-3-flash", FakeProvider.retired("gemini-3-flash"));
+
+		var res = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+
+		assertThat(res.getResponse().getStatus()).as(body(res)).isEqualTo(200);
+		assertThat(jsonOf(res).path("status").asString()).isEqualTo("VERIFIED");
+		assertThat(jsonOf(res).path("sampleModel").asString()).isEqualTo("gemini-2.0-flash");
+		assertThat(jsonOf(res).path("defaultSlotsSet").asBoolean()).isTrue();
+		assertThat(FAKE.chatModels(key)).as("hint not listed → skipped; non-chat models never tried")
+				.containsExactly("gemini-3-flash", "gemini-2.0-flash");
+		assertThat(status(id)).isEqualTo("VERIFIED");
+		JsonNode slots = jsonOf(perform(alice, get("/api/v1/slots")));
+		assertThat(slots.path("PLAN").path(0).path("model").asString()).isEqualTo("gemini-2.0-flash");
+	}
+
+	@Test
+	@DisplayName("T-08-11 Settings re-test (no model) checks the routed slot model first → stays VERIFIED every time; retired listed models are never tried")
+	void retestUsesRoutedModel() throws Exception {
+		String key = newKey("AIzaRetest");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-1.0-pro-vision-latest", "gemini-1.5-flash",
+				"gemini-2.5-flash", "gemini-2.0-flash-001"));
+		FAKE.whenModel(key, "gemini-1.0-pro-vision-latest", FakeProvider.retired("gemini-1.0-pro-vision-latest"));
+		FAKE.whenModel(key, "gemini-1.5-flash", FakeProvider.retired("gemini-1.5-flash"));
+		String test = "/api/v1/connections/" + id + "/test";
+
+		var wizard = postJson(alice, test, "{}");
+		assertThat(jsonOf(wizard).path("sampleModel").asString()).isEqualTo("gemini-2.5-flash");
+		for (int i = 0; i < 3; i++) {
+			var retest = postJson(alice, test, "{}");
+			assertThat(retest.getResponse().getStatus()).as(body(retest)).isEqualTo(200);
+			assertThat(jsonOf(retest).path("sampleModel").asString()).isEqualTo("gemini-2.5-flash");
+		}
+		assertThat(status(id)).isEqualTo("VERIFIED");
+		assertThat(FAKE.chatModels(key)).hasSize(4).containsOnly("gemini-2.5-flash");
+
+		// a model the user routed by hand is checked before the ranking's favourite
+		var put = perform(alice, put("/api/v1/slots").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"PLAN\":[{\"connectionId\":\"" + id + "\",\"model\":\"gemini-2.0-flash-001\"}]}"));
+		assertThat(put.getResponse().getStatus()).isEqualTo(200);
+		assertThat(jsonOf(postJson(alice, test, "{}")).path("sampleModel").asString()).isEqualTo("gemini-2.0-flash-001");
+	}
+
+	@Test
+	@DisplayName("T-08-25 routed model retired later → re-test still VERIFIED with the next model, and the note names the routed model")
+	void retiredRoutedModelIsReported() throws Exception {
+		String key = newKey("AIzaRouted");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-2.5-flash", "gemini-2.0-flash-001"));
+		String test = "/api/v1/connections/" + id + "/test";
+		assertThat(jsonOf(postJson(alice, test, "{}")).path("sampleModel").asString()).isEqualTo("gemini-2.5-flash");
+
+		FAKE.whenModel(key, "gemini-2.5-flash", FakeProvider.retired("gemini-2.5-flash"));
+		var retest = postJson(alice, test, "{}");
+		assertThat(retest.getResponse().getStatus()).as(body(retest)).isEqualTo(200);
+		JsonNode r = jsonOf(retest);
+		assertThat(r.path("sampleModel").asString()).isEqualTo("gemini-2.0-flash-001");
+		assertThat(r.path("note").asString()).contains("gemini-2.5-flash didn't answer").contains("Task routing");
+		assertThat(status(id)).isEqualTo("VERIFIED");
+	}
+
+	@Test
+	@DisplayName("T-08-34 routed model rate-limited (429) → next model answers, note says 'rate-limited right now', no re-route advice")
+	void rateLimitedRoutedModelIsOnlyAHeadsUp() throws Exception {
+		String key = newKey("AIzaRoutedLimited");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-2.5-flash", "gemini-2.0-flash-001"));
+		String test = "/api/v1/connections/" + id + "/test";
+		assertThat(jsonOf(postJson(alice, test, "{}")).path("sampleModel").asString()).isEqualTo("gemini-2.5-flash");
+
+		FAKE.whenModel(key, "gemini-2.5-flash", FakeProvider.Reply.rateLimited(30));
+		var retest = postJson(alice, test, "{}");
+		assertThat(retest.getResponse().getStatus()).as(body(retest)).isEqualTo(200);
+		JsonNode r = jsonOf(retest);
+		assertThat(r.path("sampleModel").asString()).isEqualTo("gemini-2.0-flash-001");
+		assertThat(r.path("note").asString())
+				.isEqualTo("gemini-2.5-flash is rate-limited right now; gemini-2.0-flash-001 answered")
+				.doesNotContain("Task routing");
+		assertThat(status(id)).isEqualTo("VERIFIED");
+	}
+
+	@Test
+	@DisplayName("T-08-26 model list rate-limited (429) → the preset hint is still tested → VERIFIED with a model and slots filled")
+	void listRateLimitedStillTestsHint() throws Exception {
+		String key = newKey("AIzaListLimited");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.Reply.rateLimited(30)); // the first call (GET models) is rate-limited
+		var r = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+		assertThat(r.getResponse().getStatus()).as(body(r)).isEqualTo(200);
+		assertThat(jsonOf(r).path("sampleModel").asString()).isEqualTo(GEMINI_HINT);
+		assertThat(jsonOf(r).path("defaultSlotsSet").asBoolean()).isTrue();
+		assertThat(status(id)).isEqualTo("VERIFIED");
+	}
+
+	@Test
+	@DisplayName("T-08-12 explicit model not found → 422 reason MODEL_NOT_FOUND, no fallback, status unchanged")
+	void explicitModelNotFound() throws Exception {
+		String key = newKey("gsk_");
+		UUID id = createConnection(alice, "GROQ", key);
+		jdbc.sql("UPDATE ai_connection SET status = 'VERIFIED' WHERE id = :id").param("id", id).update();
+		FAKE.whenModel(key, "llama-gone", Reply.json(404, "{\"error\":{\"message\":\"The model `llama-gone` does not "
+				+ "exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}"));
+
+		var res = postJson(alice, "/api/v1/connections/" + id + "/test", "{\"model\":\"llama-gone\"}");
+
+		assertThat(res.getResponse().getStatus()).isEqualTo(422);
+		assertThat(jsonOf(res).path("reason").asString()).isEqualTo("MODEL_NOT_FOUND");
+		assertThat(jsonOf(res).path("detail").asString()).isEqualTo("Model not found");
+		assertThat(FAKE.chatModels(key)).containsExactly("llama-gone");
+		assertThat(status(id)).as("a missing model is not a broken key").isEqualTo("VERIFIED");
+	}
+
+	@Test
+	@DisplayName("T-08-13 Gemini wrong key (HTTP 400 API_KEY_INVALID) → 422 reason KEY_INVALID 'Key invalid', FAILING, body never forwarded")
+	void geminiInvalidKey() throws Exception {
+		String key = newKey("AIzaWrong");
+		UUID id = createConnection(alice, "GEMINI", key);
+		String google = "[{\"error\":{\"code\":400,\"message\":\"API key not valid. Please pass a valid API key. " + key
+				+ "\",\"status\":\"INVALID_ARGUMENT\",\"details\":[{\"reason\":\"API_KEY_INVALID\"}]}}]";
+		FAKE.script(key, Reply.json(400, google), Reply.json(400, google));
+		String test = "/api/v1/connections/" + id + "/test";
+
+		var auto = postJson(alice, test, "{}"); // fails on the model list
+		var explicit = postJson(alice, test, "{\"model\":\"gemini-2.5-flash\"}"); // fails on the chat call
+
+		for (MvcResult r : List.of(auto, explicit)) {
+			assertThat(r.getResponse().getStatus()).isEqualTo(422);
+			assertThat(jsonOf(r).path("reason").asString()).isEqualTo("KEY_INVALID");
+			assertThat(jsonOf(r).path("detail").asString()).isEqualTo("Key invalid");
+			assertThat(body(r)).doesNotContain(key).doesNotContain("API key not valid");
+		}
+		assertThat(status(id)).isEqualTo("FAILING");
+	}
+
+	@Test
+	@DisplayName("T-08-14 2xx without any text (thinking model) → VERIFIED; the test request sends no max_tokens / temperature")
+	void emptyReplyStillVerifies() throws Exception {
+		String key = newKey("AIzaThink");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, Reply.json(200, "{\"choices\":[{\"message\":{\"role\":\"assistant\"},\"finish_reason\":\"length\"}],"
+				+ "\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":0}}"));
+
+		var res = postJson(alice, "/api/v1/connections/" + id + "/test", "{\"model\":\"gemini-2.5-flash\"}");
+
+		assertThat(res.getResponse().getStatus()).as(body(res)).isEqualTo(200);
+		assertThat(jsonOf(res).path("status").asString()).isEqualTo("VERIFIED");
+		String sent = FAKE.requestsWithKey(key).getFirst().body();
+		assertThat(sent).doesNotContain("max_tokens").doesNotContain("temperature");
+	}
+
+	@Test
+	@DisplayName("T-08-15 a 400 that only mentions a model ('not supported with this model') → reason PROVIDER_ERROR, no fallback, status unchanged")
+	void unrelated400IsNotModelNotFound() throws Exception {
+		String key = newKey("AIzaParam");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-2.5-flash", "gemini-2.0-flash"));
+		FAKE.whenModel(key, "gemini-2.5-flash", Reply.json(400, "{\"error\":{\"message\":\"Unsupported parameter: "
+				+ "'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\","
+				+ "\"type\":\"invalid_request_error\",\"code\":\"unsupported_parameter\"}}"));
+
+		var res = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+
+		assertThat(res.getResponse().getStatus()).isEqualTo(422);
+		assertThat(jsonOf(res).path("reason").asString()).isEqualTo("PROVIDER_ERROR");
+		assertThat(body(res)).doesNotContain("max_completion_tokens");
+		assertThat(FAKE.chatModels(key)).containsExactly("gemini-2.5-flash");
+		assertThat(status(id)).isEqualTo("UNVERIFIED");
+	}
+
+	@Test
+	@DisplayName("T-08-16 no candidate works → 422 reason NO_CHAT_MODEL after at most 3 tries (listed hint first); status unchanged")
+	void noUsableModel() throws Exception {
+		String key = newKey("AIzaNothing");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-2.0-flash", GEMINI_HINT, "gemini-2.5-flash", "gemini-3-flash"));
+		for (String m : List.of(GEMINI_HINT, "gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash")) {
+			FAKE.whenModel(key, m, FakeProvider.retired(m));
+		}
+
+		var res = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+
+		assertThat(res.getResponse().getStatus()).isEqualTo(422);
+		assertThat(jsonOf(res).path("reason").asString()).isEqualTo("NO_CHAT_MODEL");
+		assertThat(FAKE.chatModels(key)).containsExactly(GEMINI_HINT, "gemini-3-flash", "gemini-2.5-flash");
+		assertThat(status(id)).isEqualTo("UNVERIFIED");
+		var models = jsonOf(perform(alice, get("/api/v1/connections/" + id + "/models")));
+		assertThat(models.path("items").size()).as("the picker can still offer the live list").isEqualTo(4);
+	}
+
+	@Test
+	@DisplayName("T-08-17 first candidate rate-limited (e.g. free tier limit 0) → next candidate works → VERIFIED with it, no note")
+	void rateLimitedCandidateIsSkipped() throws Exception {
+		String key = newKey("AIzaQuota");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-3-flash", "gemini-2.5-flash"));
+		FAKE.whenModel(key, "gemini-3-flash", Reply.rateLimited(30));
+
+		var res = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+
+		assertThat(jsonOf(res).path("status").asString()).isEqualTo("VERIFIED");
+		assertThat(jsonOf(res).path("sampleModel").asString()).isEqualTo("gemini-2.5-flash");
+		assertThat(jsonOf(res).path("note").isNull() || jsonOf(res).path("note").isMissingNode()).isTrue();
+		assertThat(status(id)).isEqualTo("VERIFIED");
 	}
 
 	@Test

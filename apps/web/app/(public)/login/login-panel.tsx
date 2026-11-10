@@ -21,19 +21,19 @@ export function LoginPanel() {
   return (
     <>
       {expired && (
-        <p role="status" className="mt-6 flex items-start gap-2 rounded-md bg-primary-soft p-3 text-body-sm">
+        <p role="status" className="mt-8 flex items-start gap-2 rounded-md border border-border-strong bg-surface p-3 text-body-sm">
           <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
           Your session expired. Please sign in again.
         </p>
       )}
       {failed && (
-        <p role="alert" className="mt-6 flex items-start gap-2 rounded-md bg-danger-soft p-3 text-body-sm">
+        <p role="alert" className="mt-8 flex items-start gap-2 rounded-md border border-danger/40 bg-danger-soft p-3 text-body-sm">
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-danger" />
           Sign-in was cancelled or didn&apos;t finish. Please try again.
         </p>
       )}
-      <div className="mt-6 flex flex-col gap-3">
-        <a href={loginUrl("google", next)} className={buttonVariants({ variant: "secondary", size: "lg" })}>
+      <div className="mt-8 flex flex-col gap-3">
+        <a href={loginUrl("google", next)} className={buttonVariants({ variant: "primary", size: "lg" })}>
           <GoogleMark /> Continue with Google
         </a>
         <a href={loginUrl("github", next)} className={buttonVariants({ variant: "secondary", size: "lg" })}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ExternalLink, Lock } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,11 +18,14 @@ export function GetKeyStep({ provider, onBack, onNext }: GetKeyStepProps) {
   }, []);
 
   return (
-    <Card>
+    <Card className="p-6 md:p-8">
       <h2 className="text-heading-md font-semibold">Get your {provider.name} key</h2>
-      <ol className="mt-4 list-decimal space-y-2 pl-5 text-body">
-        {provider.steps.map((s) => (
-          <li key={s}>{s}</li>
+      <ol className="mt-5 border-t border-border">
+        {provider.steps.map((s, i) => (
+          <li key={s} className="flex gap-4 border-b border-border py-3 text-body">
+            <span className="font-mono text-caption text-subtle-foreground tabular">0{i + 1}</span>
+            <span>{s}</span>
+          </li>
         ))}
       </ol>
       {provider.keyUrl && (
@@ -30,9 +33,9 @@ export function GetKeyStep({ provider, onBack, onNext }: GetKeyStepProps) {
           href={provider.keyUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={cn(buttonVariants({ variant: "soft" }), "mt-6")}
+          className={cn(buttonVariants({ variant: "secondary" }), "mt-6")}
         >
-          {provider.keyUrlLabel} <ExternalLink aria-hidden />
+          {provider.keyUrlLabel} <ArrowUpRight aria-hidden />
           <span className="sr-only">(opens in a new tab)</span>
         </a>
       )}
@@ -42,7 +45,7 @@ export function GetKeyStep({ provider, onBack, onNext }: GetKeyStepProps) {
           Prefer a different provider? Groq is free too and only needs an email sign-up.
         </p>
       )}
-      <div className="mt-6 flex justify-between">
+      <div className="mt-8 flex justify-between gap-3">
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft aria-hidden /> Back
         </Button>
@@ -56,7 +59,7 @@ export function GetKeyStep({ provider, onBack, onNext }: GetKeyStepProps) {
 
 export function PrivacyNote() {
   return (
-    <p className="mt-6 flex items-start gap-2 rounded-md bg-surface-2 p-3 text-body-sm text-muted-foreground">
+    <p className="mt-6 flex items-start gap-3 border-l-2 border-border-strong pl-3 text-body-sm text-muted-foreground">
       <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
       Your key is encrypted and used only for your own requests. Anveshan never shows it again — only its last four
       characters.

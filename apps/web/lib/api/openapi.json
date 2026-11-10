@@ -550,6 +550,9 @@
       "ModelInfo" : {
         "type" : "object",
         "properties" : {
+          "chat" : {
+            "type" : "boolean"
+          },
           "displayName" : {
             "type" : "string"
           },
@@ -607,6 +610,9 @@
             }
           },
           "instance" : {
+            "type" : "string"
+          },
+          "reason" : {
             "type" : "string"
           },
           "resumeAt" : {

@@ -24,7 +24,7 @@ import { ApiError } from "@/lib/api/errors";
 import { useConnections } from "@/lib/api/hooks/connections";
 import { useMe, type Me } from "@/lib/api/hooks/me";
 
-import { QueryProvider } from "./query-provider";
+import { AppProviders } from "./app-providers";
 import { UserMenu } from "./user-menu";
 
 type NavItem = { href: string; label: string; Icon: typeof LayoutDashboard; soon?: boolean };
@@ -38,17 +38,19 @@ const NAV: NavItem[] = [
   { href: "/skills", label: "Skills", Icon: Trophy, soon: true },
 ];
 
-/** Signed-in area: QueryClient + AuthGate + shell (TECHSPEC §9.1). */
-export function AppShell({ children }: { children: ReactNode }) {
+/** Signed-in area: QueryClient, motion, toasts + AuthGate + shell (TECHSPEC §9.1). */
+type ChildrenProps = { children: ReactNode };
+
+export function AppShell({ children }: ChildrenProps) {
   return (
-    <QueryProvider>
+    <AppProviders>
       <AuthGate>{children}</AuthGate>
-    </QueryProvider>
+    </AppProviders>
   );
 }
 
 /** Calls GET /me once (this also sets the XSRF-TOKEN cookie). 401 → the API client redirects to login. */
-function AuthGate({ children }: { children: ReactNode }) {
+function AuthGate({ children }: ChildrenProps) {
   const me = useMe();
   if (me.isPending || (me.error instanceof ApiError && me.error.status === 401)) {
     return <ShellSkeleton />;
@@ -71,7 +73,9 @@ function AuthGate({ children }: { children: ReactNode }) {
   return <Shell me={me.data}>{children}</Shell>;
 }
 
-function Shell({ me, children }: { me: Me; children: ReactNode }) {
+type ShellProps = { me: Me; children: ReactNode };
+
+function Shell({ me, children }: ShellProps) {
   const pathname = usePathname();
   // The mobile menu belongs to the page it was opened on: navigating closes it, no effect needed.
   const [navOpenOn, setNavOpenOn] = useState<string | null>(null);
@@ -89,7 +93,7 @@ function Shell({ me, children }: { me: Me; children: ReactNode }) {
       >
         Skip to content
       </a>
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background px-4 md:px-6">
         <Button
           variant="ghost"
           size="icon"
@@ -101,7 +105,7 @@ function Shell({ me, children }: { me: Me; children: ReactNode }) {
         >
           {navOpen ? <X aria-hidden /> : <Menu aria-hidden />}
         </Button>
-        <Link href="/dashboard" aria-label="Anveshan home" className="rounded-md">
+        <Link href="/dashboard" aria-label="Anveshan home" className="inline-flex min-h-11 items-center rounded-md">
           <Logo />
         </Link>
         <div className="flex-1" />
@@ -113,18 +117,19 @@ function Shell({ me, children }: { me: Me; children: ReactNode }) {
           id="app-nav"
           aria-label="Main"
           className={cn(
-            "z-20 w-62 shrink-0 border-r border-border bg-surface-2 p-3",
+            "z-20 w-62 shrink-0 border-r border-border bg-background px-3 py-4",
             "fixed inset-y-14 left-0 lg:static lg:block",
             navOpen ? "block" : "hidden",
           )}
         >
-          <ul className="flex flex-col gap-1">
+          <p className="px-3 pb-2 font-mono text-micro uppercase text-subtle-foreground">Workspace</p>
+          <ul className="flex flex-col gap-0.5">
             {NAV.map((item) => (
               <li key={item.href}>
                 <NavLink item={item} active={pathname === item.href || pathname.startsWith(`${item.href}/`)} />
               </li>
             ))}
-            <li className="my-2 border-t border-border" aria-hidden />
+            <li className="my-3 border-t border-border" aria-hidden />
             <li>
               <NavLink
                 item={{ href: "/settings/ai", label: "Settings", Icon: Settings }}
@@ -133,7 +138,7 @@ function Shell({ me, children }: { me: Me; children: ReactNode }) {
             </li>
           </ul>
         </nav>
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-8 md:px-6 lg:px-8 lg:py-12">
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-8 md:px-8 lg:px-12 lg:py-12">
           <div className="mx-auto max-w-6xl">{children}</div>
         </main>
       </div>
@@ -141,14 +146,17 @@ function Shell({ me, children }: { me: Me; children: ReactNode }) {
   );
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
-  const base = "flex h-10 items-center gap-3 rounded-md px-3 text-body-sm";
+type NavLinkProps = { item: NavItem; active: boolean };
+
+/** Active = white text + a 2px green bar (the accent marks *where you are*, nothing else). */
+function NavLink({ item, active }: NavLinkProps) {
+  const base = "relative flex h-10 items-center gap-3 rounded-md px-3 text-body-sm max-sm:h-11";
   if (item.soon) {
     return (
       <span aria-disabled="true" className={cn(base, "cursor-not-allowed text-subtle-foreground")}>
         <item.Icon aria-hidden className="size-4" />
         <span className="flex-1">{item.label}</span>
-        <span className="text-micro uppercase tracking-wide">Soon</span>
+        <span className="font-mono text-micro uppercase">Soon</span>
       </span>
     );
   }
@@ -158,9 +166,10 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       aria-current={active ? "page" : undefined}
       className={cn(
         base,
-        active ? "bg-primary-soft font-medium text-primary" : "text-foreground hover:bg-surface-3",
+        active ? "bg-surface-2 font-medium text-foreground" : "text-muted-foreground hover:bg-surface hover:text-foreground",
       )}
     >
+      {active && <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 bg-primary" />}
       <item.Icon aria-hidden className="size-4" />
       {item.label}
     </Link>
@@ -170,7 +179,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 function ShellSkeleton() {
   return (
     <div className="flex min-h-screen flex-col" aria-busy="true" aria-label="Loading">
-      <div className="flex h-14 items-center gap-3 border-b border-border bg-surface px-4">
+      <div className="flex h-14 items-center gap-3 border-b border-border bg-background px-4">
         <Skeleton className="h-7 w-32" />
         <div className="flex-1" />
         <Skeleton className="size-10 rounded-full" />

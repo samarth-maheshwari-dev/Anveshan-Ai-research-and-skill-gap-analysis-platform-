@@ -1,20 +1,19 @@
 "use client";
 
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
-import { Toaster } from "sonner";
 
-/** Theme (no flash, follows OS) + motion (lazy, reduced-motion aware) + toasts. */
-export function Providers({ children }: { children: ReactNode }) {
+type ProvidersProps = { children: ReactNode };
+
+/**
+ * Theme: black-first — dark is the default for every visitor; Light and System stay one click away in
+ * the user menu (DESIGN §2.3). Motion and toasts are only used in the signed-in area, so they load
+ * there (components/shell/app-providers.tsx), not on the public pages.
+ */
+export function Providers({ children }: ProvidersProps) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <MotionConfig reducedMotion="user">
-        <LazyMotion features={domAnimation} strict>
-          {children}
-          <Toaster position="bottom-right" toastOptions={{ className: "font-sans" }} />
-        </LazyMotion>
-      </MotionConfig>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+      {children}
     </ThemeProvider>
   );
 }

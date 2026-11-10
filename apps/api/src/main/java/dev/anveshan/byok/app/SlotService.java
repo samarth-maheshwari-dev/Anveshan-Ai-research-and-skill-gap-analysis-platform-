@@ -93,6 +93,12 @@ public class SlotService {
 		return get(owner);
 	}
 
+	/** The models this user's task routing sends to one connection — what a re-test should check first. */
+	@Transactional(readOnly = true)
+	public List<String> modelsRoutedTo(UUID owner, UUID connectionId) {
+		return store.modelsFor(owner, connectionId);
+	}
+
 	/**
 	 * A-FR-6: after the first successful key test, route every slot to that connection + model, but
 	 * only if the user hasn't set up any routing yet. Returns true when defaults were written.

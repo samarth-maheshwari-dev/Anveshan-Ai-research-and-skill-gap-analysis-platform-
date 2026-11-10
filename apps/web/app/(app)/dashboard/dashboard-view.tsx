@@ -1,15 +1,15 @@
 "use client";
 
-import { FlaskConical, KeyRound } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { ConnectionStatus } from "@/components/anveshan/connection-status";
-import { DiyaIllustration } from "@/components/anveshan/logo";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardTitle, Overline, Skeleton } from "@/components/ui/card";
+import { Overline, Skeleton } from "@/components/ui/card";
 import { useConnections } from "@/lib/api/hooks/connections";
+import { ErrorLine } from "@/components/anveshan/error-line";
 import { useMe } from "@/lib/api/hooks/me";
 
 const EXAMPLES = [
@@ -46,54 +46,55 @@ export function DashboardView() {
 
   return (
     <div>
-      <h1 className="font-display text-display-lg font-medium tracking-tight">
-        {firstName ? `Welcome, ${firstName}` : "Welcome"}
-      </h1>
+      <Overline>Dashboard</Overline>
+      <h1 className="mt-3 text-display-lg font-semibold">{firstName ? `Welcome, ${firstName}` : "Welcome"}</h1>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <div className="flex flex-col items-center py-6 text-center">
-            <DiyaIllustration />
-            <h2 className="mt-4 text-heading-lg font-semibold">Start your first research</h2>
-            <p className="mt-2 max-w-md text-body-sm text-muted-foreground">
+      <div className="mt-10 grid gap-6 lg:grid-cols-3">
+        <section aria-labelledby="first-research" className="rounded-lg border border-border bg-surface lg:col-span-2">
+          <div className="p-6 md:p-8">
+            <Overline>01 — First research</Overline>
+            <h2 id="first-research" className="mt-4 text-heading-lg font-semibold">
+              Start your first research
+            </h2>
+            <p className="mt-2 max-w-lg text-body text-muted-foreground">
               Ask a question once. Anveshan plans it with you, reads the sources and writes a report where every
               claim shows its proof.
             </p>
-            <span
-              aria-disabled="true"
-              className={`${buttonVariants({ variant: "primary" })} mt-6`}
-              title="New research opens in the next update"
-            >
-              <FlaskConical aria-hidden /> New research
-            </span>
-            <p className="mt-2 text-caption text-muted-foreground">New research opens in the next update.</p>
+            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span aria-disabled="true" className={buttonVariants({ variant: "secondary" })}>
+                <FlaskConical aria-hidden /> New research
+              </span>
+              <span className="font-mono text-micro uppercase text-subtle-foreground">Opens in the next update</span>
+            </div>
           </div>
-          <div className="border-t border-border pt-4">
+          <div className="border-t border-border p-6 md:p-8">
             <Overline>Example topics</Overline>
-            <ul className="mt-2 space-y-2">
-              {EXAMPLES.map((t) => (
-                <li key={t} className="rounded-md bg-surface-2 px-3 py-2 text-body-sm">
-                  {t}
+            <ol className="mt-3 border-t border-border">
+              {EXAMPLES.map((t, i) => (
+                <li key={t} className="flex gap-4 border-b border-border py-3 text-body-sm">
+                  <span className="font-mono text-subtle-foreground tabular">0{i + 1}</span>
+                  <span>{t}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
-        </Card>
+        </section>
 
-        <Card className="lg:self-start">
-          <div className="flex items-center gap-2">
-            <KeyRound aria-hidden className="size-5 text-primary" strokeWidth={1.75} />
-            <CardTitle>AI connections</CardTitle>
-          </div>
+        <section aria-labelledby="ai-connections" className="rounded-lg border border-border bg-surface p-6 lg:self-start">
+          <h2 id="ai-connections" className="font-mono text-micro uppercase text-muted-foreground">
+            02 — AI connections
+          </h2>
           {connections.isPending ? (
             <div className="mt-4 space-y-2">
               <Skeleton className="h-6 w-full" />
               <Skeleton className="h-6 w-2/3" />
             </div>
+          ) : connections.isError ? (
+            <ErrorLine message="Couldn't load your AI connections." onRetry={() => void connections.refetch()} />
           ) : connections.data && connections.data.length > 0 ? (
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-4 border-t border-border">
               {connections.data.map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-2">
+                <li key={c.id} className="flex items-center justify-between gap-2 border-b border-border py-3">
                   <span className="truncate text-body-sm">{c.label}</span>
                   <ConnectionStatus status={c.status} />
                 </li>
@@ -104,11 +105,11 @@ export function DashboardView() {
           )}
           <Link
             href={verified ? "/settings/ai" : "/onboarding/connect-ai"}
-            className={`${buttonVariants({ variant: verified ? "secondary" : "soft" })} mt-6 w-full`}
+            className={`${buttonVariants({ variant: verified ? "secondary" : "primary" })} mt-6 w-full`}
           >
             {verified ? "Manage AI" : "Connect AI"}
           </Link>
-        </Card>
+        </section>
       </div>
     </div>
   );

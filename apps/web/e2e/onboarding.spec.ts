@@ -38,9 +38,10 @@ test("T-08-03 Riya: landing → login (fake OIDC) → wizard → paste key → C
   const aiCard = page.getByRole("listitem").filter({ hasText: "My Google Gemini" });
   await expect(aiCard.getByText("Verified")).toBeVisible();
 
-  expect(api.calls).toEqual(
-    expect.arrayContaining(["oauth", "POST /connections", "GET /connections/c1/models", "POST /connections/c1/test"]),
-  );
+  expect(api.calls).toEqual(expect.arrayContaining(["oauth", "POST /connections", "POST /connections/c1/test"]));
+  // P08 rework: the backend picks the model — the wizard neither lists models nor sends one.
+  expect(api.calls).not.toContain("GET /connections/c1/models");
+  expect(api.testModelsAsked).toEqual([undefined]);
   expect(api.writesWithoutCsrf).toEqual([]); // every write carried X-XSRF-TOKEN
   expect(api.connections[0]?.status).toBe("VERIFIED");
   expect(Date.now() - started).toBeLessThan(120_000);
@@ -99,7 +100,7 @@ test("banner #3: a failing key is named and links to Settings → AI", async ({ 
   });
   await page.goto("/dashboard");
   const banner = page.getByTestId("global-banner");
-  await expect(banner).toContainText("Your My Groq key stopped working.");
+  await expect(banner).toContainText("The key “My Groq” stopped working.");
   await banner.getByRole("link", { name: "Fix" }).click();
   await expect(page).toHaveURL(/\/settings\/ai$/);
 });

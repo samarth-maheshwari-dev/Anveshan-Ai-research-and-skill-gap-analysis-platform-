@@ -7,6 +7,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // 4 locally: 8 parallel browsers + a prod server starve a 16 GB laptop, and the first batch timed out
+  workers: process.env.CI ? undefined : 4,
   reporter: [["list"]],
   globalSetup: "./e2e/global-setup.ts",
   expect: { timeout: 10_000 }, // CI machines are slower than a dev laptop
