@@ -329,6 +329,37 @@ class ByokIT {
 	}
 
 	@Test
+	@DisplayName("T-08-37 Gemini 503 'model overloaded' on the first model → next model answers → VERIFIED, not 'couldn't reach'")
+	void overloadedModelFallsBackToTheNext() throws Exception {
+		String key = newKey("AIzaOverloaded");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-2.5-flash", "gemini-2.0-flash-001"));
+		FAKE.whenModel(key, "gemini-2.5-flash", Reply.json(503,
+				"{\"error\":{\"code\":503,\"message\":\"The model is overloaded. Please try again later.\",\"status\":\"UNAVAILABLE\"}}"));
+
+		var r = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+		assertThat(r.getResponse().getStatus()).as(body(r)).isEqualTo(200);
+		assertThat(jsonOf(r).path("sampleModel").asString()).isEqualTo("gemini-2.0-flash-001");
+		assertThat(status(id)).isEqualTo("VERIFIED");
+	}
+
+	@Test
+	@DisplayName("T-08-38 every model 503 → 422 reason PROVIDER_UNAVAILABLE, key not marked FAILING")
+	void allOverloadedIsProviderUnavailable() throws Exception {
+		String key = newKey("AIzaAllOverloaded");
+		UUID id = createConnection(alice, "GEMINI", key);
+		FAKE.script(key, FakeProvider.geminiModels("gemini-2.5-flash", "gemini-2.0-flash-001"));
+		Reply overloaded = Reply.json(503, "{\"error\":{\"code\":503,\"status\":\"UNAVAILABLE\"}}");
+		FAKE.whenModel(key, "gemini-2.5-flash", overloaded);
+		FAKE.whenModel(key, "gemini-2.0-flash-001", overloaded);
+
+		var r = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+		assertThat(r.getResponse().getStatus()).as(body(r)).isEqualTo(422);
+		assertThat(jsonOf(r).path("reason").asString()).isEqualTo("PROVIDER_UNAVAILABLE");
+		assertThat(status(id)).isNotEqualTo("FAILING");
+	}
+
+	@Test
 	@DisplayName("T-08-34 routed model rate-limited (429) → next model answers, note says 'rate-limited right now', no re-route advice")
 	void rateLimitedRoutedModelIsOnlyAHeadsUp() throws Exception {
 		String key = newKey("AIzaRoutedLimited");

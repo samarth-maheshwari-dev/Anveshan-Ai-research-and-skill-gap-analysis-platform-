@@ -8,16 +8,20 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.anveshan.byok.app.ProviderModels.ModelInfo;
 import dev.anveshan.byok.app.ProviderModels.ProviderAuthException;
+import dev.anveshan.byok.app.ProviderModels.ProviderCallException;
 import dev.anveshan.byok.app.ProviderModels.ProviderException;
 import dev.anveshan.byok.app.ProviderModels.ProviderModelNotFoundException;
 import dev.anveshan.byok.app.ProviderModels.ProviderRateLimitException;
@@ -40,6 +44,11 @@ import jakarta.persistence.EntityManager;
 public class ConnectionService {
 
 	static final String RATE_LIMITED_NOTE = "Key is valid but rate-limited right now";
+
+	private static final Logger log = LoggerFactory.getLogger(ConnectionService.class);
+
+	/** Provider errors that say "this model can't answer right now", not "this key is wrong". */
+	private static final Set<String> TEMPORARY = Set.of("UNREACHABLE", "PROVIDER_UNAVAILABLE");
 
 	/** Machine-readable cause of a failed test, sent as the Problem {@code reason}; the UI words it. */
 	public enum TestFailure {
@@ -194,6 +203,8 @@ public class ConnectionService {
 			throw testFailed(TestFailure.of(e), e.getMessage());
 		}
 		catch (ProviderException e) {
+			// status + fixed text only (never the provider body): enough to see why a real key test failed
+			log.warn("Key test failed for {} connection: {} ({})", c.getProvider(), e.code(), e.getMessage());
 			throw testFailed(TestFailure.of(e), e.getMessage()); // the provider failed, not the key
 		}
 	}
@@ -236,14 +247,15 @@ public class ConnectionService {
 	private TestResult testModels(AiConnection c, ResolvedConnection rc, LlmTransport transport, List<String> candidates,
 			boolean explicit, List<String> routed) {
 		String skippedRouted = null;
-		boolean skippedForLimit = false;
+		Skip skippedWhy = Skip.GONE;
 		ProviderRateLimitException limited = null;
 		String limitedModel = null;
+		ProviderCallException unavailable = null;
 		for (String model : candidates) {
 			long t0 = System.nanoTime();
 			try {
 				transport.test(rc, model);
-				String note = skippedRouted == null ? null : skippedNote(skippedRouted, model, skippedForLimit);
+				String note = skippedRouted == null ? null : skippedNote(skippedRouted, model, skippedWhy);
 				save(c, ConnectionStatus.VERIFIED, note);
 				return new TestResult(ConnectionStatus.VERIFIED, msSince(t0), model, note, fillSlots(c, model));
 			}
@@ -254,18 +266,35 @@ public class ConnectionService {
 			catch (ProviderRateLimitException e) {
 				if (skippedRouted == null && routed.contains(model)) {
 					skippedRouted = model;
-					skippedForLimit = true;
+					skippedWhy = Skip.RATE_LIMITED;
 				}
 				if (limited == null) {
 					limited = e;
 					limitedModel = model;
 				}
 			}
+			catch (ProviderCallException e) {
+				// 5xx ("model overloaded" — common for Gemini 2.5 Flash on the free tier) or a network
+				// error on this model: the key isn't the problem, another model may answer right now
+				if (!TEMPORARY.contains(e.code())) {
+					throw e;
+				}
+				log.warn("Key test: {} model {} unavailable ({}), trying the next one", c.getProvider(), model,
+						e.getMessage()); // fixed text with the HTTP status only — never the provider body
+				if (skippedRouted == null && routed.contains(model)) {
+					skippedRouted = model;
+					skippedWhy = Skip.OVERLOADED;
+				}
+				unavailable = unavailable == null ? e : unavailable;
+			}
 		}
 		if (limited != null) {
 			save(c, ConnectionStatus.VERIFIED, RATE_LIMITED_NOTE);
 			return new TestResult(ConnectionStatus.VERIFIED, limited.latencyMs(), limitedModel, RATE_LIMITED_NOTE,
 					fillSlots(c, limitedModel));
+		}
+		if (unavailable != null) {
+			throw unavailable; // nothing answered and at least one was down: "couldn't reach", not "no model"
 		}
 		throw explicit ? testFailed(TestFailure.MODEL_NOT_FOUND, "Model not found")
 				: testFailed(TestFailure.NO_CHAT_MODEL, "No usable chat model found for this key");
@@ -316,15 +345,22 @@ public class ConnectionService {
 		return models;
 	}
 
+	/** Why a routed model was skipped during a test. */
+	enum Skip {
+		GONE, RATE_LIMITED, OVERLOADED
+	}
+
 	/**
-	 * A rate limit is temporary (research falls back on 429 by itself), so it only gets a heads-up; a model
-	 * that's gone needs the user to change Task routing.
+	 * A rate limit or an overload is temporary (research falls back by itself), so it only gets a heads-up;
+	 * a model that's gone needs the user to change Task routing.
 	 */
-	static String skippedNote(String routedModel, String usedModel, boolean rateLimited) {
-		return rateLimited
-				? routedModel + " is rate-limited right now; " + usedModel + " answered"
-				: routedModel + " didn't answer, " + usedModel + " did. Research still uses " + routedModel
-						+ " — change it in Task routing";
+	static String skippedNote(String routedModel, String usedModel, Skip why) {
+		return switch (why) {
+			case RATE_LIMITED -> routedModel + " is rate-limited right now; " + usedModel + " answered";
+			case OVERLOADED -> routedModel + " is overloaded right now; " + usedModel + " answered";
+			case GONE -> routedModel + " didn't answer, " + usedModel + " did. Research still uses " + routedModel
+					+ " — change it in Task routing";
+		};
 	}
 
 	private boolean fillSlots(AiConnection c, String model) {
