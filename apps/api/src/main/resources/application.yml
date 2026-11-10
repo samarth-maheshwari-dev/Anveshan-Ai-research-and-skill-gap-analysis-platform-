@@ -124,7 +124,7 @@ anveshan:
   # A provider's live model list (A-FR-5) and the key test that uses it.
   models:
     cache-ttl: 1h           # the raw list is cached per connection this long (key decrypted only on a miss)
-    test-candidates: 3      # a test without an explicit model tries at most this many models
+    test-candidates: 5      # a test without an explicit model tries at most this many models (busy free tiers: 503/429 on the newest)
   outbound:
     allow-loopback: false     # tests only — lets a local fake provider count as "public"
   embeddings:

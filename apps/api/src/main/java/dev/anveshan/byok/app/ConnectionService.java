@@ -45,6 +45,9 @@ public class ConnectionService {
 
 	static final String RATE_LIMITED_NOTE = "Key is valid but rate-limited right now";
 
+	static final String BUSY_NOTE = "Your key works, but the provider's models are overloaded right now"
+			+ " — research will retry them and switch models if needed";
+
 	private static final Logger log = LoggerFactory.getLogger(ConnectionService.class);
 
 	/** Provider errors that say "this model can't answer right now", not "this key is wrong". */
@@ -190,8 +193,8 @@ public class ConnectionService {
 				return new TestResult(ConnectionStatus.VERIFIED, msSince(t0), null, null, false);
 			}
 			List<String> routed = explicit != null ? List.of() : slots.modelsRoutedTo(owner, c.getId());
-			List<String> candidates = explicit != null ? List.of(explicit) : candidates(routed, c, rc);
-			return testModels(c, rc, transport, candidates, explicit != null, routed);
+			TestPlan plan = explicit != null ? new TestPlan(List.of(explicit), false) : candidates(routed, c, rc);
+			return testModels(c, rc, transport, plan, explicit != null, routed);
 		}
 		catch (ProviderRateLimitException e) {
 			// e.g. the model list itself was rate-limited: the key is valid, no model is proven yet
@@ -240,28 +243,36 @@ public class ConnectionService {
 	}
 
 	/**
-	 * Tries each candidate once. Not found or rate-limited → next (a free tier can have a 0 limit on one
-	 * model while another works); any other error stops the test. If a routed model was skipped, the
-	 * result says so — research would still use it until the user changes Task routing.
+	 * What a test tries, best first, and whether the key is already proven: the provider answered the
+	 * model-list request made with this key (a wrong key gets 400/401/403 there, never a list).
 	 */
-	private TestResult testModels(AiConnection c, ResolvedConnection rc, LlmTransport transport, List<String> candidates,
+	record TestPlan(List<String> models, boolean keyProven) {
+	}
+
+	/**
+	 * Tries each candidate once. Not found, rate-limited, overloaded (5xx) or unreachable → next; any other
+	 * error stops the test. If nothing answered only because the provider is busy and the model list
+	 * already proved the key, the key is VERIFIED with a note — a provider's bad hour must not block
+	 * onboarding (research retries and falls back at run time). If a routed model was skipped, the result
+	 * says so — research would still use it until the user changes Task routing.
+	 */
+	private TestResult testModels(AiConnection c, ResolvedConnection rc, LlmTransport transport, TestPlan plan,
 			boolean explicit, List<String> routed) {
+		log.info("Key test for {} tries {} (key proven by the model list: {})", c.getProvider(), plan.models(),
+				plan.keyProven()); // model ids only
 		String skippedRouted = null;
 		Skip skippedWhy = Skip.GONE;
 		ProviderRateLimitException limited = null;
 		String limitedModel = null;
 		ProviderCallException unavailable = null;
-		for (String model : candidates) {
+		String unavailableModel = null;
+		for (String model : plan.models()) {
 			long t0 = System.nanoTime();
 			try {
 				transport.test(rc, model);
 				String note = skippedRouted == null ? null : skippedNote(skippedRouted, model, skippedWhy);
 				save(c, ConnectionStatus.VERIFIED, note);
 				return new TestResult(ConnectionStatus.VERIFIED, msSince(t0), model, note, fillSlots(c, model));
-			}
-			catch (ProviderModelNotFoundException e) {
-				// auth passed, this model just can't be used with this key: try the next one
-				skippedRouted = skippedRouted == null && routed.contains(model) ? model : skippedRouted;
 			}
 			catch (ProviderRateLimitException e) {
 				if (skippedRouted == null && routed.contains(model)) {
@@ -285,7 +296,15 @@ public class ConnectionService {
 					skippedRouted = model;
 					skippedWhy = Skip.OVERLOADED;
 				}
-				unavailable = unavailable == null ? e : unavailable;
+				if (unavailable == null) {
+					unavailable = e;
+					unavailableModel = model;
+				}
+			}
+			catch (ProviderModelNotFoundException e) {
+				// auth passed, this model just can't be used with this key: try the next one
+				log.info("Key test: {} model {} not available for this key, trying the next one", c.getProvider(), model);
+				skippedRouted = skippedRouted == null && routed.contains(model) ? model : skippedRouted;
 			}
 		}
 		if (limited != null) {
@@ -293,8 +312,14 @@ public class ConnectionService {
 			return new TestResult(ConnectionStatus.VERIFIED, limited.latencyMs(), limitedModel, RATE_LIMITED_NOTE,
 					fillSlots(c, limitedModel));
 		}
+		if (unavailable != null && plan.keyProven()) {
+			// the key works (it got the model list); the provider's models are just overloaded right now
+			save(c, ConnectionStatus.VERIFIED, BUSY_NOTE);
+			return new TestResult(ConnectionStatus.VERIFIED, unavailable.latencyMs(), null, BUSY_NOTE,
+					fillSlots(c, unavailableModel));
+		}
 		if (unavailable != null) {
-			throw unavailable; // nothing answered and at least one was down: "couldn't reach", not "no model"
+			throw unavailable; // nothing answered and the key isn't proven: "couldn't reach", not "no model"
 		}
 		throw explicit ? testFailed(TestFailure.MODEL_NOT_FOUND, "Model not found")
 				: testFailed(TestFailure.NO_CHAT_MODEL, "No usable chat model found for this key");
@@ -305,12 +330,14 @@ public class ConnectionService {
 	 * the preset's known-good hint (only if the provider lists it, or lists nothing — so a retired hint
 	 * can't break the test) → the live list ranked by {@link ModelRanking}.
 	 */
-	private List<String> candidates(List<String> routed, AiConnection c, ResolvedConnection rc) {
+	private TestPlan candidates(List<String> routed, AiConnection c, ResolvedConnection rc) {
 		LinkedHashSet<String> out = new LinkedHashSet<>(routed);
 		String hint = rc.preset().testModel();
 		List<String> listed;
+		boolean keyProven = false;
 		try {
 			listed = listModels(c, () -> rc).stream().map(ModelInfo::id).toList();
+			keyProven = !listed.isEmpty(); // the provider gave this key its model list
 		}
 		catch (ProviderModelNotFoundException e) {
 			listed = List.of(); // this endpoint has no model list
@@ -329,7 +356,7 @@ public class ConnectionService {
 			out.add(hint);
 		}
 		out.addAll(ModelRanking.rank(listed, props.rankingRules(c.getProvider())));
-		return out.stream().limit(props.models().testCandidates()).toList();
+		return new TestPlan(out.stream().limit(props.models().testCandidates()).toList(), keyProven);
 	}
 
 	/** The provider's raw list, cached per connection; the key is only decrypted on a cache miss. */

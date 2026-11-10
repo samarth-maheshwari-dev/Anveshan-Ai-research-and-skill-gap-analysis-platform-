@@ -4,7 +4,7 @@ import type { BrowserContext, Page, Route } from "@playwright/test";
  * An in-memory stand-in for the Anveshan API (http://localhost:8080), installed per test with
  * page.route. It behaves like the real backend where the UI depends on it (ByokIT proves the real
  * one): session cookie, CSRF header on writes, 401 without a session, and the connection test —
- * the backend picks the model (routed → preset hint → ranked list, max 3, skipping retired ones), a
+ * the backend picks the model (routed → preset hint → ranked list, max 5 (anveshan.models.test-candidates), skipping retired ones), a
  * skipped routed model comes back as a `note`, a missing model never marks the key FAILING, errors
  * carry a machine-readable `reason`, first success fills slots.
  */
@@ -92,12 +92,12 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
       .map((r) => r.model);
   /**
    * Like ConnectionService.candidates: routed models → the preset hint (only if the provider lists it,
-   * or lists nothing) → the ranked list; at most 3.
+   * or lists nothing) → the ranked list; at most 5.
    */
   const candidatesFor = (c: Conn, routed: string[]) => {
     const hint = HINTS[c.provider];
     const useHint = hint && (state.listedModels.length === 0 || state.listedModels.includes(hint));
-    return [...new Set([...routed, ...(useHint ? [hint] : []), ...state.listedModels])].slice(0, 3);
+    return [...new Set([...routed, ...(useHint ? [hint] : []), ...state.listedModels])].slice(0, 5);
   };
 
   // OAuth start: the real API redirects to Google; here "Google" approves at once and comes back.

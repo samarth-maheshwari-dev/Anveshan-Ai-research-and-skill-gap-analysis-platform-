@@ -344,14 +344,32 @@ class ByokIT {
 	}
 
 	@Test
-	@DisplayName("T-08-38 every model 503 → 422 reason PROVIDER_UNAVAILABLE, key not marked FAILING")
-	void allOverloadedIsProviderUnavailable() throws Exception {
+	@DisplayName("T-08-38 Samarth's real case: the key gets the model list but every model answers 503 → VERIFIED with a 'models overloaded' note, slots filled")
+	void allOverloadedButListedIsVerified() throws Exception {
 		String key = newKey("AIzaAllOverloaded");
 		UUID id = createConnection(alice, "GEMINI", key);
-		FAKE.script(key, FakeProvider.geminiModels("gemini-2.5-flash", "gemini-2.0-flash-001"));
+		FAKE.script(key, FakeProvider.geminiModels("gemini-3.8-flash", "gemini-3.7-flash"));
 		Reply overloaded = Reply.json(503, "{\"error\":{\"code\":503,\"status\":\"UNAVAILABLE\"}}");
-		FAKE.whenModel(key, "gemini-2.5-flash", overloaded);
-		FAKE.whenModel(key, "gemini-2.0-flash-001", overloaded);
+		FAKE.whenModel(key, "gemini-3.8-flash", overloaded);
+		FAKE.whenModel(key, "gemini-3.7-flash", overloaded);
+
+		var r = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
+		assertThat(r.getResponse().getStatus()).as(body(r)).isEqualTo(200);
+		JsonNode j = jsonOf(r);
+		assertThat(j.path("status").asString()).isEqualTo("VERIFIED");
+		assertThat(j.path("note").asString()).contains("Your key works").contains("overloaded");
+		assertThat(j.path("defaultSlotsSet").asBoolean()).isTrue();
+		assertThat(status(id)).isEqualTo("VERIFIED");
+	}
+
+	@Test
+	@DisplayName("T-08-39 model list AND the known-good model both 503 → key not proven → 422 PROVIDER_UNAVAILABLE, not FAILING")
+	void overloadedWithoutListIsProviderUnavailable() throws Exception {
+		String key = newKey("AIzaNothingAnswers");
+		UUID id = createConnection(alice, "GEMINI", key);
+		Reply overloaded = Reply.json(503, "{\"error\":{\"code\":503,\"status\":\"UNAVAILABLE\"}}");
+		FAKE.script(key, overloaded); // GET models
+		FAKE.whenModel(key, GEMINI_HINT, overloaded);
 
 		var r = postJson(alice, "/api/v1/connections/" + id + "/test", "{}");
 		assertThat(r.getResponse().getStatus()).as(body(r)).isEqualTo(422);
@@ -468,12 +486,14 @@ class ByokIT {
 	}
 
 	@Test
-	@DisplayName("T-08-16 no candidate works → 422 reason NO_CHAT_MODEL after at most 3 tries (listed hint first); status unchanged")
+	@DisplayName("T-08-16 no candidate works → 422 reason NO_CHAT_MODEL after at most 5 tries (listed hint first); status unchanged")
 	void noUsableModel() throws Exception {
 		String key = newKey("AIzaNothing");
 		UUID id = createConnection(alice, "GEMINI", key);
-		FAKE.script(key, FakeProvider.geminiModels("gemini-2.0-flash", GEMINI_HINT, "gemini-2.5-flash", "gemini-3-flash"));
-		for (String m : List.of(GEMINI_HINT, "gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash")) {
+		List<String> all = List.of(GEMINI_HINT, "gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash",
+				"gemini-1.5-flash", "gemini-1.0-flash");
+		FAKE.script(key, FakeProvider.geminiModels(all.reversed().toArray(String[]::new)));
+		for (String m : all) {
 			FAKE.whenModel(key, m, FakeProvider.retired(m));
 		}
 
@@ -481,10 +501,11 @@ class ByokIT {
 
 		assertThat(res.getResponse().getStatus()).isEqualTo(422);
 		assertThat(jsonOf(res).path("reason").asString()).isEqualTo("NO_CHAT_MODEL");
-		assertThat(FAKE.chatModels(key)).containsExactly(GEMINI_HINT, "gemini-3-flash", "gemini-2.5-flash");
+		// anveshan.models.test-candidates = 5: the 6th (oldest) model is never tried
+		assertThat(FAKE.chatModels(key)).containsExactlyElementsOf(all.subList(0, 5));
 		assertThat(status(id)).isEqualTo("UNVERIFIED");
 		var models = jsonOf(perform(alice, get("/api/v1/connections/" + id + "/models")));
-		assertThat(models.path("items").size()).as("the picker can still offer the live list").isEqualTo(4);
+		assertThat(models.path("items").size()).as("the picker can still offer the live list").isEqualTo(6);
 	}
 
 	@Test
