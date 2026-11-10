@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowLeft, CircleAlert, ClipboardPaste } from "lucide-react";
+import { ArrowLeft, ClipboardPaste } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
+import { Alert } from "@/components/anveshan/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -15,7 +16,6 @@ import {
   type TestResult,
 } from "@/lib/api/hooks/connections";
 import { describeTestError, type ProviderInfo, type WizardError } from "@/lib/providers";
-import { cn } from "@/lib/utils";
 
 import { PrivacyNote } from "./get-key-step";
 import { ModelField } from "./model-field";
@@ -220,17 +220,9 @@ export function PasteStep({ provider, onBack, onVerified }: PasteStepProps) {
         )}
 
         {error && (
-          <p
-            id={errorId}
-            role="alert"
-            className={cn(
-              "mt-5 flex items-start gap-2 rounded-md border p-3 text-body-sm text-foreground",
-              keyWorks ? "border-border-strong bg-surface-2" : "border-danger/40 bg-danger-soft",
-            )}
-          >
-            <CircleAlert aria-hidden className={cn("mt-0.5 size-4 shrink-0", keyWorks ? "text-foreground" : "text-danger")} />
+          <Alert id={errorId} tone={keyWorks ? "neutral" : "danger"} className="mt-5">
             {error.message}
-          </p>
+          </Alert>
         )}
 
         <PrivacyNote />
