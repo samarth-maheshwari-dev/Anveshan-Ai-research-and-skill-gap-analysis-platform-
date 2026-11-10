@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P07 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security, bring-your-own-key backend); P08 (frontend + connect-your-AI wizard) is built and waiting for its final manual check. See [Progress](#progress).
+> **Status:** early development. Phases P00–P08 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security, bring-your-own-key backend, frontend + connect-your-AI wizard). Milestone M0 — sign in and connect a real AI key — is reached. See [Progress](#progress).
 
 ## What it does
 
@@ -110,7 +110,7 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P05 | Login with Google / GitHub, server-side sessions, CSRF, CORS, login rate limit | ✅ Done |
 | P06 | Shared security: SSRF-safe HTTP client, Tink encryption for user keys, log masking | ✅ Done |
 | P07 | Bring-your-own-key backend: connections, model lists, task routing, LLM gateway with rate-limit fallback | ✅ Done |
-| P08 | Frontend foundation + connect-your-AI wizard: black-first 60·30·10 design, landing, login, wizard, dashboard, Settings → AI; key test that picks a working model and survives busy providers | 🟡 Built, manual check pending |
+| P08 | Frontend foundation + connect-your-AI wizard: black-first 60·30·10 design, landing, login, wizard, dashboard, Settings → AI; key test that picks a working model and survives busy providers | ✅ Done |
 
 ## Security
 
