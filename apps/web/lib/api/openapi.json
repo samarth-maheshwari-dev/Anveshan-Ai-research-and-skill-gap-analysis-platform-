@@ -1,0 +1,685 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "description" : "Session cookie auth; send X-XSRF-TOKEN on writes. Errors are RFC 9457 Problem Details.",
+    "title" : "Anveshan API",
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "paths" : {
+    "/api/v1/auth/logout" : {
+      "post" : {
+        "operationId" : "logout",
+        "responses" : {
+          "204" : {
+            "description" : "Signed out"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "summary" : "End the session"
+      }
+    },
+    "/api/v1/connections" : {
+      "get" : {
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConnectionList"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "connection-controller" ]
+      },
+      "post" : {
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConnectionView"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "connection-controller" ]
+      }
+    },
+    "/api/v1/connections/{id}" : {
+      "delete" : {
+        "operationId" : "delete",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "connection-controller" ]
+      }
+    },
+    "/api/v1/connections/{id}/models" : {
+      "get" : {
+        "operationId" : "models",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "freeOnly",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModelList"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "connection-controller" ]
+      }
+    },
+    "/api/v1/connections/{id}/test" : {
+      "post" : {
+        "operationId" : "test",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TestRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TestResult"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "connection-controller" ]
+      }
+    },
+    "/api/v1/health" : {
+      "get" : {
+        "operationId" : "health",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : {
+                    "type" : "string"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "public-health-controller" ]
+      }
+    },
+    "/api/v1/me" : {
+      "get" : {
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "me-controller" ]
+      }
+    },
+    "/api/v1/slots" : {
+      "get" : {
+        "operationId" : "get",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : {
+                    "type" : "array",
+                    "items" : {
+                      "$ref" : "#/components/schemas/RouteChoice"
+                    }
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "slot-controller" ]
+      },
+      "put" : {
+        "operationId" : "put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "additionalProperties" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/RouteChoice"
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : {
+                    "type" : "array",
+                    "items" : {
+                      "$ref" : "#/components/schemas/RouteChoice"
+                    }
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "slot-controller" ]
+      }
+    },
+    "/api/v1/usage" : {
+      "get" : {
+        "operationId" : "usage",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Usage"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "slot-controller" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "ConnectionList" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConnectionView"
+            }
+          }
+        }
+      },
+      "ConnectionUsage" : {
+        "type" : "object",
+        "properties" : {
+          "connectionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "days" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Day"
+            }
+          }
+        }
+      },
+      "ConnectionView" : {
+        "type" : "object",
+        "properties" : {
+          "baseUrl" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "keyLast4" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "LLM", "SEARCH" ]
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "lastTestedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "provider" : {
+            "type" : "string",
+            "enum" : [ "GEMINI", "GROQ", "OPENROUTER", "OPENAI", "ANTHROPIC", "CUSTOM", "TAVILY" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "UNVERIFIED", "VERIFIED", "FAILING", "DISABLED" ]
+          },
+          "statusDetail" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CreateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "apiKey" : {
+            "type" : "string"
+          },
+          "baseUrl" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "LLM", "SEARCH" ]
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "provider" : {
+            "type" : "string",
+            "enum" : [ "GEMINI", "GROQ", "OPENROUTER", "OPENAI", "ANTHROPIC", "CUSTOM", "TAVILY" ]
+          }
+        }
+      },
+      "Day" : {
+        "type" : "object",
+        "properties" : {
+          "day" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "requests" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "tokensIn" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "tokensOut" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "MeView" : {
+        "type" : "object",
+        "properties" : {
+          "avatarUrl" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "identities" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "onboarding" : {
+            "$ref" : "#/components/schemas/Onboarding"
+          },
+          "timezone" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ModelInfo" : {
+        "type" : "object",
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "free" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ModelList" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ModelInfo"
+            }
+          }
+        }
+      },
+      "Onboarding" : {
+        "type" : "object",
+        "properties" : {
+          "hasRun" : {
+            "type" : "boolean"
+          },
+          "hasVerifiedConnection" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "Problem" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "type" : "object",
+              "properties" : {
+                "field" : {
+                  "type" : "string"
+                },
+                "message" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "instance" : {
+            "type" : "string"
+          },
+          "resumeAt" : {
+            "type" : "string"
+          },
+          "slot" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        }
+      },
+      "RouteChoice" : {
+        "type" : "object",
+        "properties" : {
+          "connectionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "model" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TestRequest" : {
+        "type" : "object",
+        "properties" : {
+          "model" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TestResult" : {
+        "type" : "object",
+        "properties" : {
+          "defaultSlotsSet" : {
+            "type" : "boolean"
+          },
+          "latencyMs" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "sampleModel" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "UNVERIFIED", "VERIFIED", "FAILING", "DISABLED" ]
+          }
+        }
+      },
+      "Usage" : {
+        "type" : "object",
+        "properties" : {
+          "byConnection" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConnectionUsage"
+            }
+          }
+        }
+      }
+    }
+  }
+}

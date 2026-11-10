@@ -14,6 +14,9 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_OUTPUT=standalone
+# Browser-side API origin is baked in at build time (NEXT_PUBLIC_*).
+ARG NEXT_PUBLIC_API_URL=http://localhost:8080
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm build
 
 FROM node:24.13.0-alpine3.22 AS run

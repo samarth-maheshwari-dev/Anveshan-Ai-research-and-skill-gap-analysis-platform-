@@ -247,6 +247,27 @@ class ByokIT {
 	}
 
 	@Test
+	@DisplayName("T-08 (A-FR-6) first verified key fills all 6 empty slots; a later key never overwrites them")
+	void defaultSlotsAfterFirstVerifiedKey() throws Exception {
+		UUID first = createConnection(alice, "GEMINI", newKey("AIzaFirst"));
+		UUID second = createConnection(alice, "GROQ", newKey("gsk_"));
+
+		var r1 = postJson(alice, "/api/v1/connections/" + first + "/test", "{\"model\":\"gemini-flash\"}");
+		var r2 = postJson(alice, "/api/v1/connections/" + second + "/test", "{\"model\":\"llama-fast\"}");
+
+		assertThat(jsonOf(r1).path("defaultSlotsSet").asBoolean()).isTrue();
+		assertThat(jsonOf(r2).path("defaultSlotsSet").asBoolean()).isFalse();
+		JsonNode slots = jsonOf(perform(alice, get("/api/v1/slots")));
+		for (TaskSlot s : TaskSlot.values()) {
+			assertThat(slots.path(s.name()).size()).as(s.name()).isEqualTo(1);
+			assertThat(slots.path(s.name()).path(0).path("connectionId").asString()).isEqualTo(first.toString());
+			assertThat(slots.path(s.name()).path(0).path("model").asString()).isEqualTo("gemini-flash");
+		}
+		var me = jsonOf(perform(alice, get("/api/v1/me")));
+		assertThat(me.path("onboarding").path("hasVerifiedConnection").asBoolean()).isTrue();
+	}
+
+	@Test
 	@DisplayName("T-07-02 Tavily search key is tested with a search call")
 	void tavilyTest() throws Exception {
 		String key = newKey("tvly-");

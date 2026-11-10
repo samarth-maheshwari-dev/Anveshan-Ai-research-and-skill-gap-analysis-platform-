@@ -1,130 +1,199 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+
+/* Pramaan design tokens (DESIGN.md §2, §5, §8, §15.1). The ONLY place colors are defined:
+   components use token utilities (bg-surface, text-muted-foreground, …), never hex values. */
 
 @custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #FAF8F5;
+  --surface: #FFFFFF;
+  --surface-2: #F3F0EA;
+  --surface-3: #EAE5DC;
+  --border: #E4DFD6;
+  --border-strong: #CFC8BB;
+  --foreground: #1B1A2E;
+  --muted-foreground: #5E5B70;
+  --subtle-foreground: #8A8799;
+  --primary: #3D3FC4;
+  --primary-hover: #3234A8;
+  --primary-foreground: #FFFFFF;
+  --primary-soft: #ECECFB;
+  --accent: #F2A324;
+  --accent-foreground: #1B1A2E;
+  --marker: #FFE7A3;
+  --danger: #C2272D;
+  --danger-soft: #FDECEC;
+  --success: #137544;
+  --ring: #3D3FC4;
+  --input: #8F897C;
+
+  /* trust (fg / bg) — reserved meanings (DESIGN §2.4) */
+  --trust-supported: #137544;  --trust-supported-bg: #E3F5EA;
+  --trust-weak: #8A5200;       --trust-weak-bg: #FFF1D6;
+  --trust-conflict: #B4233C;   --trust-conflict-bg: #FDE6EA;
+  --trust-none: #4B5563;       --trust-none-bg: #ECEEF2;
+  --trust-approved: #3D3FC4;   --trust-approved-bg: #ECECFB;
+
+  /* shadcn aliases so generated components work unchanged */
+  --card: var(--surface);          --card-foreground: var(--foreground);
+  --popover: var(--surface);       --popover-foreground: var(--foreground);
+  --secondary: var(--surface-2);   --secondary-foreground: var(--foreground);
+  --muted: var(--surface-2);
+  --destructive: var(--danger);
+
+  --radius: 0.625rem; /* 10px = md */
+
+  /* elevation (DESIGN §5.3) */
+  --shadow-e1: 0 1px 2px rgb(27 26 46 / 0.06);
+  --shadow-e2: 0 4px 12px -2px rgb(27 26 46 / 0.10);
+  --shadow-e4: 0 24px 60px -12px rgb(27 26 46 / 0.28);
+}
+
+.dark {
+  --background: #0E0D1A;
+  --surface: #16152A;
+  --surface-2: #1E1C36;
+  --surface-3: #272545;
+  --border: #2C2A4A;
+  --border-strong: #3D3A63;
+  --foreground: #ECEAF6;
+  --muted-foreground: #A3A0BC;
+  --subtle-foreground: #75728F;
+  --primary: #8B8DFF;
+  --primary-hover: #A3A5FF;
+  --primary-foreground: #0E0D1A;
+  --primary-soft: #23224A;
+  --accent: #FFB547;
+  --accent-foreground: #0E0D1A;
+  --marker: #5A4410;
+  --danger: #FF6B6B;
+  --danger-soft: #3A1518;
+  --success: #52D18A;
+  --ring: #8B8DFF;
+  --input: #6A6690;
+
+  --trust-supported: #52D18A;  --trust-supported-bg: #0F2A1D;
+  --trust-weak: #FFC14D;       --trust-weak-bg: #2E2208;
+  --trust-conflict: #FF7A8E;   --trust-conflict-bg: #33121A;
+  --trust-none: #A7AEBB;       --trust-none-bg: #1F2230;
+  --trust-approved: #8B8DFF;   --trust-approved-bg: #23224A;
+
+  --shadow-e1: inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --shadow-e2: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --shadow-e4: 0 24px 60px -12px rgb(0 0 0 / 0.7);
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
+  --color-border-strong: var(--border-strong);
   --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
   --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-marker: var(--marker);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-ring: var(--ring);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-destructive: var(--destructive);
+  --color-input: var(--input);
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  --color-trust-supported: var(--trust-supported);
+  --color-trust-supported-bg: var(--trust-supported-bg);
+  --color-trust-weak: var(--trust-weak);
+  --color-trust-weak-bg: var(--trust-weak-bg);
+  --color-trust-conflict: var(--trust-conflict);
+  --color-trust-conflict-bg: var(--trust-conflict-bg);
+  --color-trust-none: var(--trust-none);
+  --color-trust-none-bg: var(--trust-none-bg);
+  --color-trust-approved: var(--trust-approved);
+  --color-trust-approved-bg: var(--trust-approved-bg);
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --font-sans: var(--font-geist-sans), "Noto Sans Devanagari", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-fraunces), Georgia, serif;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --shadow-e1: var(--shadow-e1);
+  --shadow-e2: var(--shadow-e2);
+  --shadow-e4: var(--shadow-e4);
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-marker: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* type scale (DESIGN §3.2) */
+  --text-display-2xl: 3.75rem;  --text-display-2xl--line-height: 4rem;
+  --text-display-lg: 2.25rem;   --text-display-lg--line-height: 2.625rem;
+  --text-heading-lg: 1.5rem;    --text-heading-lg--line-height: 2rem;
+  --text-heading-md: 1.25rem;   --text-heading-md--line-height: 1.75rem;
+  --text-heading-sm: 1rem;      --text-heading-sm--line-height: 1.5rem;
+  --text-body-lg: 1.125rem;     --text-body-lg--line-height: 1.875rem;
+  --text-body: 0.9375rem;       --text-body--line-height: 1.5rem;
+  --text-body-sm: 0.875rem;     --text-body-sm--line-height: 1.25rem;
+  --text-caption: 0.8125rem;    --text-caption--line-height: 1.125rem;
+  --text-micro: 0.75rem;        --text-micro--line-height: 1rem;
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
+  * { @apply border-border; }
+  html { @apply font-sans; }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-size: 15px;
+    line-height: 24px;
   }
-  html {
-    @apply font-sans;
-  }
+  /* Visible focus everywhere, never removed (DESIGN §5.2, §13.1) */
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Marker sweep (§10.2) */
+.marker {
+  background-image: linear-gradient(var(--marker), var(--marker));
+  background-repeat: no-repeat;
+  background-position: 0 60%;
+  background-size: 0% 92%;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-size 560ms var(--ease-marker);
+}
+.marker[data-active="true"] { background-size: 100% 92%; }
+
+/* Skeleton shimmer (§9.10) */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .marker { transition: none; }
+  .skeleton { animation: none; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

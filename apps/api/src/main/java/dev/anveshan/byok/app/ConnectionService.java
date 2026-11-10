@@ -52,7 +52,9 @@ public class ConnectionService {
 
 	}
 
-	public record TestResult(ConnectionStatus status, long latencyMs, String sampleModel, String note) {
+	/** {@code defaultSlotsSet}: this test filled the user's empty task slots with this model (A-FR-6). */
+	public record TestResult(ConnectionStatus status, long latencyMs, String sampleModel, String note,
+			boolean defaultSlotsSet) {
 	}
 
 	private record CachedModels(Instant at, List<ModelInfo> models) {
@@ -64,10 +66,12 @@ public class ConnectionService {
 	private final ByokProperties props;
 	private final OutboundUrlGuard guard;
 	private final Clock clock;
+	private final SlotService slots;
 	private final Map<UUID, CachedModels> modelsCache = new ConcurrentHashMap<>();
 
 	ConnectionService(AiConnectionRepository connections, EntityManager em, KeyVault vault, ByokProperties props,
-			OutboundUrlGuard guard, Clock clock) {
+			OutboundUrlGuard guard, Clock clock, SlotService slots) {
+		this.slots = slots;
 		this.connections = connections;
 		this.em = em;
 		this.vault = vault;
@@ -145,12 +149,12 @@ public class ConnectionService {
 			String used = transport.test(rc, model);
 			long ms = (System.nanoTime() - t0) / 1_000_000;
 			save(c, ConnectionStatus.VERIFIED, null);
-			return new TestResult(ConnectionStatus.VERIFIED, ms, used, null);
+			return new TestResult(ConnectionStatus.VERIFIED, ms, used, null, fillSlots(c, used));
 		}
 		catch (ProviderRateLimitException e) {
 			save(c, ConnectionStatus.VERIFIED, "Key is valid but rate-limited right now");
 			return new TestResult(ConnectionStatus.VERIFIED, e.latencyMs(), requestedModel,
-					"Key is valid but rate-limited right now");
+					"Key is valid but rate-limited right now", fillSlots(c, requestedModel));
 		}
 		catch (ProviderAuthException e) {
 			save(c, ConnectionStatus.FAILING, e.getMessage());
@@ -189,6 +193,10 @@ public class ConnectionService {
 			modelsCache.put(id, new CachedModels(now, models));
 		}
 		return freeOnly ? models.stream().filter(ModelInfo::free).toList() : models;
+	}
+
+	private boolean fillSlots(AiConnection c, String model) {
+		return c.getKind() == ConnectionKind.LLM && slots.fillDefaultsIfEmpty(c.getOwnerId(), c.getId(), model);
 	}
 
 	private AiConnection owned(UUID owner, UUID id) {

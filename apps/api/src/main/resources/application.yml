@@ -35,6 +35,12 @@ spring:
             client-secret: ${GITHUB_CLIENT_SECRET:not-configured}
             scope: [read:user, user:email]
 
+springdoc:
+  api-docs:
+    enabled: ${ANV_API_DOCS:false}      # off in production; tests export target/openapi.json
+  writer-with-order-by-keys: true       # stable output → stable generated TS types
+  default-produces-media-type: application/json
+
 logging:
   exception-conversion-word: "%maskedEx"   # masked stack traces (logback-spring.xml)
 

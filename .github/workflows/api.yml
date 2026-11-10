@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "apps/api/**"
+      - "apps/web/lib/api/openapi.json"
       - ".github/workflows/api.yml"
   pull_request:
     paths:
       - "apps/api/**"
+      - "apps/web/lib/api/openapi.json"
       - ".github/workflows/api.yml"
 
 permissions:
@@ -42,3 +44,8 @@ jobs:
         run: bash scripts/fetch-model.sh
       - name: Build and test (unit + integration)
         run: ./mvnw -B verify
+      - name: Web copy of the OpenAPI spec is up to date (TECHSPEC §8.7)
+        run: |
+          if ! diff <(tr -d '\r' < target/openapi.json) <(tr -d '\r' < ../web/lib/api/openapi.json) > /dev/null; then
+            echo "::error::apps/web/lib/api/openapi.json is stale — run: pnpm -C apps/web sync:api"; exit 1
+          fi
