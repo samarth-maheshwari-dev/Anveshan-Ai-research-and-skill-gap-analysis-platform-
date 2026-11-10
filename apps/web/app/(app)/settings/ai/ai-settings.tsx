@@ -30,7 +30,8 @@ export function AiSettings() {
                   <Link
                     href="/settings/ai"
                     aria-current="page"
-                    className="relative flex h-10 min-w-11 items-center justify-center rounded-md bg-surface-2 px-3 text-body-sm font-medium text-foreground max-sm:h-11"
+                    // left-aligned like the other tabs in the vertical list (centred only in the phone row)
+                    className="relative flex h-10 min-w-11 items-center justify-center rounded-md bg-surface-2 px-3 text-body-sm font-medium text-foreground max-sm:h-11 lg:justify-start"
                   >
                     <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 bg-primary" />
                     {t.label}

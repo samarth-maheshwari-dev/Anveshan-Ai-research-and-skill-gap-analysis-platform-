@@ -1,9 +1,10 @@
 "use client";
 
-import { CircleAlert, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 
+import { Alert } from "@/components/anveshan/alert";
 import { Button } from "@/components/ui/button";
 import { ErrorLine } from "@/components/anveshan/error-line";
 import { Card, CardTitle, Overline, Skeleton } from "@/components/ui/card";
@@ -81,13 +82,7 @@ export function SlotsSection() {
             ))}
           </div>
           {error && (
-            <p
-              role="alert"
-              className="mt-4 flex items-start gap-2 rounded-md border border-danger/40 bg-danger-soft p-3 text-body-sm"
-            >
-              <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-danger" />
-              {error}
-            </p>
+            <Alert className="mt-4">{error}</Alert>
           )}
           <div className="mt-6 flex justify-end">
             <Button variant="primary" loading={save.isPending} onClick={() => void onSave()}>
