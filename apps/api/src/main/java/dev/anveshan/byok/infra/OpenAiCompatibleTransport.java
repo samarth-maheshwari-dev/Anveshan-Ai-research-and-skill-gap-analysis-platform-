@@ -89,10 +89,20 @@ class OpenAiCompatibleTransport implements LlmTransport {
 		return out;
 	}
 
+	/**
+	 * The smallest request every OpenAI-compatible model accepts: no token limit, temperature or
+	 * response_format (newer models reject some of them). Any 2xx proves key + model; the reply text
+	 * isn't needed (thinking models may return none).
+	 */
 	@Override
 	public String test(ResolvedConnection c, String model) {
-		complete(new ResolvedRoute(c, model, 0), List.of(ChatMessage.user("Reply with OK")),
-				new CompletionOptions(0, 5, false));
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("model", model);
+		body.put("messages", List.of(Map.of("role", "user", "content", "Reply with OK")));
+		var reply = http.post(http.endpoint(c, c.preset().chatPath()), auth(c), json.writeValueAsString(body));
+		if (!reply.ok()) {
+			throw http.error(reply);
+		}
 		return model;
 	}
 

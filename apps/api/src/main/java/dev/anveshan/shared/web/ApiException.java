@@ -1,5 +1,9 @@
 package dev.anveshan.shared.web;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 
 /**
@@ -11,12 +15,23 @@ public class ApiException extends RuntimeException {
 	private final HttpStatus status;
 	private final String code;
 	private final String title;
+	private final Map<String, String> properties = new LinkedHashMap<>();
 
 	public ApiException(HttpStatus status, String code, String title, String detail) {
 		super(detail);
 		this.status = status;
 		this.code = code;
 		this.title = title;
+	}
+
+	/** Extra machine-readable Problem property (e.g. {@code reason}); same safety rule as the detail. */
+	public ApiException withProperty(String name, String value) {
+		properties.put(name, value);
+		return this;
+	}
+
+	public Map<String, String> properties() {
+		return Collections.unmodifiableMap(properties);
 	}
 
 	/** Missing or not owned — both look the same to the caller (no existence leak, IDOR rule). */

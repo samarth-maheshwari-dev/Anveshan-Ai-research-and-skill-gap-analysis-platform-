@@ -36,6 +36,19 @@ public class SlotStore {
 				.list();
 	}
 
+	/** Models the owner routes to one connection, primary positions first (each model once). */
+	public List<String> modelsFor(UUID owner, UUID connectionId) {
+		return jdbc.sql("""
+				SELECT model FROM slot_route
+				WHERE owner_id = :o AND connection_id = :c
+				GROUP BY model
+				ORDER BY min(position), model
+				""")
+				.param("o", owner).param("c", connectionId)
+				.query(String.class)
+				.list();
+	}
+
 	/** Replaces all routes of the owner (call inside a transaction). */
 	public void replaceAll(UUID owner, List<Row> rows) {
 		jdbc.sql("DELETE FROM slot_route WHERE owner_id = :o").param("o", owner).update();

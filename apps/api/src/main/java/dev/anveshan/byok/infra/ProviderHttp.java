@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -87,12 +88,33 @@ class ProviderHttp {
 		}
 	}
 
-	/** Non-2xx → the matching provider exception. */
+	/** Gemini answers a wrong key with HTTP 400 (not 401); others use these phrases in their 400s. */
+	static final Pattern INVALID_KEY = Pattern
+			.compile("api_key_invalid|api key not valid|invalid api key|invalid_api_key|incorrect api key");
+
+	/**
+	 * Explicit "this model can't be used" signals in a 400 body. Deliberately narrow: a 400 that only
+	 * mentions a model ("max_tokens is not supported with this model") is a request problem, not a missing model.
+	 */
+	static final Pattern MODEL_NOT_FOUND = Pattern.compile("model_not_found|model_decommissioned|decommissioned"
+			+ "|unexpected model name|not a valid model"
+			+ "|model[^.]{0,80}(does not exist|not found|is not supported for generatecontent)");
+
+	/**
+	 * Non-2xx → the matching provider exception. The body is read only to classify the error; it is
+	 * never logged, returned or put into an exception message (providers echo key fragments).
+	 */
 	ProviderException error(Reply r) {
 		int s = r.status();
 		if (s == 429) {
 			return new ProviderRateLimitException(RateLimitHeaders.retryAt(r.headers()::getFirst, clock.instant()),
 					r.latencyMs());
+		}
+		// 400 and 403 bodies are read (classification only): OpenAI answers a model the project can't use
+		// with 403 model_not_found, Groq a retired model with 400 model_decommissioned.
+		String body = s == 400 || s == 403 ? r.body().toLowerCase(Locale.ROOT) : "";
+		if (s == 403 && MODEL_NOT_FOUND.matcher(body).find()) {
+			return new ProviderModelNotFoundException(r.latencyMs());
 		}
 		if (s == 401 || s == 403) {
 			return new ProviderAuthException("AUTH_ERROR", "Key invalid", r.latencyMs());
@@ -100,7 +122,10 @@ class ProviderHttp {
 		if (s == 402) {
 			return new ProviderAuthException("PAYMENT_REQUIRED", "The provider account has no credit left", r.latencyMs());
 		}
-		if (s == 404 || (s == 400 && r.body().toLowerCase(Locale.ROOT).contains("model"))) {
+		if (INVALID_KEY.matcher(body).find()) {
+			return new ProviderAuthException("AUTH_ERROR", "Key invalid", r.latencyMs());
+		}
+		if (s == 404 || MODEL_NOT_FOUND.matcher(body).find()) {
 			return new ProviderModelNotFoundException(r.latencyMs());
 		}
 		return new ProviderCallException(s >= 500 ? "PROVIDER_UNAVAILABLE" : "PROVIDER_ERROR",

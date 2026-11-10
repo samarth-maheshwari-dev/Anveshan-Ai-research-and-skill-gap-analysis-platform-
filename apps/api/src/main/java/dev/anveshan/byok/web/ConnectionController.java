@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.anveshan.byok.app.ConnectionService;
@@ -50,6 +50,9 @@ class ConnectionController {
 	record ModelList(List<ModelInfo> items) {
 	}
 
+	record ConnectionList(List<ConnectionView> items) {
+	}
+
 	private static final int TESTS_PER_HOUR = 20;
 
 	private final ConnectionService connections;
@@ -67,21 +70,21 @@ class ConnectionController {
 	}
 
 	@PostMapping
-	ResponseEntity<ConnectionView> create(@RequestBody CreateRequest req) {
-		var view = connections.create(currentUser.id(),
+	@ResponseStatus(HttpStatus.CREATED)
+	ConnectionView create(@RequestBody CreateRequest req) {
+		return connections.create(currentUser.id(),
 				new CreateCommand(req.kind(), req.provider(), req.label(), req.apiKey(), req.baseUrl()));
-		return ResponseEntity.status(HttpStatus.CREATED).body(view);
 	}
 
 	@GetMapping
-	Map<String, List<ConnectionView>> list() {
-		return Map.of("items", connections.list(currentUser.id()));
+	ConnectionList list() {
+		return new ConnectionList(connections.list(currentUser.id()));
 	}
 
 	@DeleteMapping("/{id}")
-	ResponseEntity<Void> delete(@PathVariable UUID id) {
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	void delete(@PathVariable UUID id) {
 		connections.delete(currentUser.id(), id);
-		return ResponseEntity.noContent().build();
 	}
 
 	/** 20 tests per user per hour (TECHSPEC §5.9) — tests cost the user's own quota. */

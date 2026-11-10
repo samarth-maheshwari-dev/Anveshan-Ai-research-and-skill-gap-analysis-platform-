@@ -1,130 +1,198 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+
+/* Design tokens (DESIGN.md §2, §3, §5, §15.1) — the ONLY place colors are defined; components use
+   token utilities (bg-surface, text-muted-foreground, …), never hex values.
+   Palette rule 60 · 30 · 10 (owner decision, 2026-11-10):
+     60 % black  — background, shell, surfaces
+     30 % white  — text, hairlines, inverted bands, secondary actions
+     10 % green  — one calm, natural accent: primary action, focus, active state, "verified"
+   Semantic status colors (trust labels, danger) appear only in small icon + word elements.
+   Dark is the default theme (components/providers.tsx); light is the exact inverse. */
 
 @custom-variant dark (&:is(.dark *));
+
+/* Light = inverse: white-dominant, black secondary, the same green darkened for contrast. */
+:root {
+  --background: #FAFAFA;
+  --surface: #FFFFFF;
+  --surface-2: #F4F4F4;
+  --surface-3: #EBEBEB;
+  --border: #E5E5E5;
+  --border-strong: #D4D4D4;
+  --foreground: #0A0A0A;
+  --muted-foreground: #525252;
+  --subtle-foreground: #6B6B6B;
+  --inverse: #0A0A0A;
+  --inverse-foreground: #FAFAFA;
+  --inverse-muted: #A3A3A3;
+  --primary: #2E6B47;
+  --primary-hover: #245A3A;
+  --primary-foreground: #FFFFFF;
+  --primary-soft: #E8F3EC;
+  --marker: #D3ECDB;
+  --danger: #B42318;
+  --danger-soft: #FDECEA;
+  --ring: #2E6B47;
+  --input: #8A8A8A;
+
+  /* trust (fg / bg) — reserved meanings, always icon + word (DESIGN §2.4) */
+  --trust-supported: #1F6B3A;  --trust-supported-bg: #E6F4EA;
+  --trust-weak: #8A5200;       --trust-weak-bg: #FFF1D6;
+  --trust-conflict: #B4233C;   --trust-conflict-bg: #FDE6EA;
+  --trust-none: #525252;       --trust-none-bg: #F0F0F0;
+  --trust-approved: #0A0A0A;   --trust-approved-bg: #EBEBEB;
+
+  /* shadcn aliases so generated components work unchanged */
+  --card: var(--surface);          --card-foreground: var(--foreground);
+  --popover: var(--surface);       --popover-foreground: var(--foreground);
+  --secondary: var(--surface-2);   --secondary-foreground: var(--foreground);
+  --muted: var(--surface-2);
+  --destructive: var(--danger);
+
+  /* Flat by design: depth comes from hairlines and contrast. Only floating layers (menus) get a shadow. */
+  --shadow-float: 0 12px 32px -12px rgb(10 10 10 / 0.22);
+}
+
+/* Dark (default) = black-dominant. */
+.dark {
+  --background: #0A0A0A;
+  --surface: #111111;
+  --surface-2: #181818;
+  --surface-3: #222222;
+  --border: #262626;
+  --border-strong: #3A3A3A;
+  --foreground: #FAFAFA;
+  --muted-foreground: #A3A3A3;
+  --subtle-foreground: #7C7C7C;
+  --inverse: #FAFAFA;
+  --inverse-foreground: #0A0A0A;
+  --inverse-muted: #525252;
+  --primary: #86C597;
+  --primary-hover: #9DD2AB;
+  --primary-foreground: #0A0A0A;
+  --primary-soft: #14221A;
+  --marker: #1E3A28;
+  --danger: #FF6B6B;
+  --danger-soft: #2A1414;
+  --ring: #86C597;
+  --input: #6B6B6B;
+
+  --trust-supported: #8FD0A3;  --trust-supported-bg: #12241A;
+  --trust-weak: #F0B54A;       --trust-weak-bg: #2A2009;
+  --trust-conflict: #FF8A97;   --trust-conflict-bg: #2E1216;
+  --trust-none: #A3A3A3;       --trust-none-bg: #1C1C1C;
+  --trust-approved: #F5F5F5;   --trust-approved-bg: #262626;
+
+  --shadow-float: 0 16px 40px -12px rgb(0 0 0 / 0.8);
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
+  --color-border-strong: var(--border-strong);
   --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
+  --color-inverse-muted: var(--inverse-muted);
   --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-marker: var(--marker);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ring: var(--ring);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-destructive: var(--destructive);
+  --color-input: var(--input);
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  --color-trust-supported: var(--trust-supported);
+  --color-trust-supported-bg: var(--trust-supported-bg);
+  --color-trust-weak: var(--trust-weak);
+  --color-trust-weak-bg: var(--trust-weak-bg);
+  --color-trust-conflict: var(--trust-conflict);
+  --color-trust-conflict-bg: var(--trust-conflict-bg);
+  --color-trust-none: var(--trust-none);
+  --color-trust-none-bg: var(--trust-none-bg);
+  --color-trust-approved: var(--trust-approved);
+  --color-trust-approved-bg: var(--trust-approved-bg);
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* One grotesk family for display + UI, its mono sibling for labels, numbers and IDs (DESIGN §3.1). */
+  --font-sans: var(--font-geist-sans), "Noto Sans Devanagari", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Small, consistent radii (DESIGN §5.1); circles use rounded-full. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+
+  --shadow-float: var(--shadow-float);
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  /* type scale (DESIGN §3.2): tight tracking at display sizes, Swiss-style */
+  --text-display-2xl: 4.5rem;   --text-display-2xl--line-height: 4.5rem;  --text-display-2xl--letter-spacing: -0.045em;
+  --text-display-xl: 3rem;      --text-display-xl--line-height: 3.125rem; --text-display-xl--letter-spacing: -0.035em;
+  --text-display-lg: 2.25rem;   --text-display-lg--line-height: 2.5rem;   --text-display-lg--letter-spacing: -0.03em;
+  --text-heading-lg: 1.5rem;    --text-heading-lg--line-height: 2rem;     --text-heading-lg--letter-spacing: -0.02em;
+  --text-heading-md: 1.25rem;   --text-heading-md--line-height: 1.75rem;  --text-heading-md--letter-spacing: -0.015em;
+  --text-heading-sm: 1rem;      --text-heading-sm--line-height: 1.5rem;
+  --text-body-lg: 1.125rem;     --text-body-lg--line-height: 1.75rem;
+  --text-body: 0.9375rem;       --text-body--line-height: 1.5rem;
+  --text-body-sm: 0.875rem;     --text-body-sm--line-height: 1.25rem;
+  --text-caption: 0.8125rem;    --text-caption--line-height: 1.125rem;
+  --text-micro: 0.75rem;        --text-micro--line-height: 1rem;          --text-micro--letter-spacing: 0.06em;
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
+  * { @apply border-border; }
+  html { @apply font-sans; }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-size: 15px;
+    line-height: 24px;
   }
-  html {
-    @apply font-sans;
+  /* Visible focus everywhere, never removed (DESIGN §5.2, §13.1) */
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::selection { background: var(--primary); color: var(--primary-foreground); }
+  /* Tailwind v4 dropped the pointer cursor on buttons; everything clickable shows it again. */
+  button:not(:disabled), [role="button"], [role="menuitem"], [role="menuitemradio"], select, summary, label[for] {
+    cursor: pointer;
   }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Exact-quote highlight in a claim (DESIGN §10.2): a calm green wash behind the quoted words. */
+.marker {
+  background-color: var(--marker);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 0.15em;
+}
+
+/* Skeleton: a quiet pulse, no shimmer sweep (§9.10). */
+.skeleton {
+  background: var(--surface-2);
+  animation: pulse-soft 1.6s var(--ease-standard) infinite;
+}
+@keyframes pulse-soft { 50% { opacity: 0.55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

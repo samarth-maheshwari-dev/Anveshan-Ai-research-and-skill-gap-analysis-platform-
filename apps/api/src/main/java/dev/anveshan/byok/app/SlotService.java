@@ -93,6 +93,29 @@ public class SlotService {
 		return get(owner);
 	}
 
+	/** The models this user's task routing sends to one connection — what a re-test should check first. */
+	@Transactional(readOnly = true)
+	public List<String> modelsRoutedTo(UUID owner, UUID connectionId) {
+		return store.modelsFor(owner, connectionId);
+	}
+
+	/**
+	 * A-FR-6: after the first successful key test, route every slot to that connection + model, but
+	 * only if the user hasn't set up any routing yet. Returns true when defaults were written.
+	 */
+	@Transactional
+	public boolean fillDefaultsIfEmpty(UUID owner, UUID connectionId, String model) {
+		if (model == null || model.isBlank() || !store.all(owner).isEmpty()) {
+			return false;
+		}
+		List<SlotStore.Row> rows = new ArrayList<>();
+		for (TaskSlot s : TaskSlot.values()) {
+			rows.add(new SlotStore.Row(s, 0, connectionId, model.strip()));
+		}
+		store.replaceAll(owner, rows);
+		return true;
+	}
+
 	private static Map<TaskSlot, List<RouteChoice>> empty() {
 		Map<TaskSlot, List<RouteChoice>> m = new EnumMap<>(TaskSlot.class);
 		for (TaskSlot s : TaskSlot.values()) {

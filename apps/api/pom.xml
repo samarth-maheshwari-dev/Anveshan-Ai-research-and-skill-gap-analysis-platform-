@@ -47,6 +47,12 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
+		<!-- OpenAPI 3.1 spec → generated TypeScript types for the web app (TECHSPEC §8.7). No Swagger UI. -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+			<version>3.2.0</version>
+		</dependency>
 		<!-- Login (TECHSPEC §5): OAuth2/OIDC client, server-side sessions in Postgres, rate limits -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -113,11 +119,12 @@
 			<artifactId>spring-modulith-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- Testcontainers needs it; DJL's dependency path excludes it -->
+		<!-- springdoc needs it at runtime, Testcontainers in tests; DJL's dependency path excludes it.
+		     Was test scope → the packaged jar failed to start (NoClassDefFoundError StringUtils). -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
-			<scope>test</scope>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.testcontainers</groupId>

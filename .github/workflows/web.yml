@@ -20,7 +20,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: apps/web
@@ -37,7 +37,21 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - name: API types are generated from the committed OpenAPI spec (RULES §0 rule 13)
+        run: |
+          pnpm gen:api
+          git diff --exit-code -- lib/api/schema.d.ts || { echo "::error::lib/api/schema.d.ts is stale — run pnpm sync:api"; exit 1; }
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - run: pnpm build
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: E2E (builds the app, fake API per test)
+        run: pnpm e2e
+      - name: Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: apps/web/test-results
+          retention-days: 7

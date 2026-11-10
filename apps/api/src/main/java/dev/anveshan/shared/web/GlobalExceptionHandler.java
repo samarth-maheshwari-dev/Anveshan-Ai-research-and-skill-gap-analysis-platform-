@@ -29,7 +29,9 @@ class GlobalExceptionHandler {
 
 	@ExceptionHandler(ApiException.class)
 	ResponseEntity<ProblemDetail> api(ApiException e) {
-		return ResponseEntity.status(e.status()).body(ProblemResponses.of(e.status(), e.code(), e.title(), e.getMessage()));
+		ProblemDetail p = ProblemResponses.of(e.status(), e.code(), e.title(), e.getMessage());
+		e.properties().forEach(p::setProperty);
+		return ResponseEntity.status(e.status()).body(p);
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

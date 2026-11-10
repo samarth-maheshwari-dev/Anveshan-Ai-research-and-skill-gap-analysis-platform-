@@ -101,10 +101,17 @@ class AnthropicTransport implements LlmTransport {
 		return out;
 	}
 
+	/** Smallest valid Messages request ({@code max_tokens} is mandatory here). Any 2xx proves key + model. */
 	@Override
 	public String test(ResolvedConnection c, String model) {
-		complete(new ResolvedRoute(c, model, 0), List.of(ChatMessage.user("Reply with OK")),
-				new CompletionOptions(0, 5, false));
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("model", model);
+		body.put("messages", List.of(Map.of("role", "user", "content", "Reply with OK")));
+		body.put("max_tokens", 16);
+		var reply = http.post(http.endpoint(c, c.preset().chatPath()), headers(c), json.writeValueAsString(body));
+		if (!reply.ok()) {
+			throw http.error(reply);
+		}
 		return model;
 	}
 

@@ -46,7 +46,18 @@ public final class ProviderModels {
 			Integer remainingRequests, Integer remainingTokens) {
 	}
 
-	public record ModelInfo(String id, String displayName, boolean free) {
+	/** {@code chat}: can answer a chat request (false for embeddings, speech, images …), set by the ranking rules. */
+	public record ModelInfo(String id, String displayName, boolean free, boolean chat) {
+
+		/** As listed by a transport; whether it is a chat model is decided later by {@code ModelRanking}. */
+		public ModelInfo(String id, String displayName, boolean free) {
+			this(id, displayName, free, true);
+		}
+
+		ModelInfo withChat(boolean isChat) {
+			return new ModelInfo(id, displayName, free, isChat);
+		}
+
 	}
 
 	/** Base for provider failures. Messages are fixed, human-readable texts — never provider bodies. */

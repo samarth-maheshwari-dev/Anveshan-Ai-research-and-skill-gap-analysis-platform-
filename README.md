@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P07 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security, bring-your-own-key backend). See [Progress](#progress).
+> **Status:** early development. Phases P00–P07 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security, bring-your-own-key backend); P08 (frontend + connect-your-AI wizard) is built and waiting for its final manual check. See [Progress](#progress).
 
 ## What it does
 
@@ -25,7 +25,7 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 | Backend | Java 21, Spring Boot 4.1, Spring Modulith (modular monolith) |
 | Embeddings | multilingual-e5-small via ONNX Runtime (runs inside the backend, no external API) |
 | Database | PostgreSQL 17 + pgvector, Flyway migrations |
-| Frontend | Next.js 16 (App Router), TypeScript (strict), Tailwind CSS, shadcn/ui |
+| Frontend | Next.js 16 (App Router), TypeScript (strict), Tailwind CSS v4, shadcn/ui components (owned copies), TanStack Query |
 | Tests | JUnit 5, Testcontainers (real Postgres), Vitest, Playwright |
 | CI | GitHub Actions |
 
@@ -110,7 +110,7 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P05 | Login with Google / GitHub, server-side sessions, CSRF, CORS, login rate limit | ✅ Done |
 | P06 | Shared security: SSRF-safe HTTP client, Tink encryption for user keys, log masking | ✅ Done |
 | P07 | Bring-your-own-key backend: connections, model lists, task routing, LLM gateway with rate-limit fallback | ✅ Done |
-| P08 | Frontend foundation + connect-your-AI wizard | Next |
+| P08 | Frontend foundation + connect-your-AI wizard: black-first 60·30·10 design, landing, login, wizard, dashboard, Settings → AI; key test that picks a working model and survives busy providers | 🟡 Built, manual check pending |
 
 ## Security
 
