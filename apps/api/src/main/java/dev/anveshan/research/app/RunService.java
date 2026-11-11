@@ -1,0 +1,159 @@
+package dev.anveshan.research.app;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import dev.anveshan.research.domain.ResearchEnums.PauseReason;
+import dev.anveshan.research.domain.ResearchEnums.RunStatus;
+import dev.anveshan.research.domain.ResearchEnums.StepKind;
+import dev.anveshan.research.domain.ResearchEnums.StepStatus;
+import dev.anveshan.research.domain.RunStateMachine;
+import dev.anveshan.research.infra.RunEvents;
+import dev.anveshan.research.infra.RunStore;
+import dev.anveshan.research.infra.RunStore.RunRow;
+import dev.anveshan.research.infra.SseHub;
+import dev.anveshan.research.infra.StepStore;
+import dev.anveshan.shared.web.ApiException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * Research runs for the signed-in user (TECHSPEC §8.5, Modules C/E). Every entry point checks ownership in SQL
+ * first — someone else's run is a 404 (RULES rule 6) — then hands the action to {@link RunEngine}.
+ */
+@Service
+public class RunService {
+
+	/** What {@code POST /runs} accepts in P09 (the New Research form and its validation arrive in P10). */
+	public record CreateCommand(String topic, Map<String, Object> config) {
+	}
+
+	public record Created(RunView run, boolean existing) {
+	}
+
+	public record StepView(UUID id, int seq, int stage, StepKind kind, StepStatus status, int attempts,
+			UUID subQuestionId, String lastError) {
+	}
+
+	public record RunView(UUID id, RunStatus status, PauseReason pauseReason, Instant resumeAt, BigDecimal progress,
+			String topic, Map<String, Object> config, List<StepView> steps, int version, Instant createdAt,
+			Instant updatedAt, Instant completedAt) {
+	}
+
+	static final Duration IDEMPOTENCY_WINDOW = Duration.ofHours(24);
+
+	private static final java.util.regex.Pattern UUID_TEXT = java.util.regex.Pattern
+			.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+	private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
+	};
+
+	private final RunStore runs;
+	private final StepStore steps;
+	private final RunEngine engine;
+	private final RunEvents events;
+	private final SseHub hub;
+	private final TransactionTemplate tx;
+	private final JsonMapper json;
+	private final Clock clock;
+
+	RunService(RunStore runs, StepStore steps, RunEngine engine, RunEvents events, SseHub hub,
+			TransactionTemplate researchTx, JsonMapper json, Clock clock) {
+		this.runs = runs;
+		this.steps = steps;
+		this.engine = engine;
+		this.events = events;
+		this.hub = hub;
+		this.tx = researchTx;
+		this.json = json;
+		this.clock = clock;
+	}
+
+	/**
+	 * Starts a run in PLANNING with its PLAN step queued. With an {@code Idempotency-Key}, the same key from the
+	 * same user returns the run it created the first time — no second run, no second PLAN step (TECHSPEC §8.1).
+	 */
+	public Created create(UUID owner, CreateCommand cmd, String idempotencyKey) {
+		String topic = cmd.topic() == null ? "" : cmd.topic().strip();
+		int chars = topic.codePointCount(0, topic.length()); // the DB CHECK counts characters, not UTF-16 units
+		if (chars < 10 || chars > 500) {
+			throw ApiException.badRequest("The topic must be 10–500 characters.");
+		}
+		String key = idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.strip();
+		if (key != null) {
+			if (!UUID_TEXT.matcher(key).matches()) { // TECHSPEC §8.1: the key is a UUID (UUID.fromString is lenient)
+				throw ApiException.badRequest("Idempotency-Key must be a UUID.");
+			}
+			key = key.toLowerCase(java.util.Locale.ROOT);
+			// a key is remembered for 24 h; after that the same key starts a new run
+			runs.forgetIdempotencyKeyOlderThan(owner, key, clock.instant().minus(IDEMPOTENCY_WINDOW));
+			var existing = runs.findByIdempotencyKey(owner, key);
+			if (existing.isPresent()) {
+				return new Created(get(owner, existing.get()), true);
+			}
+		}
+		UUID id = UUID.randomUUID();
+		String finalKey = key;
+		try {
+			tx.executeWithoutResult(s -> {
+				runs.insert(id, owner, topic, json.writeValueAsString(cmd.config()), finalKey, clock.instant());
+				events.emit(id, "run.status", Map.of("status", RunStatus.PLANNING.name()));
+				engine.startPlanning(id);
+			});
+		}
+		catch (DuplicateKeyException e) {
+			// the same key raced in from a second request: answer with the run that won
+			UUID winner = runs.findByIdempotencyKey(owner, finalKey).orElseThrow(() -> e);
+			return new Created(get(owner, winner), true);
+		}
+		return new Created(get(owner, id), false);
+	}
+
+	public RunView get(UUID owner, UUID id) {
+		RunRow r = runs.findOwned(owner, id).orElseThrow(ApiException::notFound);
+		List<StepView> stepViews = steps.forRun(id).stream()
+				.map(s -> new StepView(s.id(), s.seq(), s.stage(), s.kind(), s.status(), s.attempts(),
+						s.subQuestionId(), s.lastError()))
+				.toList();
+		return new RunView(r.id(), r.status(), r.pauseReason(), r.resumeAt(), r.progress(), r.topic(),
+				json.readValue(r.configJson(), MAP), stepViews, r.version(), r.createdAt(), r.updatedAt(),
+				r.completedAt());
+	}
+
+	public void pause(UUID owner, UUID id) {
+		engine.pause(owned(owner, id));
+	}
+
+	public void resume(UUID owner, UUID id) {
+		engine.resume(owned(owner, id));
+	}
+
+	public void cancel(UUID owner, UUID id) {
+		engine.cancel(owned(owner, id));
+	}
+
+	public void retryStep(UUID owner, UUID id, UUID stepId) {
+		engine.retryStep(owned(owner, id), stepId);
+	}
+
+	/** Live events of the caller's own run; replays everything after {@code lastEventId} first (E-FR-1). */
+	public SseEmitter events(UUID owner, UUID id, long lastEventId) {
+		RunRow run = runs.findOwned(owner, id).orElseThrow(ApiException::notFound);
+		return hub.open(run.id(), lastEventId, RunStateMachine.isFinal(run.status()));
+	}
+
+	private UUID owned(UUID owner, UUID id) {
+		return runs.findOwned(owner, id).map(RunRow::id).orElseThrow(ApiException::notFound);
+	}
+
+}
