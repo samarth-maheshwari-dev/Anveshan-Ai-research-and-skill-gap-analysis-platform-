@@ -359,6 +359,44 @@
         "tags" : [ "run-controller" ]
       }
     },
+    "/api/v1/runs/{id}/approve" : {
+      "post" : {
+        "operationId" : "approve",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "description" : "The run version the user saw (ETag)",
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "description" : "Accepted"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "run-controller" ]
+      }
+    },
     "/api/v1/runs/{id}/cancel" : {
       "post" : {
         "operationId" : "cancel",
@@ -448,6 +486,61 @@
         "responses" : {
           "202" : {
             "description" : "Accepted"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "run-controller" ]
+      }
+    },
+    "/api/v1/runs/{id}/plan" : {
+      "put" : {
+        "operationId" : "updatePlan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "description" : "The run version the user saw (ETag)",
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RunView"
+                }
+              }
+            },
+            "description" : "OK"
           },
           "default" : {
             "content" : {
@@ -613,6 +706,34 @@
         "tags" : [ "slot-controller" ]
       }
     },
+    "/api/v1/templates" : {
+      "get" : {
+        "operationId" : "templates",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateList"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "template-controller" ]
+      }
+    },
     "/api/v1/usage" : {
       "get" : {
         "operationId" : "usage",
@@ -669,6 +790,37 @@
             "items" : {
               "$ref" : "#/components/schemas/ConnectionView"
             }
+          }
+        }
+      },
+      "ConnectionShare" : {
+        "type" : "object",
+        "properties" : {
+          "connectionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "pctOfTodayRemaining" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "provider" : {
+            "type" : "string"
+          },
+          "remainingToday" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "requests" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "usedToday" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         }
       },
@@ -753,48 +905,29 @@
       "CreateRunRequest" : {
         "type" : "object",
         "properties" : {
-          "attachmentIds" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string",
-              "format" : "uuid"
-            },
-            "maxItems" : 20,
-            "minItems" : 0
-          },
           "depth" : {
             "type" : "string",
-            "maxLength" : 40,
-            "minLength" : 0
+            "enum" : [ "QUICK", "STANDARD", "DEEP" ]
           },
           "language" : {
             "type" : "string",
-            "maxLength" : 10,
-            "minLength" : 0
+            "enum" : [ "en", "hi" ]
           },
           "objective" : {
             "type" : "string",
-            "maxLength" : 40,
-            "minLength" : 0
+            "enum" : [ "PROJECT_REPORT", "COMPARISON", "LEARNING", "DECISION" ]
           },
           "outputStyle" : {
             "type" : "string",
-            "maxLength" : 40,
-            "minLength" : 0
-          },
-          "skillMode" : {
-            "type" : "string",
-            "maxLength" : 40,
-            "minLength" : 0
+            "enum" : [ "PROJECT_REPORT", "COMPARISON_TABLE", "EXECUTIVE_SUMMARY", "STUDY_NOTES" ]
           },
           "sources" : {
             "type" : "array",
             "items" : {
               "type" : "string",
-              "maxLength" : 40,
-              "minLength" : 0
+              "enum" : [ "WEB", "ACADEMIC", "GITHUB", "BLOGS", "DOCS" ]
             },
-            "maxItems" : 10,
+            "maxItems" : 5,
             "minItems" : 0
           },
           "templateCode" : {
@@ -804,8 +937,7 @@
           },
           "timeRange" : {
             "type" : "string",
-            "maxLength" : 40,
-            "minLength" : 0
+            "enum" : [ "ANY", "LAST_1_YEAR", "LAST_2_YEARS", "LAST_5_YEARS" ]
           },
           "topic" : {
             "type" : "string",
@@ -833,6 +965,48 @@
           "tokensOut" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }
+      },
+      "EstimateView" : {
+        "type" : "object",
+        "properties" : {
+          "minutes" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "perConnection" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConnectionShare"
+            }
+          },
+          "requests" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "integer",
+              "format" : "int32"
+            }
+          },
+          "routes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SlotRoute"
+            }
+          },
+          "sections" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalRequests" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "unroutedSlots" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
           }
         }
       },
@@ -908,6 +1082,53 @@
           }
         }
       },
+      "PlanCard" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "queries" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "maxLength" : 500,
+              "minLength" : 0
+            },
+            "maxItems" : 10,
+            "minItems" : 0
+          },
+          "sourceTypes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "WEB", "ACADEMIC", "GITHUB", "BLOGS", "DOCS" ]
+            },
+            "maxItems" : 5,
+            "minItems" : 0
+          },
+          "text" : {
+            "type" : "string",
+            "maxLength" : 2000,
+            "minLength" : 0
+          }
+        }
+      },
+      "PlanRequest" : {
+        "type" : "object",
+        "properties" : {
+          "subQuestions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PlanCard"
+            },
+            "maxItems" : 20,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "subQuestions" ]
+      },
       "Problem" : {
         "type" : "object",
         "properties" : {
@@ -982,6 +1203,9 @@
             "type" : "string",
             "format" : "date-time"
           },
+          "estimate" : {
+            "$ref" : "#/components/schemas/EstimateView"
+          },
           "id" : {
             "type" : "string",
             "format" : "uuid"
@@ -1007,6 +1231,12 @@
               "$ref" : "#/components/schemas/StepView"
             }
           },
+          "subQuestions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SubQuestionView"
+            }
+          },
           "topic" : {
             "type" : "string"
           },
@@ -1017,6 +1247,18 @@
           "version" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }
+      },
+      "SlotRoute" : {
+        "type" : "object",
+        "properties" : {
+          "connectionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "slot" : {
+            "type" : "string"
           }
         }
       },
@@ -1062,6 +1304,67 @@
           "subQuestionId" : {
             "type" : "string",
             "format" : "uuid"
+          }
+        }
+      },
+      "SubQuestionView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "position" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "queries" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "sourceTypes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "WEB", "ACADEMIC", "GITHUB", "BLOGS", "DOCS" ]
+            }
+          },
+          "text" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TemplateList" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TemplateView"
+            }
+          }
+        }
+      },
+      "TemplateView" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "formDefaults" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "sections" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
           }
         }
       },

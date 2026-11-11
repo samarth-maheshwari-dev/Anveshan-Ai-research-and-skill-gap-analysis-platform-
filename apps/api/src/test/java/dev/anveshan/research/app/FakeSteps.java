@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -79,6 +80,16 @@ public class FakeSteps {
 
 	@TestConfiguration(proxyBeanMethods = false)
 	public static class Config {
+
+		/** The engine tests script PLAN themselves: the real Planner (it calls an LLM) steps aside. */
+		@Bean
+		static BeanDefinitionRegistryPostProcessor withoutRealPlanner() {
+			return registry -> {
+				if (registry.containsBeanDefinition("planHandler")) {
+					registry.removeBeanDefinition("planHandler");
+				}
+			};
+		}
 
 		@Bean
 		FakeSteps fakeSteps() {

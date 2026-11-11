@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -22,12 +23,19 @@ public class RunEvents {
 	private final SseHub hub;
 	private final JsonMapper json;
 	private final Clock clock;
+	private final ApplicationEventPublisher publisher;
 
-	RunEvents(RunEventStore store, SseHub hub, JsonMapper json, Clock clock) {
+	RunEvents(RunEventStore store, SseHub hub, JsonMapper json, Clock clock, ApplicationEventPublisher publisher) {
 		this.store = store;
 		this.hub = hub;
 		this.json = json;
 		this.clock = clock;
+		this.publisher = publisher;
+	}
+
+	/** A module event (research.api) for other modules — published in the caller's transaction, ids only. */
+	public void publish(Object event) {
+		publisher.publishEvent(event);
 	}
 
 	/** Payloads carry ids, statuses and counts — never prompts, provider bodies or keys. */

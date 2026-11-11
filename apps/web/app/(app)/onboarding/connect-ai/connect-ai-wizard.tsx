@@ -1,16 +1,15 @@
 "use client";
 
-import { Check } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { Stepper } from "@/components/anveshan/stepper";
 import { Overline } from "@/components/ui/card";
 import type { TestResult } from "@/lib/api/hooks/connections";
 import { stepSlide } from "@/lib/motion";
 import { PROVIDERS, type ProviderInfo } from "@/lib/providers";
-import { cn } from "@/lib/utils";
 
 import { ChooseStep } from "./choose-step";
 import { DoneStep } from "./done-step";
@@ -49,7 +48,7 @@ export function ConnectAiWizard() {
       <p className="mt-2 text-body text-muted-foreground">
         Anveshan runs on your own free AI key, so it stays free for everyone.
       </p>
-      <Stepper current={index} />
+      <Stepper steps={STEPS.map((x) => x.label)} current={index} />
 
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={step} variants={stepSlide} initial="hidden" animate="show" exit="exit" className="mt-8">
@@ -82,52 +81,5 @@ export function ConnectAiWizard() {
         </m.div>
       </AnimatePresence>
     </div>
-  );
-}
-
-type StepperProps = { current: number };
-
-/** Numbered circles joined by a line (owner's reference): done = green check, current = green, upcoming = muted. */
-function Stepper({ current }: StepperProps) {
-  return (
-    <ol className="mt-8 flex items-start" aria-label="Progress">
-      {STEPS.map((s, i) => (
-        <li
-          key={s.id}
-          aria-current={i === current ? "step" : undefined}
-          className="relative flex min-w-0 flex-1 flex-col items-center gap-2 text-center"
-        >
-          {i > 0 && (
-            <span
-              aria-hidden
-              className={cn(
-                "absolute top-4 right-1/2 h-0.5 w-full -translate-y-1/2", // from the previous circle's centre to this one's
-                i <= current ? "bg-primary" : "bg-border",
-              )}
-            />
-          )}
-          <span
-            className={cn(
-              "relative z-10 flex size-8 items-center justify-center rounded-full border text-body-sm font-medium tabular",
-              i < current && "border-primary bg-primary text-primary-foreground",
-              i === current && "border-primary bg-primary-soft text-primary",
-              i > current && "border-border bg-surface text-subtle-foreground",
-            )}
-          >
-            {i < current ? <Check aria-hidden className="size-4" strokeWidth={2.5} /> : i + 1}
-          </span>
-          <span
-            className={cn(
-              "text-caption",
-              i === current ? "font-medium text-foreground" : "text-muted-foreground",
-              i !== current && "max-sm:sr-only",
-            )}
-          >
-            {s.label}
-          </span>
-          {i < current && <span className="sr-only">(done)</span>}
-        </li>
-      ))}
-    </ol>
   );
 }
