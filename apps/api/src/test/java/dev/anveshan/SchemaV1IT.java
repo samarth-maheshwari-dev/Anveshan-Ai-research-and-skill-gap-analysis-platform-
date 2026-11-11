@@ -63,7 +63,8 @@ class SchemaV1IT {
 		List<String> versions = jdbc.sql("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")
 				.query(String.class).list();
 
-		assertThat(versions).containsExactly("202611080900", "202611080901", "202611080902", "202611080910");
+		// the 4 v1 versions come first, in order; later phases add their own after them (P09: research)
+		assertThat(versions).startsWith("202611080900", "202611080901", "202611080902", "202611080910");
 		assertThat(jdbc.sql("SELECT count(*) FROM flyway_schema_history WHERE NOT success").query(Long.class).single())
 				.isZero();
 		assertThat(jdbc.sql("SELECT extname FROM pg_extension").query(String.class).list())

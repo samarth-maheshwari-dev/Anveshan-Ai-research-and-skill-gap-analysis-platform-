@@ -8,6 +8,12 @@ spring:
     url: ${ANV_DB_URL:jdbc:postgresql://localhost:5432/anveshan}
     username: ${ANV_DB_USER:anveshan}
     password: ${ANV_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 20   # TECHSPEC §7.1: room for 8 JobRunr workers + requests + SSE replays
+  task:
+    scheduling:
+      pool:
+        size: 2               # research sweep and SSE keep-alive don't wait for each other
   jpa:
     open-in-view: false
     hibernate:
@@ -132,6 +138,29 @@ anveshan:
     model-dir: ${ANV_EMBEDDINGS_MODEL_DIR:${user.home}/.cache/anveshan/models/multilingual-e5-small}
     batch-size: 32
     threads: ${ANV_EMBEDDINGS_THREADS:2}
+  # Research run engine (TECHSPEC §12.2)
+  research:
+    max-attempts: 3           # a step that throws 3× is FAILED → run FAILED; "Retry" restarts it (E-FR-4)
+    retry-backoff: 2s         # wait before attempt 2; attempt 3 waits 4× longer (8s)
+    stale-after: 10m          # a RUNNING step older than this is treated as crashed and re-queued (AC-E1)
+    sweep-interval: 30s       # how often stale steps and due auto-resumes (AI limit reset) are checked
+    sse-timeout: 30m          # the browser reconnects with Last-Event-ID after this
+    sse-keep-alive: 15s       # comment line so proxies don't close idle SSE connections
+    ai-limit-fallback: 60s    # pause this long when a provider's 429 says nothing about when it resets
+    requeue-interval: 5m      # PENDING steps of active runs get a job again (duplicates are harmless: claim is atomic)
+
+# Background jobs: one JobRunr job per research step. JobRunr keeps its own jobrunr_* tables (SCHEMA S-10).
+jobrunr:
+  background-job-server:
+    enabled: true
+    worker-count: 8
+    poll-interval-in-seconds: 5   # JobRunr's minimum; the 15 s default would add up to ~2 min of idle time per run
+  dashboard:
+    enabled: false            # never exposed; enable locally only (127.0.0.1) when debugging
+  jobs:
+    default-number-of-retries: 0   # our own retry policy (anveshan.research.max-attempts), not JobRunr's
+  miscellaneous:
+    allow-anonymous-data-usage: false   # no usage telemetry leaves the server
 
 # Actuator lives on an internal port; only health is exposed (TECHSPEC §16.2).
 management:
