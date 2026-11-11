@@ -121,7 +121,7 @@ class PlanApiIT {
 				.mapToObj(i -> new PlanItem("  Which campus apps solve problem " + i + "?  ", List.of("WEB", "youtube"),
 						List.of("campus lost and found " + i)))
 				.toList());
-		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class)))
+		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any()))
 				.thenAnswer(inv -> new LlmResult<>(new PlanOutput(items), UUID.randomUUID(), "fake-model", 100, 50, 1));
 	}
 
@@ -290,7 +290,7 @@ class PlanApiIT {
 
 		awaitStatus(run, RunStatus.AWAITING_APPROVAL);
 		ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
-		verify(gateway, atLeastOnce()).call(any(), eq(TaskSlot.PLAN), prompt.capture(), eq(PlanOutput.class));
+		verify(gateway, atLeastOnce()).call(any(), eq(TaskSlot.PLAN), prompt.capture(), eq(PlanOutput.class), any());
 		String user = prompt.getValue().user();
 		assertThat(user).contains("Hackathon pitch", "Slide notes", "Problem | Existing apps | Our idea", "since 2022",
 				"ieee.org", "quora.com");
@@ -324,7 +324,7 @@ class PlanApiIT {
 	@Test
 	@DisplayName("T-10-14 provider busy (503) on every try → PLAN retried, then FAILED with a plain message (no class names)")
 	void providerBusy() throws Exception {
-		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class)))
+		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any()))
 				.thenThrow(new ProviderUnavailableException("No AI route worked for PLAN: 503"));
 		UUID run = startRun(alice);
 		awaitStatus(run, RunStatus.FAILED);
@@ -332,7 +332,7 @@ class PlanApiIT {
 				.param("r", run).query((rs, n) -> new Object[] { rs.getInt(1), rs.getString(2) }).single();
 		assertThat((int) step[0]).as("retried before giving up").isEqualTo(3);
 		assertThat((String) step[1]).contains("didn't answer", "Settings → AI").doesNotContain("Exception", "503");
-		verify(gateway, org.mockito.Mockito.times(3)).call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class));
+		verify(gateway, org.mockito.Mockito.times(3)).call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any());
 	}
 
 	// --- helpers ---

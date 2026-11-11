@@ -9,6 +9,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import dev.anveshan.byok.api.CallContext;
 import dev.anveshan.byok.api.InvalidLlmOutputException;
 import dev.anveshan.byok.api.LlmGateway;
 import dev.anveshan.byok.api.LlmResult;
@@ -109,7 +110,8 @@ class PlanHandler implements StepHandler {
 
 		LlmResult<PlanOutput> result;
 		try {
-			result = gateway.call(step.ownerId(), TaskSlot.PLAN, prompt, PlanOutput.class);
+			result = gateway.call(step.ownerId(), TaskSlot.PLAN, prompt, PlanOutput.class,
+					CallContext.step(step.runId(), step.stepId()));
 		}
 		catch (NoModelForSlotException e) {
 			throw new StepFailedException("No AI model is set for planning. Choose one in Settings → AI, then start again.");

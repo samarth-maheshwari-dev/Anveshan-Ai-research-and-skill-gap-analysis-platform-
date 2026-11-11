@@ -648,6 +648,31 @@ class ByokIT {
 	}
 
 	@Test
+	@DisplayName("T-10-15 every attempt of a research call is logged with its run and step (429 on route 1, OK on route 2)")
+	void callContextLogged() throws Exception {
+		String k1 = newKey("gsk_");
+		String k2 = newKey("gsk_");
+		UUID c1 = createConnection(alice, "GROQ", k1);
+		UUID c2 = createConnection(alice, "GROQ", k2);
+		route(alice, TaskSlot.PLAN, c1, c2);
+		FAKE.script(k1, Reply.rateLimited(30));
+		FAKE.script(k2, Reply.chat("{\"answer\":\"4\",\"score\":9}"));
+		UUID run = UUID.randomUUID();
+		UUID step = UUID.randomUUID();
+
+		gateway.call(alice, TaskSlot.PLAN, prompt(), Answer.class, dev.anveshan.byok.api.CallContext.step(run, step));
+
+		assertThat(jdbc.sql("SELECT count(*) FROM llm_call WHERE owner_id = :o AND run_id = :r AND step_id = :s")
+				.param("o", alice).param("r", run).param("s", step).query(Long.class).single())
+				.as("both attempts carry the run").isEqualTo(2);
+		// a call outside a run keeps them empty
+		FAKE.script(k2, Reply.chat("{\"answer\":\"5\",\"score\":1}"));
+		gateway.call(alice, TaskSlot.PLAN, prompt(), Answer.class);
+		assertThat(jdbc.sql("SELECT count(*) FROM llm_call WHERE owner_id = :o AND run_id IS NULL").param("o", alice)
+				.query(Long.class).single()).isEqualTo(1);
+	}
+
+	@Test
 	@DisplayName("T-07-06 all routes 429 → AllRoutesExhaustedException with resumeAt = earliest cooldown")
 	void allRoutesExhausted() throws Exception {
 		String k1 = newKey("gsk_");

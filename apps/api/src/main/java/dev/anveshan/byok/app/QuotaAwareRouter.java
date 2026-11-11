@@ -9,6 +9,7 @@ import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 import dev.anveshan.byok.api.AllRoutesExhaustedException;
+import dev.anveshan.byok.api.CallContext;
 import dev.anveshan.byok.api.NoModelForSlotException;
 import dev.anveshan.byok.api.ProviderUnavailableException;
 import dev.anveshan.byok.api.TaskSlot;
@@ -53,7 +54,7 @@ public class QuotaAwareRouter {
 		this.clock = clock;
 	}
 
-	public Routed call(UUID owner, TaskSlot slot, Function<ResolvedRoute, RawCompletion> attempt) {
+	public Routed call(UUID owner, TaskSlot slot, CallContext context, Function<ResolvedRoute, RawCompletion> attempt) {
 		List<SlotStore.RouteRow> routes = slots.usableRoutes(owner, slot);
 		if (routes.isEmpty()) {
 			throw new NoModelForSlotException(slot);
@@ -86,18 +87,18 @@ public class QuotaAwareRouter {
 			catch (ProviderRateLimitException e) {
 				quota.coolDown(row.connectionId(), row.model(), e.retryAt());
 				callLog.record(owner, slot, row.connectionId(), row.model(), e.latencyMs(), LlmCallStatus.RATE_LIMITED,
-						null, null, e.code());
+						null, null, e.code(), context);
 				earliestRetry = min(earliestRetry, e.retryAt());
 			}
 			catch (ProviderAuthException e) {
 				callLog.record(owner, slot, row.connectionId(), row.model(), e.latencyMs(), LlmCallStatus.AUTH_ERROR,
-						null, null, e.code());
+						null, null, e.code(), context);
 				markFailing(owner, row.connectionId(), e.getMessage());
 				lastFailure = e.getMessage();
 			}
 			catch (ProviderException e) {
 				callLog.record(owner, slot, row.connectionId(), row.model(), e.latencyMs(), LlmCallStatus.ERROR, null,
-						null, e.code());
+						null, e.code(), context);
 				lastFailure = e.getMessage();
 			}
 		}
