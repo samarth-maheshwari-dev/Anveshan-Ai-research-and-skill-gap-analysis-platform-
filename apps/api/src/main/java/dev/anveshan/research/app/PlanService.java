@@ -18,6 +18,7 @@ import dev.anveshan.research.domain.PlanExceptions.TooManyRunsException;
 import dev.anveshan.research.domain.PlanExceptions.VersionConflictException;
 import dev.anveshan.research.domain.PlanRules;
 import dev.anveshan.research.domain.PlanRules.PlannedQuestion;
+import dev.anveshan.research.domain.ResearchSize;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
 import dev.anveshan.research.domain.RunOptions.SourceType;
 import dev.anveshan.research.infra.RunEvents;
@@ -25,9 +26,7 @@ import dev.anveshan.research.infra.RunStore;
 import dev.anveshan.research.infra.RunStore.RunRow;
 import dev.anveshan.research.infra.SubQuestionStore;
 import dev.anveshan.research.infra.SubQuestionStore.SubQuestionRow;
-import dev.anveshan.research.infra.TemplateStore;
 import dev.anveshan.shared.web.ApiException;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -39,9 +38,6 @@ public class PlanService {
 
 	/** TECHSPEC §12.2: a user runs at most this many researches at once (RUNNING or PAUSED). */
 	static final int MAX_ACTIVE_RUNS = 2;
-
-	/** Sections of a report without a template (one WRITE call each). */
-	static final int DEFAULT_SECTIONS = 5;
 
 	/** A card as the user sent it: {@code id} keeps an edited card's identity; new cards have none. */
 	public record PlanEdit(UUID id, String text, List<SourceType> sourceTypes, List<String> queries) {
@@ -61,33 +57,28 @@ public class PlanService {
 	}
 
 	/**
-	 * D-FR-2. {@code sections} and {@code routes} let the browser recompute the estimate on every edit without a
+	 * D-FR-2. {@code sections}, the size per sub-question and {@code routes} let the browser recompute the estimate on every edit without a
 	 * request (D-FR-4); {@code unroutedSlots} names work that has no AI model yet.
 	 */
 	public record EstimateView(Map<String, Integer> requests, int totalRequests, int minutes, int sections,
+			int sourcesPerQuestion, double minutesPerQuestion,
 			List<ConnectionShare> perConnection, List<SlotRoute> routes, List<String> unroutedSlots) {
 	}
 
-	private record Section(String key, String title, String instructions) {
-	}
-
-	private static final TypeReference<List<Section>> SECTIONS = new TypeReference<>() {
-	};
-
 	private final RunStore runs;
 	private final SubQuestionStore subQuestions;
-	private final TemplateStore templates;
+	private final ReportSections reportSections;
 	private final RouteQuery routes;
 	private final RunEngine engine;
 	private final RunEvents events;
 	private final TransactionTemplate tx;
 	private final JsonMapper json;
 
-	PlanService(RunStore runs, SubQuestionStore subQuestions, TemplateStore templates, RouteQuery routes,
+	PlanService(RunStore runs, SubQuestionStore subQuestions, ReportSections reportSections, RouteQuery routes,
 			RunEngine engine, RunEvents events, TransactionTemplate researchTx, JsonMapper json) {
 		this.runs = runs;
 		this.subQuestions = subQuestions;
-		this.templates = templates;
+		this.reportSections = reportSections;
 		this.routes = routes;
 		this.engine = engine;
 		this.events = events;
@@ -107,10 +98,9 @@ public class PlanService {
 			return null;
 		}
 		RunConfig config = json.readValue(run.configJson(), RunConfig.class).resolved();
-		int sections = config.templateCode() == null ? DEFAULT_SECTIONS
-				: templates.byCode(config.templateCode()).map(t -> json.readValue(t.sectionsJson(), SECTIONS).size())
-						.filter(n -> n > 0).orElse(DEFAULT_SECTIONS);
-		Estimate e = Estimate.of(config.depth(), count, sections, 0.0);
+		int sections = reportSections.count(config);
+		ResearchSize size = config.size();
+		Estimate e = Estimate.of(size, count, sections, 0.0);
 
 		Map<String, FirstRoute> bySlot = new LinkedHashMap<>();
 		for (FirstRoute r : routes.firstRoutes(run.ownerId())) {
@@ -138,7 +128,8 @@ public class PlanService {
 					: Math.round(1000.0 * n[0] / remaining) / 10.0; // one decimal, e.g. 4.2 (%)
 			shares.add(new ConnectionShare(id, r.connectionLabel(), r.provider(), n[0], r.usedToday(), remaining, pct));
 		});
-		return new EstimateView(e.requests(), e.totalRequests(), e.minutes(), sections, List.copyOf(shares),
+		return new EstimateView(e.requests(), e.totalRequests(), e.minutes(), sections, size.sourcesPerQuestion(),
+				size.minutesPerQuestion(), List.copyOf(shares),
 				List.copyOf(slotRoutes), List.copyOf(unrouted));
 	}
 

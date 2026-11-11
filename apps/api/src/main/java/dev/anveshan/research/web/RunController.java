@@ -54,15 +54,21 @@ class RunController {
 
 	/**
 	 * The New Research form (PRD Module C). Unknown option values are rejected by JSON binding (400); missing ones
-	 * come from the template, then the PRD defaults. Attachments (P12) and skill mode (P21) arrive later.
+	 * come from the template, then the PRD defaults; custom parts (D-097) are checked in RunService. Attachments (P12) and skill mode (P21) arrive later.
 	 */
 	record CreateRunRequest(@NotBlank @Size(max = 2000) String topic, // 10–500 characters: checked in RunService
-			Objective objective, Depth depth, @Size(max = 5) List<SourceType> sources, TimeRange timeRange,
-			OutputStyle outputStyle, Language language, @Size(max = 60) String templateCode) {
+			Objective objective, @Size(max = 500) String objectiveText, Depth depth, Integer subQuestions,
+			Integer sourcesPerQuestion, @Size(max = 5) List<SourceType> sources, TimeRange timeRange, Integer sinceYear,
+			OutputStyle outputStyle, @Size(max = 500) String outputStyleText, Language language,
+			@Size(max = 60) String templateCode, @Size(max = 20) List<@Size(max = 300) String> sections,
+			@Size(max = 2000) String instructions, @Size(max = 20) List<@Size(max = 300) String> includeSites,
+			@Size(max = 20) List<@Size(max = 300) String> excludeSites) {
 
 		RunConfig options() {
-			return new RunConfig(objective, depth, sources, timeRange, outputStyle, language,
-					templateCode == null || templateCode.isBlank() ? null : templateCode.strip());
+			return new RunConfig(objective, objectiveText, depth, subQuestions, sourcesPerQuestion, sources, timeRange,
+					sinceYear, outputStyle, outputStyleText, language,
+					templateCode == null || templateCode.isBlank() ? null : templateCode.strip(), sections, instructions,
+					includeSites, excludeSites);
 		}
 
 	}

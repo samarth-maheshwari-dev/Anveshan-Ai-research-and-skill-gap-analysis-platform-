@@ -364,17 +364,29 @@ export interface components {
         };
         CreateRunRequest: {
             /** @enum {string} */
-            depth?: "QUICK" | "STANDARD" | "DEEP";
+            depth?: "QUICK" | "STANDARD" | "DEEP" | "CUSTOM";
+            excludeSites?: string[];
+            includeSites?: string[];
+            instructions?: string;
             /** @enum {string} */
             language?: "en" | "hi";
             /** @enum {string} */
-            objective?: "PROJECT_REPORT" | "COMPARISON" | "LEARNING" | "DECISION";
+            objective?: "PROJECT_REPORT" | "COMPARISON" | "LEARNING" | "DECISION" | "OTHER";
+            objectiveText?: string;
             /** @enum {string} */
-            outputStyle?: "PROJECT_REPORT" | "COMPARISON_TABLE" | "EXECUTIVE_SUMMARY" | "STUDY_NOTES";
+            outputStyle?: "PROJECT_REPORT" | "COMPARISON_TABLE" | "EXECUTIVE_SUMMARY" | "STUDY_NOTES" | "CUSTOM";
+            outputStyleText?: string;
+            sections?: string[];
+            /** Format: int32 */
+            sinceYear?: number;
             sources?: ("WEB" | "ACADEMIC" | "GITHUB" | "BLOGS" | "DOCS")[];
+            /** Format: int32 */
+            sourcesPerQuestion?: number;
+            /** Format: int32 */
+            subQuestions?: number;
             templateCode?: string;
             /** @enum {string} */
-            timeRange?: "ANY" | "LAST_1_YEAR" | "LAST_2_YEARS" | "LAST_5_YEARS";
+            timeRange?: "ANY" | "LAST_1_YEAR" | "LAST_2_YEARS" | "LAST_5_YEARS" | "SINCE_YEAR";
             topic: string;
         };
         Day: {
@@ -390,6 +402,8 @@ export interface components {
         EstimateView: {
             /** Format: int32 */
             minutes?: number;
+            /** Format: double */
+            minutesPerQuestion?: number;
             perConnection?: components["schemas"]["ConnectionShare"][];
             requests?: {
                 [key: string]: number;
@@ -397,6 +411,8 @@ export interface components {
             routes?: components["schemas"]["SlotRoute"][];
             /** Format: int32 */
             sections?: number;
+            /** Format: int32 */
+            sourcesPerQuestion?: number;
             /** Format: int32 */
             totalRequests?: number;
             unroutedSlots?: string[];

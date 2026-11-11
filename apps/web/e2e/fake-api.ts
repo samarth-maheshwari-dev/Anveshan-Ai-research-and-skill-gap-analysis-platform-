@@ -1,6 +1,6 @@
 import type { BrowserContext, Page, Route } from "@playwright/test";
 
-import { estimate, type Depth } from "../lib/estimate";
+import { estimate, sizeOf, type Depth } from "../lib/estimate";
 
 /**
  * An in-memory stand-in for the Anveshan API (http://localhost:8080), installed per test with
@@ -43,13 +43,15 @@ export type FakeState = {
   runs: FakeRun[];
   /** Idempotency-Key of every POST /runs. */
   runKeys: string[];
+  /** Body of every POST /runs. */
+  runBodies: Record<string, unknown>[];
 };
 
 export type FakeRun = {
   id: string;
   status: "PLANNING" | "AWAITING_APPROVAL" | "RUNNING" | "PAUSED" | "COMPLETED" | "FAILED" | "CANCELLED";
   topic: string;
-  config: { depth: Depth; sources: string[]; templateCode?: string };
+  config: { depth: Depth; sources: string[]; templateCode?: string; sections?: string[]; subQuestions?: number; sourcesPerQuestion?: number };
   subQuestions: { id: string; position: number; text: string; sourceTypes: string[]; queries: string[] }[];
   version: number;
   /** GETs left before the fake Planner finishes (PLANNING → AWAITING_APPROVAL). */
@@ -124,6 +126,7 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
     testModelsAsked: [],
     runs: [],
     runKeys: [],
+    runBodies: [],
     ...init,
   };
   let seq = 0;
@@ -282,7 +285,16 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
       return json(route, 200, state.slots);
     }
     if (path === "/runs" && method === "POST") {
-      const body = req.postDataJSON() as { topic: string; depth?: Depth; sources?: string[]; templateCode?: string };
+      const body = req.postDataJSON() as {
+        topic: string;
+        depth?: Depth;
+        sources?: string[];
+        templateCode?: string;
+        sections?: string[];
+        subQuestions?: number;
+        sourcesPerQuestion?: number;
+      };
+      state.runBodies.push(body);
       state.runKeys.push((await req.headerValue("idempotency-key")) ?? "");
       const missing = ["PLAN", "WRITE"].find((slot) => !state.slots[slot]?.length);
       if (missing) return problem(route, 422, "NO_MODEL_FOR_SLOT", `No AI model for ${missing}`);
@@ -290,7 +302,14 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
         id: `r${++seq}`,
         status: "PLANNING",
         topic: body.topic,
-        config: { depth: body.depth ?? "STANDARD", sources: body.sources ?? ["WEB"], templateCode: body.templateCode },
+        config: {
+          depth: body.depth ?? "STANDARD",
+          sources: body.sources ?? ["WEB"],
+          templateCode: body.templateCode,
+          sections: body.sections,
+          subQuestions: body.subQuestions,
+          sourcesPerQuestion: body.sourcesPerQuestion,
+        },
         version: 0,
         planningPolls: 1,
       });
@@ -359,9 +378,11 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
 
 /** RunView as the API sends it; the estimate mirrors Estimate.of (sections: the template's, or 5). */
 function runView(run: FakeRun) {
-  const sections = TEMPLATES.find((t) => t.code === run.config.templateCode)?.sections.length ?? 5;
+  const sections =
+    run.config.sections?.length ?? TEMPLATES.find((t) => t.code === run.config.templateCode)?.sections.length ?? 5;
+  const size = sizeOf(run.config.depth, run.config)!;
   const planning = run.status === "PLANNING";
-  const e = !planning && run.subQuestions.length > 0 ? estimate(run.config.depth, run.subQuestions.length, sections) : null;
+  const e = !planning && run.subQuestions.length > 0 ? estimate(size, run.subQuestions.length, sections) : null;
   return {
     id: run.id,
     status: run.status,
@@ -374,6 +395,8 @@ function runView(run: FakeRun) {
       totalRequests: e.total,
       minutes: e.minutes,
       sections,
+      sourcesPerQuestion: size.sourcesPerQuestion,
+      minutesPerQuestion: size.minutesPerQuestion,
       perConnection: [],
       routes: [],
       unroutedSlots: [],

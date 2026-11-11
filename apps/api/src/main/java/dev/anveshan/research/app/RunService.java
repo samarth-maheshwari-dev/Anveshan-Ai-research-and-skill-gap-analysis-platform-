@@ -134,7 +134,7 @@ public class RunService {
 				throw new NoModelForSlotException(needed);
 			}
 		}
-		RunConfig options = cmd.options() == null ? new RunConfig(null, null, null, null, null, null, null) : cmd.options();
+		RunConfig options = cmd.options() == null ? RunConfig.empty() : cmd.options();
 		Optional<TemplateRow> template = Optional.empty();
 		if (options.templateCode() != null) {
 			template = templates.byCode(options.templateCode());
@@ -143,7 +143,14 @@ public class RunService {
 			}
 			options = options.withDefaults(json.readValue(template.get().formDefaultsJson(), RunConfig.class));
 		}
-		String config = json.writeValueAsString(options.resolved().toMap());
+		RunConfig checked;
+		try {
+			checked = options.resolved().validated(java.time.LocalDate.now(clock).getYear());
+		}
+		catch (IllegalArgumentException e) {
+			throw ApiException.badRequest(e.getMessage());
+		}
+		String config = json.writeValueAsString(checked.toMap());
 		UUID templateId = template.map(TemplateRow::id).orElse(null);
 		UUID id = UUID.randomUUID();
 		String finalKey = key;

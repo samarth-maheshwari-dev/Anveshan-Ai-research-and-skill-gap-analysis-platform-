@@ -7,13 +7,17 @@ public final class RunOptions {
 	}
 
 	public enum Objective {
-		PROJECT_REPORT, COMPARISON, LEARNING, DECISION
+		PROJECT_REPORT, COMPARISON, LEARNING, DECISION,
+		/** The user's own words in {@code objectiveText}. */
+		OTHER
 	}
 
 	/** PRD §14.4: sub-questions, sources per sub-question, chunks per source, rough minutes. */
 	public enum Depth {
 
-		QUICK(3, 4, 2, 5), STANDARD(5, 6, 2, 15), DEEP(6, 10, 3, 30);
+		QUICK(3, 4, 2, 5), STANDARD(5, 6, 2, 15), DEEP(6, 10, 3, 30),
+		/** The user's own numbers ({@link ResearchSize}); these are only the starting values. */
+		CUSTOM(5, 6, 2, 15);
 
 		private final int subQuestions;
 		private final int sourcesPerQuestion;
@@ -51,11 +55,15 @@ public final class RunOptions {
 	}
 
 	public enum TimeRange {
-		ANY, LAST_1_YEAR, LAST_2_YEARS, LAST_5_YEARS
+		ANY, LAST_1_YEAR, LAST_2_YEARS, LAST_5_YEARS,
+		/** From {@code sinceYear} until today. */
+		SINCE_YEAR
 	}
 
 	public enum OutputStyle {
-		PROJECT_REPORT, COMPARISON_TABLE, EXECUTIVE_SUMMARY, STUDY_NOTES
+		PROJECT_REPORT, COMPARISON_TABLE, EXECUTIVE_SUMMARY, STUDY_NOTES,
+		/** The user's own format in {@code outputStyleText}. */
+		CUSTOM
 	}
 
 	/** Output language; sources may still be English. */

@@ -1,6 +1,7 @@
 package dev.anveshan.research.app;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,7 +18,11 @@ import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.research.domain.PlanRules;
 import dev.anveshan.research.domain.PlanRules.PlannedQuestion;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
+import dev.anveshan.research.domain.RunOptions.Language;
+import dev.anveshan.research.domain.RunOptions.Objective;
+import dev.anveshan.research.domain.RunOptions.OutputStyle;
 import dev.anveshan.research.domain.RunOptions.SourceType;
+import dev.anveshan.research.domain.RunOptions.TimeRange;
 import dev.anveshan.research.infra.PromptFiles;
 import dev.anveshan.research.infra.RunStore;
 import dev.anveshan.research.infra.SubQuestionStore;
@@ -27,7 +32,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -49,12 +53,6 @@ class PlanHandler implements StepHandler {
 			@Size(max = 8) List<String> queries) {
 	}
 
-	private record Section(String key, String title, String instructions) {
-	}
-
-	private static final TypeReference<List<Section>> SECTIONS = new TypeReference<>() {
-	};
-
 	private final LlmGateway gateway;
 	private final PromptFiles prompts;
 	private final RunStore runs;
@@ -62,9 +60,10 @@ class PlanHandler implements StepHandler {
 	private final SubQuestionStore subQuestions;
 	private final TransactionTemplate tx;
 	private final JsonMapper json;
+	private final ReportSections sections;
 
 	PlanHandler(LlmGateway gateway, PromptFiles prompts, RunStore runs, TemplateStore templates,
-			SubQuestionStore subQuestions, TransactionTemplate researchTx, JsonMapper json) {
+			SubQuestionStore subQuestions, TransactionTemplate researchTx, JsonMapper json, ReportSections sections) {
 		this.gateway = gateway;
 		this.prompts = prompts;
 		this.runs = runs;
@@ -72,6 +71,7 @@ class PlanHandler implements StepHandler {
 		this.subQuestions = subQuestions;
 		this.tx = researchTx;
 		this.json = json;
+		this.sections = sections;
 	}
 
 	@Override
@@ -84,20 +84,27 @@ class PlanHandler implements StepHandler {
 		RunStore.RunRow run = runs.find(step.runId()).orElseThrow(() -> new StepFailedException("This research no longer exists."));
 		RunConfig config = json.readValue(run.configJson(), RunConfig.class).resolved();
 		Optional<TemplateRow> template = Optional.ofNullable(config.templateCode()).flatMap(templates::byCode);
-		List<String> sectionTitles = template.map(t -> json.readValue(t.sectionsJson(), SECTIONS).stream()
-				.map(Section::title).toList()).orElse(List.of());
-
-		Prompt prompt = prompts.load(PROMPT, PROMPT_VERSION, Map.of(
-				"count", Integer.toString(config.depth().subQuestions()),
-				"sourceTypes", String.join(", ", config.sources().stream().map(Enum::name).toList()),
-				"topic", run.topic(),
-				"objective", config.objective().name(),
-				"depth", config.depth().name(),
-				"timeRange", config.timeRange().name(),
-				"language", config.language() == dev.anveshan.research.domain.RunOptions.Language.hi ? "Hindi" : "English",
-				"template", template.map(TemplateRow::name).orElse("none"),
-				"sections", sectionTitles.isEmpty() ? "a standard research report" : String.join(", ", sectionTitles)),
-				0.3, 2048);
+		List<String> sectionTitles = sections.titles(config);
+		Map<String, String> values = new HashMap<>();
+		values.put("count", Integer.toString(config.size().subQuestions()));
+		values.put("sourceTypes", String.join(", ", config.sources().stream().map(Enum::name).toList()));
+		values.put("topic", data(run.topic()));
+		values.put("objective", config.objective() == Objective.OTHER ? "the user's own (see <objective>)"
+				: config.objective().name());
+		values.put("objectiveText", data(orNone(config.objectiveText())));
+		values.put("depth", config.depth().name());
+		values.put("timeRange", config.timeRange() == TimeRange.SINCE_YEAR ? "since " + config.sinceYear()
+				: config.timeRange().name());
+		values.put("language", config.language() == Language.hi ? "Hindi" : "English");
+		values.put("outputStyle", config.outputStyle() == OutputStyle.CUSTOM ? "the user's own (see <format>)"
+				: config.outputStyle().name());
+		values.put("outputStyleText", data(orNone(config.outputStyleText())));
+		values.put("template", template.map(TemplateRow::name).orElse("none"));
+		values.put("sections", sectionTitles.isEmpty() ? "a standard research report" : data(String.join(" | ", sectionTitles)));
+		values.put("instructions", data(orNone(config.instructions())));
+		values.put("includeSites", config.includeSites() == null ? "none" : String.join(", ", config.includeSites()));
+		values.put("excludeSites", config.excludeSites() == null ? "none" : String.join(", ", config.excludeSites()));
+		Prompt prompt = prompts.load(PROMPT, PROMPT_VERSION, values, 0.3, 2048);
 
 		LlmResult<PlanOutput> result;
 		try {
@@ -122,6 +129,15 @@ class PlanHandler implements StepHandler {
 		tx.executeWithoutResult(s -> subQuestions.replace(step.runId(), plan, null));
 		return new StepResult(Map.of("subQuestions", plan.size(), "model", result.model()),
 				List.of(new NewEvent("plan.ready", Map.of("subQuestions", plan.size()))));
+	}
+
+	/** User text can't open or close the prompt's tags (RULES §10): angle brackets become look-alikes. */
+	static String data(String s) {
+		return s.replace('<', '‹').replace('>', '›');
+	}
+
+	private static String orNone(String s) {
+		return s == null ? "none" : s;
 	}
 
 	/** Keeps at most 8 questions; unknown source types are dropped (the model may only pick from the list). */

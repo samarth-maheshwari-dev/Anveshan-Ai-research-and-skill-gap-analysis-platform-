@@ -907,7 +907,32 @@
         "properties" : {
           "depth" : {
             "type" : "string",
-            "enum" : [ "QUICK", "STANDARD", "DEEP" ]
+            "enum" : [ "QUICK", "STANDARD", "DEEP", "CUSTOM" ]
+          },
+          "excludeSites" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            },
+            "maxItems" : 20,
+            "minItems" : 0
+          },
+          "includeSites" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            },
+            "maxItems" : 20,
+            "minItems" : 0
+          },
+          "instructions" : {
+            "type" : "string",
+            "maxLength" : 2000,
+            "minLength" : 0
           },
           "language" : {
             "type" : "string",
@@ -915,11 +940,35 @@
           },
           "objective" : {
             "type" : "string",
-            "enum" : [ "PROJECT_REPORT", "COMPARISON", "LEARNING", "DECISION" ]
+            "enum" : [ "PROJECT_REPORT", "COMPARISON", "LEARNING", "DECISION", "OTHER" ]
+          },
+          "objectiveText" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
           },
           "outputStyle" : {
             "type" : "string",
-            "enum" : [ "PROJECT_REPORT", "COMPARISON_TABLE", "EXECUTIVE_SUMMARY", "STUDY_NOTES" ]
+            "enum" : [ "PROJECT_REPORT", "COMPARISON_TABLE", "EXECUTIVE_SUMMARY", "STUDY_NOTES", "CUSTOM" ]
+          },
+          "outputStyleText" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          },
+          "sections" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            },
+            "maxItems" : 20,
+            "minItems" : 0
+          },
+          "sinceYear" : {
+            "type" : "integer",
+            "format" : "int32"
           },
           "sources" : {
             "type" : "array",
@@ -930,6 +979,14 @@
             "maxItems" : 5,
             "minItems" : 0
           },
+          "sourcesPerQuestion" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "subQuestions" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "templateCode" : {
             "type" : "string",
             "maxLength" : 60,
@@ -937,7 +994,7 @@
           },
           "timeRange" : {
             "type" : "string",
-            "enum" : [ "ANY", "LAST_1_YEAR", "LAST_2_YEARS", "LAST_5_YEARS" ]
+            "enum" : [ "ANY", "LAST_1_YEAR", "LAST_2_YEARS", "LAST_5_YEARS", "SINCE_YEAR" ]
           },
           "topic" : {
             "type" : "string",
@@ -975,6 +1032,10 @@
             "type" : "integer",
             "format" : "int32"
           },
+          "minutesPerQuestion" : {
+            "type" : "number",
+            "format" : "double"
+          },
           "perConnection" : {
             "type" : "array",
             "items" : {
@@ -995,6 +1056,10 @@
             }
           },
           "sections" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "sourcesPerQuestion" : {
             "type" : "integer",
             "format" : "int32"
           },

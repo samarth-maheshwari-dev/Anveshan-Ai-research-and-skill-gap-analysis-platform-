@@ -20,7 +20,7 @@ import {
   type Run,
   type SourceType,
 } from "@/lib/api/hooks/runs";
-import { estimate, MAX_SUB_QUESTIONS, MIN_SUB_QUESTIONS, type Depth } from "@/lib/estimate";
+import { estimate, MAX_SUB_QUESTIONS, MIN_SUB_QUESTIONS, sizeOf, type Depth } from "@/lib/estimate";
 import { SOURCE_TYPES } from "@/lib/research-options";
 import { cn } from "@/lib/utils";
 
@@ -95,10 +95,13 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
   const [dirty, setDirty] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
   const config = (run.config ?? {}) as { depth?: Depth; sources?: SourceType[] };
-  const depth = config.depth ?? "STANDARD";
   const defaultSources = config.sources ?? ["WEB"];
   const sections = run.estimate?.sections ?? 5;
-  const est = estimate(depth, cards.length, sections);
+  // the API sends the run's size (preset or custom); fall back to the preset if it is missing
+  const size = run.estimate?.sourcesPerQuestion
+    ? { sourcesPerQuestion: run.estimate.sourcesPerQuestion, minutesPerQuestion: run.estimate.minutesPerQuestion ?? 3 }
+    : sizeOf(config.depth === "CUSTOM" ? "STANDARD" : (config.depth ?? "STANDARD"))!;
+  const est = estimate(size, cards.length, sections);
   const invalid = cards.some((c) => textLength(c.text) < TEXT_MIN || textLength(c.text) > TEXT_MAX);
   const error = update.error ?? approve.error;
   const conflict = error instanceof ApiError && error.code === "VERSION_CONFLICT";

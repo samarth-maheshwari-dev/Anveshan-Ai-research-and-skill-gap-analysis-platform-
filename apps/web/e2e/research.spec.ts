@@ -107,3 +107,60 @@ test("D-FR-3: a plan changed in another tab shows Reload instead of overwriting"
   await expect(page.getByTestId("plan-card")).toHaveCount(5);
   expect(api.runs[0].status).toBe("AWAITING_APPROVAL");
 });
+
+test("T-10-13 every choice has a 'your own' option: objective, depth, format, sections, sites, year, instructions", async ({ page, context }) => {
+  const api = await installFakeApi(page, context, { signedIn: true, connections: [verifiedConnection()], slots: ROUTED });
+  await page.goto("/research/new");
+  await page.getByLabel("What do you want to research?").fill("Compare lost-and-found apps for college campuses");
+  await page.getByLabel("Anything else the AI should know? (optional)").fill("Focus on India, for 2nd-year students");
+  await page.getByRole("button", { name: "Next" }).click();
+
+  // Objective: own words are required once "Something else" is picked
+  await page.getByText("Something else").click();
+  await page.getByText("Custom", { exact: true }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Describe your objective in a few words.")).toBeVisible();
+  await page.getByLabel("Your objective").fill("Hackathon pitch");
+  await page.getByLabel("Sub-questions", { exact: true }).fill("2");
+  await page.getByLabel("Sources per sub-question", { exact: true }).fill("10");
+  await page.getByLabel("Report format").selectOption("CUSTOM");
+  await page.getByLabel("Describe the format").fill("Slide notes");
+  await page.getByText("My own sections").click();
+  await expect(page.getByLabel("Section 1 title")).toHaveValue("Introduction");
+  await page.getByLabel("Section 1 title").fill("Problem");
+  await page.getByRole("button", { name: "Delete section 5" }).click();
+  await page.getByRole("button", { name: "Delete section 4" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+
+  // Sources: a bad website name is caught next to the field
+  await page.getByLabel("Prefer these websites (optional)").fill("ieee.org, localhost");
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText(/"localhost" isn't a website name/)).toBeVisible();
+  await page.getByLabel("Prefer these websites (optional)").fill("https://www.ieee.org/x, arxiv.org");
+  await page.getByLabel("Avoid these websites (optional)").fill("quora.com");
+  await page.getByLabel("Time range").selectOption("SINCE_YEAR");
+  await page.getByLabel("From year").fill("2022");
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("Hackathon pitch · 2 sub-questions × 10 sources · Slide notes")).toBeVisible();
+  await expect(page.getByText("Prefer: ieee.org, arxiv.org")).toBeVisible();
+  await page.getByRole("button", { name: "Start research" }).click();
+  await expect(page).toHaveURL(/\/research\/r\d+\/plan$/);
+
+  expect(api.runBodies[0]).toMatchObject({
+    objective: "OTHER",
+    objectiveText: "Hackathon pitch",
+    depth: "CUSTOM",
+    subQuestions: 2,
+    sourcesPerQuestion: 10,
+    outputStyle: "CUSTOM",
+    outputStyleText: "Slide notes",
+    timeRange: "SINCE_YEAR",
+    sinceYear: 2022,
+    instructions: "Focus on India, for 2nd-year students",
+    includeSites: ["ieee.org", "arxiv.org"],
+    excludeSites: ["quora.com"],
+  });
+  expect((api.runBodies[0].sections as string[])[0]).toBe("Problem");
+  expect(api.runBodies[0].sections).toHaveLength(3);
+});
