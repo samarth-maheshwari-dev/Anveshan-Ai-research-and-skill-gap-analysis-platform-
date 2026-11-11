@@ -49,7 +49,7 @@ export default function LandingPage() {
               <Link href="/login" className={buttonVariants({ variant: "primary", size: "lg" })}>
                 Start free <ArrowRight aria-hidden />
               </Link>
-              <span className="font-mono text-micro uppercase text-muted-foreground">
+              <span className="text-micro font-medium uppercase text-muted-foreground">
                 Free · bring your own AI key
               </span>
             </div>
@@ -62,7 +62,7 @@ export default function LandingPage() {
         <section aria-labelledby="labels" className="border-t border-border">
           <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 md:px-8 lg:grid-cols-12 lg:py-24">
             <div className="lg:col-span-4">
-              <Overline>01 — Trust labels</Overline>
+              <Overline>Trust labels</Overline>
               <h2 id="labels" className="mt-4 text-display-lg font-semibold">
                 No claim leaves without a label.
               </h2>
@@ -79,7 +79,7 @@ export default function LandingPage() {
         <section aria-labelledby="report" className="bg-inverse text-inverse-foreground">
           <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:px-8 lg:grid-cols-12 lg:py-24">
             <div className="lg:col-span-4">
-              <Overline className="text-inverse-muted">02 — The report</Overline>
+              <Overline className="text-inverse-muted">The report</Overline>
               <h2 id="report" className="mt-4 text-display-lg font-semibold">
                 Written to survive your examiner.
               </h2>
@@ -96,7 +96,7 @@ export default function LandingPage() {
         <section aria-labelledby="skills" className="border-b border-border">
           <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 md:px-8 lg:grid-cols-12 lg:py-24">
             <div className="lg:col-span-4">
-              <Overline>03 — Skill proof</Overline>
+              <Overline>Skill proof</Overline>
               <h2 id="skills" className="mt-4 text-display-lg font-semibold">
                 Skills, ranked by how hard they are to fake.
               </h2>
@@ -109,7 +109,7 @@ export default function LandingPage() {
 
         <section aria-labelledby="free" className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:px-8 lg:grid-cols-12 lg:py-24">
           <div className="lg:col-span-5">
-            <Overline>04 — Cost</Overline>
+            <Overline>Cost</Overline>
             <h2 id="free" className="mt-4 text-display-lg font-semibold">
               Free, because you bring your own AI key.
             </h2>
@@ -120,7 +120,7 @@ export default function LandingPage() {
           <dl className="border-t border-border-strong lg:col-span-6 lg:col-start-7">
             {KEY_FACTS.map(([term, detail]) => (
               <div key={term} className="flex flex-col gap-1 border-b border-border py-4 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
-                <dt className="font-mono text-micro uppercase text-muted-foreground">{term}</dt>
+                <dt className="text-micro font-medium uppercase text-muted-foreground">{term}</dt>
                 <dd className="text-body text-foreground">{detail}</dd>
               </div>
             ))}

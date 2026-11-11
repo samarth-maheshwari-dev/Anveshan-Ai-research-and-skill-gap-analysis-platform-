@@ -21,7 +21,7 @@ function Cite({ n }: CiteProps) {
 export function ReportExcerpt() {
   return (
     <figure aria-label="Example: a report paragraph and its sources" className="border-t-2 border-inverse-foreground">
-      <div className="flex items-center justify-between py-3 font-mono text-micro uppercase text-inverse-muted">
+      <div className="flex items-center justify-between py-3 text-micro font-medium uppercase text-inverse-muted">
         <span>§2 Findings</span>
         <span>3 sources</span>
       </div>
@@ -37,7 +37,7 @@ export function ReportExcerpt() {
           <li key={s.n} className="grid gap-1 border-b border-inverse-muted py-3 sm:grid-cols-12 sm:gap-4">
             <span className="font-mono text-caption sm:col-span-1">[{s.n}]</span>
             <span className="text-body-sm sm:col-span-6">{s.title}</span>
-            <span className="font-mono text-micro uppercase text-inverse-muted sm:col-span-5">
+            <span className="text-micro font-medium uppercase text-inverse-muted sm:col-span-5">
               {s.kind} · {s.where}
             </span>
           </li>

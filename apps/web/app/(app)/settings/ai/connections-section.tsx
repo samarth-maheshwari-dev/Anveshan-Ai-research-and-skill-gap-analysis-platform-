@@ -19,7 +19,7 @@ export function ConnectionsSection() {
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Overline>01 — Connections</Overline>
+          <Overline>Connections</Overline>
           <CardTitle className="mt-2">AI connections</CardTitle>
           <p className="mt-1 text-body-sm text-muted-foreground">Your keys are encrypted. Only the last 4 characters are ever shown.</p>
         </div>
