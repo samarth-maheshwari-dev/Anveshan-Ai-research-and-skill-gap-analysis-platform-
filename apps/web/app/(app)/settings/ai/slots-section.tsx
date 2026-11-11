@@ -47,7 +47,7 @@ export function SlotsSection() {
 
   return (
     <Card>
-      <Overline>02 — Routing</Overline>
+      <Overline>Routing</Overline>
       <CardTitle className="mt-2">Task routing</CardTitle>
       <p className="mt-1 text-body-sm text-muted-foreground">
         Which model does each job. If the first one hits its limit, Anveshan moves to the next (up to 5).

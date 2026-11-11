@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { HTMLAttributes } from "react";
 
-/** Card (DESIGN §9.4): flat surface, 1px hairline, 6px radius, no shadow — depth comes from contrast. */
+/** Card (DESIGN §9.4): dark surface, 1px hairline, 12px radius, no shadow — depth comes from contrast. */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
@@ -16,9 +16,22 @@ export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingEle
   return <h2 className={cn("text-heading-sm font-semibold", className)} {...props} />;
 }
 
-/** Mono overline label, e.g. "01 — AI CONNECTIONS" (DESIGN §3.2 micro). */
+/** Small uppercase section label, e.g. "WORKSPACE" (DESIGN §3.2 micro). */
 export function Overline({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("font-mono text-micro uppercase text-muted-foreground", className)} {...props} />;
+  return <p className={cn("text-micro font-medium uppercase text-subtle-foreground", className)} {...props} />;
+}
+
+/** One number with a label (dashboard): honest values only — "—" when there is nothing to count yet. */
+type StatProps = { label: string; value: string; hint?: string; className?: string };
+
+export function Stat({ label, value, hint, className }: StatProps) {
+  return (
+    <div className={cn("rounded-lg border border-border bg-surface p-4 md:p-5", className)}>
+      <p className="text-body-sm text-muted-foreground">{label}</p>
+      <p className="tabular mt-2 text-heading-lg font-semibold md:text-display-lg">{value}</p>
+      {hint && <p className="mt-1 text-caption text-subtle-foreground">{hint}</p>}
+    </div>
+  );
 }
 
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

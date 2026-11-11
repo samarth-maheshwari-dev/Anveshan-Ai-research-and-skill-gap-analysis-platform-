@@ -12,7 +12,7 @@ export function ProofCard() {
       aria-label="Example: a claim with its source and trust label"
       className="rounded-lg border border-border-strong bg-surface"
     >
-      <div className="flex items-center justify-between border-b border-border px-5 py-3 font-mono text-micro uppercase text-muted-foreground">
+      <div className="flex items-center justify-between border-b border-border px-5 py-3 text-micro font-medium uppercase text-muted-foreground">
         <span>Report · Key findings</span>
         <span>Claim 03</span>
       </div>
@@ -28,7 +28,7 @@ export function ProofCard() {
           <Badge className="bg-trust-supported-bg text-trust-supported">
             <CircleCheck aria-hidden strokeWidth={2} /> Supported
           </Badge>
-          <span className="font-mono text-micro uppercase text-muted-foreground">2 sources agree · peer-reviewed</span>
+          <span className="text-micro font-medium uppercase text-muted-foreground">2 sources agree · peer-reviewed</span>
         </div>
         <blockquote className="mt-5 border-l-2 border-primary pl-4 text-body-sm text-muted-foreground">
           <span className="marker text-foreground">

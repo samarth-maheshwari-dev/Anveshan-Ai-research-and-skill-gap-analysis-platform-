@@ -23,7 +23,7 @@ export function DoneStep({ provider, result, fromSettings, onAddAnother, onFinis
       {result.sampleModel && (
         <dl className="mt-6 border-y border-border">
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3">
-            <dt className="font-mono text-micro uppercase text-muted-foreground">Checked with</dt>
+            <dt className="text-caption text-muted-foreground">Checked with</dt>
             <dd className="font-mono text-body-sm text-foreground">{result.sampleModel}</dd>
           </div>
         </dl>

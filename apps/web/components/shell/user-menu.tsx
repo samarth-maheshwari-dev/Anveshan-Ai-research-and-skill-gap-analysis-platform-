@@ -69,7 +69,7 @@ export function UserMenu({ me }: UserMenuProps) {
             <p className="truncate text-body-sm font-medium">{me.name ?? "Signed in"}</p>
             <p className="truncate text-caption text-muted-foreground">{me.email}</p>
           </div>
-          <p className="px-2 pt-3 font-mono text-micro uppercase text-muted-foreground">Theme</p>
+          <p className="px-2 pt-3 text-micro font-medium uppercase text-subtle-foreground">Theme</p>
           <div className="flex gap-1 p-2" role="group" aria-label="Theme">
             {THEMES.map(({ id, label, Icon }) => (
               <button

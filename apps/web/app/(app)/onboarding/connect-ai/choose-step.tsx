@@ -58,7 +58,7 @@ function ProviderCard({ provider, onChoose }: ProviderCardProps) {
       </span>
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-caption text-muted-foreground">{provider.tagline}</span>
-        {provider.free && <span className="font-mono text-micro uppercase text-primary">Free tier</span>}
+        {provider.free && <span className="rounded-xs bg-primary-soft px-1.5 text-micro font-medium text-primary">Free tier</span>}
       </span>
     </button>
   );
