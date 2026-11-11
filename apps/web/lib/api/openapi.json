@@ -556,6 +556,60 @@
         "tags" : [ "run-controller" ]
       }
     },
+    "/api/v1/runs/{id}/plan/regenerate" : {
+      "post" : {
+        "operationId" : "regenerate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "description" : "The run version the user saw (ETag)",
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegenerateRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RunView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "run-controller" ]
+      }
+    },
     "/api/v1/runs/{id}/resume" : {
       "post" : {
         "operationId" : "resume",
@@ -1238,6 +1292,16 @@
           },
           "type" : {
             "type" : "string"
+          }
+        }
+      },
+      "RegenerateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "instruction" : {
+            "type" : "string",
+            "maxLength" : 1000,
+            "minLength" : 0
           }
         }
       },

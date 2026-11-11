@@ -189,3 +189,23 @@ test("T-10-14 a failed plan shows a plain reason and 'Start again' re-creates th
   await expect(page).toHaveURL(/\/research\/r\d+\/plan$/);
   expect(api.runBodies[0]).toMatchObject({ topic: "Java full stack roadmap for 2027", depth: "QUICK", sources: ["WEB", "BLOGS"] });
 });
+
+test("T-10-16 Regenerate plan with an instruction replaces the cards (1 request, behind one extra click)", async ({ page, context }) => {
+  const api = await installFakeApi(page, context, {
+    signedIn: true,
+    connections: [verifiedConnection()],
+    slots: ROUTED,
+    runs: [fakeRun({ id: "r-regen" })],
+  });
+  await page.goto("/research/r-regen/plan");
+  await expect(page.getByTestId("plan-card")).toHaveCount(5);
+  await page.getByRole("button", { name: "Regenerate plan" }).click();
+  await page.getByLabel("What should the new plan do differently? (optional)").fill("focus on India");
+  await page.getByRole("button", { name: "Get a new plan" }).click();
+  await expect(page.getByTestId("plan-card")).toHaveCount(3);
+  await expect(page.getByTestId("plan-card").first().getByRole("textbox")).toHaveValue("New angle 1: focus on India");
+  expect(api.regenerateInstructions).toEqual(["focus on India"]);
+  // the new version is what approval sends
+  await page.getByRole("button", { name: "Approve and start" }).click();
+  await expect(page).toHaveURL(/\/research\/r-regen\/live$/);
+});

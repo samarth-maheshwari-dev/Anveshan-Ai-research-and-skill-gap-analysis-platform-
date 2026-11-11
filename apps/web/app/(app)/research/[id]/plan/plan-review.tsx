@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, Clock, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Clock, LoaderCircle, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 
@@ -8,13 +8,14 @@ import { Alert } from "@/components/anveshan/alert";
 import { ErrorLine } from "@/components/anveshan/error-line";
 import { Button } from "@/components/ui/button";
 import { Overline, Skeleton } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { ApiError } from "@/lib/api/errors";
 import {
   etagOf,
   runHref,
   useApprove,
   useRun,
+  useRegeneratePlan,
   useUpdatePlan,
   type PlanCard,
   type Run,
@@ -90,6 +91,7 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
   const router = useRouter();
   const id = run.id!;
   const update = useUpdatePlan(id);
+  const regenerate = useRegeneratePlan(id);
   const approve = useApprove(id);
   const [cards, setCards] = useState<Draft[]>(() => toDrafts(run));
   const [dirty, setDirty] = useState(false);
@@ -103,9 +105,9 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
     : sizeOf(config.depth === "CUSTOM" ? "STANDARD" : (config.depth ?? "STANDARD"))!;
   const est = estimate(size, cards.length, sections);
   const invalid = cards.some((c) => textLength(c.text) < TEXT_MIN || textLength(c.text) > TEXT_MAX);
-  const error = update.error ?? approve.error;
+  const error = update.error ?? approve.error ?? regenerate.error;
   const conflict = error instanceof ApiError && error.code === "VERSION_CONFLICT";
-  const busy = update.isPending || approve.isPending || approve.isSuccess;
+  const busy = update.isPending || approve.isPending || approve.isSuccess || regenerate.isPending;
 
   function change(next: Draft[]) {
     setCards(next);
@@ -150,6 +152,11 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
 
       <div className="mt-8 grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
         <section aria-labelledby="sub-questions">
+          <RegeneratePanel
+            pending={regenerate.isPending}
+            disabled={busy}
+            onRegenerate={(instruction) => regenerate.mutate({ instruction, version: etagOf(run) })}
+          />
           <div className="flex items-center justify-between gap-3">
             <h2 id="sub-questions" className="text-heading-sm font-semibold">
               Sub-questions <span className="tabular text-muted-foreground">({cards.length})</span>
@@ -252,6 +259,60 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
         </aside>
       </div>
 
+    </div>
+  );
+}
+
+/**
+ * D-FR-6: ask the AI for a different plan, optionally with guidance. Costs 1 PLAN request and replaces the plan
+ * below (unsaved edits included), so it is behind one extra click.
+ */
+function RegeneratePanel({
+  pending,
+  disabled,
+  onRegenerate,
+}: {
+  pending: boolean;
+  disabled: boolean;
+  onRegenerate: (instruction: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const fieldId = useId();
+  if (!open) {
+    return (
+      <div className="mb-4 flex justify-end">
+        <Button size="sm" variant="ghost" onClick={() => setOpen(true)} disabled={disabled}>
+          <RefreshCw aria-hidden /> Regenerate plan
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-surface p-4">
+      <label htmlFor={fieldId} className="text-caption font-medium">
+        What should the new plan do differently? (optional)
+      </label>
+      <Input
+        id={fieldId}
+        className="mt-2"
+        autoFocus
+        maxLength={300}
+        value={instruction}
+        placeholder='e.g. "focus on India", "more about costs"'
+        onChange={(e) => setInstruction(e.target.value)}
+      />
+      <p className="mt-1.5 text-caption text-subtle-foreground">
+        Uses 1 AI request and replaces the plan below, including edits you haven&apos;t saved.
+      </p>
+      <div className="mt-3 flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+          Cancel
+        </Button>
+        <Button size="sm" variant="secondary" loading={pending} disabled={disabled} onClick={() => onRegenerate(instruction)}>
+          <RefreshCw aria-hidden /> Get a new plan
+        </Button>
+      </div>
     </div>
   );
 }

@@ -82,11 +82,23 @@ class RunController {
 	}
 
 	private static final int STARTS_PER_HOUR = 10;
+	private static final int REGENERATES_PER_HOUR = 20;
+
+	/** D-FR-6: optional guidance for the new plan. */
+	record RegenerateRequest(@Size(max = 1000) String instruction) {
+	}
 
 	private final RunService runs;
 	private final PlanService plans;
 	private final CurrentUser currentUser;
 	private final Map<UUID, Bucket> startBuckets = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<UUID, Bucket> eldest) {
+			return size() > 10_000;
+		}
+	});
+
+	private final Map<UUID, Bucket> regenerateBuckets = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
 		@Override
 		protected boolean removeEldestEntry(Map.Entry<UUID, Bucket> eldest) {
 			return size() > 10_000;
@@ -131,6 +143,23 @@ class RunController {
 		UUID me = currentUser.id();
 		plans.updatePlan(me, id, version(ifMatch),
 				req.subQuestions().stream().map(c -> new PlanEdit(c.id(), c.text(), c.sourceTypes(), c.queries())).toList());
+		RunView run = runs.get(me, id);
+		return ResponseEntity.ok().eTag("\"" + run.version() + "\"").body(run);
+	}
+
+	/** D-FR-6: a fresh plan from the AI (1 PLAN request); the run keeps waiting for approval. */
+	@PostMapping("/{id}/plan/regenerate")
+	ResponseEntity<RunView> regenerate(@PathVariable UUID id, @Valid @RequestBody(required = false) RegenerateRequest req,
+			@Parameter(description = "The run version the user saw (ETag)") @RequestHeader(name = "If-Match", required = false) String ifMatch) {
+		UUID me = currentUser.id();
+		Bucket bucket = regenerateBuckets.computeIfAbsent(me, k -> Bucket.builder()
+				.addLimit(l -> l.capacity(REGENERATES_PER_HOUR).refillGreedy(REGENERATES_PER_HOUR, Duration.ofHours(1)))
+				.build());
+		if (!bucket.tryConsume(1)) {
+			throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many new plans",
+					"You can ask for " + REGENERATES_PER_HOUR + " new plans per hour. Try again a little later.");
+		}
+		plans.regenerate(me, id, version(ifMatch), req == null ? null : req.instruction());
 		RunView run = runs.get(me, id);
 		return ResponseEntity.ok().eTag("\"" + run.version() + "\"").body(run);
 	}

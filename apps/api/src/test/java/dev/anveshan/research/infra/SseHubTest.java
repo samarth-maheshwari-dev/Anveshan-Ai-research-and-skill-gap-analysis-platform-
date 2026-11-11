@@ -60,7 +60,7 @@ class SseHubTest {
 	final CountingStore store = new CountingStore();
 	final SseHub hub = new SseHub(store, new ResearchProperties(3, Duration.ofSeconds(2), Duration.ofMinutes(10),
 			Duration.ofSeconds(30), Duration.ofMinutes(30), Duration.ofSeconds(15), Duration.ofSeconds(60),
-			Duration.ofMinutes(5)), null);
+			Duration.ofMinutes(5), Duration.ofDays(7)), null);
 
 	@AfterEach
 	void close() {

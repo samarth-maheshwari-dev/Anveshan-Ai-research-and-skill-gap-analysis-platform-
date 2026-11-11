@@ -148,6 +148,7 @@ anveshan:
     sse-keep-alive: 15s       # comment line so proxies don't close idle SSE connections
     ai-limit-fallback: 60s    # pause this long when a provider's 429 says nothing about when it resets
     requeue-interval: 5m      # PENDING steps of active runs get a job again (duplicates are harmless: claim is atomic)
+    plan-expiry: 7d           # D-FR-7: a plan untouched this long while waiting for approval is cancelled
 
 # Background jobs: one JobRunr job per research step. JobRunr keeps its own jobrunr_* tables (SCHEMA S-10).
 jobrunr:

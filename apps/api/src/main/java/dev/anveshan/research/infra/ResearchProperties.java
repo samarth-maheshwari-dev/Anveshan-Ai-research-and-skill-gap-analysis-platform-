@@ -17,16 +17,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param aiLimitFallback pause length when a provider gives no reset time with its 429
  * @param requeueInterval how often PENDING steps of active runs get a job again (a lost hand-off or a failed claim
  *                        never strands a step until the next restart)
+ * @param planExpiry      a plan left untouched this long while waiting for approval is cancelled (D-FR-7)
  */
 @ConfigurationProperties("anveshan.research")
 public record ResearchProperties(int maxAttempts, Duration retryBackoff, Duration staleAfter, Duration sweepInterval,
-		Duration sseTimeout, Duration sseKeepAlive, Duration aiLimitFallback, Duration requeueInterval) {
+		Duration sseTimeout, Duration sseKeepAlive, Duration aiLimitFallback, Duration requeueInterval,
+		Duration planExpiry) {
 
 	public ResearchProperties {
 		if (maxAttempts < 1 || retryBackoff == null || staleAfter == null || sweepInterval == null
-				|| sseTimeout == null || sseKeepAlive == null || aiLimitFallback == null || requeueInterval == null) {
+				|| sseTimeout == null || sseKeepAlive == null || aiLimitFallback == null || requeueInterval == null
+				|| planExpiry == null) {
 			throw new IllegalStateException("anveshan.research.* (max-attempts >= 1, retry-backoff, stale-after, "
-					+ "sweep-interval, sse-timeout, sse-keep-alive, ai-limit-fallback, requeue-interval) are required");
+					+ "sweep-interval, sse-timeout, sse-keep-alive, ai-limit-fallback, requeue-interval, plan-expiry) are required");
 		}
 	}
 

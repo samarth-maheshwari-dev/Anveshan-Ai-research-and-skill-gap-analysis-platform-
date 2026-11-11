@@ -4,9 +4,17 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P08 are done (accounts, project skeleton + CI, local Docker stack, embeddings, first database schema, login, shared security, bring-your-own-key backend, frontend + connect-your-AI wizard). Milestone M0 — sign in and connect a real AI key — is reached. See [Progress](#progress).
+> **Status:** early development. Phases P00–P10 are done: sign in, connect your own AI key, start a research, and review and approve the plan the AI proposes. The research steps after the plan (search, reading sources, verifying claims, writing the report) come next, in P11–P16. See [Progress](#progress).
 
-## What it does
+## What works today
+
+- **Sign in** with Google or GitHub.
+- **Connect your own AI key** (Gemini, Groq, OpenRouter, OpenAI, Anthropic or any OpenAI-compatible provider). The key is tested, stored encrypted, and only its last 4 characters are ever shown. Pick a model per task (plan, write, …) with fallbacks.
+- **Start a research** in 4 steps: topic (optionally from a template), objective, sources, review. Every choice has a "your own" option — your own objective, depth (sub-questions × sources), report format, report sections, websites to prefer or avoid, a start year, and extra instructions.
+- **Review the plan before anything is spent.** The AI splits your question into 1–8 sub-questions. Edit, reorder, delete or add them, or ask for a new plan ("focus on India"). The estimate — AI requests, minutes, and the share of each key's remaining daily quota — updates as you edit.
+- **Approve and watch it run.** Runs are durable: pause, resume or stop them, and they continue where they left off after a crash or an AI rate limit. A busy AI provider is retried; if it still fails you get a plain explanation and a "Start again" button.
+
+## What it does (full plan)
 
 | Area | What you get |
 |---|---|
@@ -111,13 +119,19 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P06 | Shared security: SSRF-safe HTTP client, Tink encryption for user keys, log masking | ✅ Done |
 | P07 | Bring-your-own-key backend: connections, model lists, task routing, LLM gateway with rate-limit fallback | ✅ Done |
 | P08 | Frontend foundation + connect-your-AI wizard: black-first 60·30·10 design, landing, login, wizard, dashboard, Settings → AI; key test that picks a working model and survives busy providers | ✅ Done |
+| P09 | Research run engine: state machine, durable background steps, pause / resume / stop / retry, live events (SSE) with replay, crash recovery | ✅ Done |
+| P10 | New Research form (templates + custom options), AI planner, Plan Review (edit, regenerate, live estimate, approve), unapproved plans expire after 7 days | ✅ Done |
+| P11–P16 | Search, read and verify sources, write the cited report, Report Studio, export | Next |
+| P17–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
 
 ## Security
 
 - Sign-in only through Google / GitHub; sessions live server-side (HttpOnly cookie), CSRF and strict CORS on every API call.
 - Accounts are linked by email only when the provider has verified it (no account takeover via unverified emails).
 - User AI keys are encrypted at rest (Tink AES-256-GCM, bound to their row and owner) and never logged or returned (only the last 4 characters are shown); provider error messages are never passed through, since they can echo the key.
-- Every LLM call goes through one gateway: the reply must parse into a typed record and pass validation (max 3 tries), and a rate-limited key falls back to the user's next key instead of waiting.
+- Every LLM call goes through one gateway: the reply must parse into a typed record and pass validation (max 3 tries), and a rate-limited key falls back to the user's next key instead of waiting. Each attempt is logged with counts and timings only (never prompts or keys).
+- What a user types (topic, instructions, section names) is treated as data in AI prompts: it is wrapped in tags and cannot close them, so it can't take over the prompt. AI output (like a plan) is checked by code before it is saved.
+- Plan edits and approval carry the version the user saw (`If-Match`); a change made elsewhere meanwhile is never silently overwritten. Starting research and asking for new plans are rate-limited per user.
 - Every outbound request to a user-supplied URL goes through an SSRF guard: private/loopback/metadata IPs and odd IP spellings are refused, DNS answers are checked at connect time (no rebinding), redirects are re-checked (max 3) and bodies are size-capped.
 - Credential-like values (API keys, tokens, `Bearer …`) are masked in every log line and stack trace; CI fails if one shows up in container logs.
 - Secrets live only in environment variables, never in this repository.

@@ -29,6 +29,7 @@ import dev.anveshan.research.infra.ResearchProperties;
 import dev.anveshan.research.infra.RunEvents;
 import dev.anveshan.research.infra.RunStore;
 import dev.anveshan.research.infra.RunStore.RunRow;
+import dev.anveshan.research.api.PlanExpired;
 import dev.anveshan.research.api.PlanReady;
 import dev.anveshan.research.infra.StepStore;
 import dev.anveshan.research.infra.SubQuestionStore;
@@ -115,6 +116,23 @@ public class RunEngine {
 				return false;
 			}
 			resumeLocked(run);
+			return true;
+		}));
+	}
+
+	/**
+	 * D-FR-7: cancels a plan that has waited, untouched, since before {@code cutoff} (re-checked under the run lock,
+	 * so an edit or approval that just happened wins). The notify module tells the user (PlanExpired, P20).
+	 */
+	boolean expirePlan(UUID runId, Instant cutoff) {
+		return Boolean.TRUE.equals(tx.execute(s -> {
+			RunRow run = locked(runId);
+			if (run.status() != RunStatus.AWAITING_APPROVAL || !run.updatedAt().isBefore(cutoff)) {
+				return false;
+			}
+			move(run, RunStatus.CANCELLED, null, null);
+			events.emit(runId, "plan.expired", Map.of("reason", "Not approved within the waiting time"));
+			events.publish(new PlanExpired(runId, run.ownerId()));
 			return true;
 		}));
 	}
