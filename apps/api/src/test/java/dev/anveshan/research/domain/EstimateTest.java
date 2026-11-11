@@ -29,7 +29,7 @@ class EstimateTest {
 			"STANDARD, 8, 20, 11, 37, 24", // 48 → ceil(19.2)=20, ceil(96/9)=11; 24
 			"DEEP,     1,  4,  3, 13,  5", // 10 → 4, ceil(20/9)=3; 30×1/6=5
 			"DEEP,     5, 20, 12, 38, 25", // 50 → 20, ceil(100/9)=12; 25
-			"DEEP,     8, 32, 18, 56, 40", // 80 → 32, ceil(160/9)=18; 40
+			"DEEP,     8, 32, 18, 56, 40" // 80 → 32, ceil(160/9)=18; 40
 	})
 	@DisplayName("T-10-01 estimate: Quick/Standard/Deep × 1/5/8 sub-questions matches TECHSPEC §12.3")
 	void formula(Depth depth, int subQ, int extract, int verify, int total, int minutes) {

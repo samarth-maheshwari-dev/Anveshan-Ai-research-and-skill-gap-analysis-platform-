@@ -56,6 +56,8 @@ export type FakeRun = {
   version: number;
   /** GETs left before the fake Planner finishes (PLANNING → AWAITING_APPROVAL). */
   planningPolls: number;
+  /** The PLAN step failed with this message (status FAILED). */
+  planError?: string;
 };
 
 export const TEMPLATES = [
@@ -401,7 +403,17 @@ function runView(run: FakeRun) {
       routes: [],
       unroutedSlots: [],
     },
-    steps: [{ id: `${run.id}-plan`, seq: 1, stage: 0, kind: "PLAN", status: planning ? "RUNNING" : "DONE", attempts: 1 }],
+    steps: [
+      {
+        id: `${run.id}-plan`,
+        seq: 1,
+        stage: 0,
+        kind: "PLAN",
+        status: planning ? "RUNNING" : run.planError ? "FAILED" : "DONE",
+        attempts: run.planError ? 3 : 1,
+        lastError: run.planError,
+      },
+    ],
     version: run.version,
     createdAt: "2026-11-11T06:00:00Z",
     updatedAt: "2026-11-11T06:00:00Z",

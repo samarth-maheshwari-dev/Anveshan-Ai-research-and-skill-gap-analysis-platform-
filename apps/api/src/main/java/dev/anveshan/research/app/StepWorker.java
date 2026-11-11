@@ -63,7 +63,7 @@ public class StepWorker {
 			engine.onAiLimit(step, e.resumeAt());
 		}
 		catch (StepFailedException e) {
-			engine.onFailure(step, e.getMessage(), false);
+			engine.onFailure(step, e.getMessage(), e.retryable());
 		}
 		catch (RuntimeException e) {
 			// the message may come from a provider or a library: never log or store it, only the type

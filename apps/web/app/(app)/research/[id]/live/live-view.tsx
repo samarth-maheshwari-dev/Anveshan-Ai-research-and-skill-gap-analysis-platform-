@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, CircleCheck, CircleDashed, CirclePause, LoaderCircle, Pause, Play, Square } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, CirclePause, LoaderCircle, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -9,7 +9,7 @@ import { ErrorLine } from "@/components/anveshan/error-line";
 import { Button } from "@/components/ui/button";
 import { Badge, Overline, Skeleton } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/errors";
-import { runHref, useRun, useRunAction, type Run, type RunStatus } from "@/lib/api/hooks/runs";
+import { runHref, useCreateRun, useRun, useRunAction, type CreateRun, type Run, type RunStatus } from "@/lib/api/hooks/runs";
 import { cn } from "@/lib/utils";
 
 const STATUS: Record<RunStatus, { label: string; Icon: typeof CircleCheck; tone: string }> = {
@@ -98,11 +98,7 @@ export function LiveView() {
       {action.isError && (
         <Alert className="mt-4">{action.error instanceof ApiError ? action.error.message : "Couldn't do that. Try again."}</Alert>
       )}
-      {r.status === "FAILED" && (
-        <Alert className="mt-6">
-          {r.steps?.find((x) => x.status === "FAILED")?.lastError ?? "This research stopped because a step failed."}
-        </Alert>
-      )}
+      {r.status === "FAILED" && <FailedNotice run={r} />}
 
       <section aria-labelledby="steps" className="mt-8 rounded-lg border border-border bg-surface">
         <h2 id="steps" className="border-b border-border px-6 py-4 text-heading-sm font-semibold">
@@ -121,6 +117,52 @@ export function LiveView() {
         </ol>
       </section>
     </div>
+  );
+}
+
+/**
+ * A failed run says why in plain words. A failed PLAN can't be retried in place (no FAILED → PLANNING), so
+ * "Start again" creates a new run with the same topic and options (a fresh Idempotency-Key per click).
+ */
+function FailedNotice({ run }: { run: Run }) {
+  const router = useRouter();
+  const create = useCreateRun();
+  const failed = run.steps?.find((x) => x.status === "FAILED");
+  const planFailed = failed?.kind === "PLAN";
+  return (
+    <>
+      <Alert
+        className="mt-6"
+        action={
+          planFailed ? (
+            <Button
+              size="sm"
+              variant="primary"
+              loading={create.isPending}
+              disabled={create.isSuccess}
+              onClick={() =>
+                create.mutate(
+                  {
+                    body: { ...(run.config as Omit<CreateRun, "topic">), topic: run.topic ?? "" },
+                    idempotencyKey: crypto.randomUUID(),
+                  },
+                  { onSuccess: (next) => router.push(`/research/${next.id}/plan`) },
+                )
+              }
+            >
+              <RotateCcw aria-hidden /> Start again
+            </Button>
+          ) : undefined
+        }
+      >
+        {failed?.lastError ?? "This research stopped because a step failed."}
+      </Alert>
+      {create.isError && (
+        <Alert className="mt-3">
+          {create.error instanceof ApiError ? create.error.message : "Couldn't start again. Try once more."}
+        </Alert>
+      )}
+    </>
   );
 }
 

@@ -164,3 +164,28 @@ test("T-10-13 every choice has a 'your own' option: objective, depth, format, se
   expect((api.runBodies[0].sections as string[])[0]).toBe("Problem");
   expect(api.runBodies[0].sections).toHaveLength(3);
 });
+
+test("T-10-14 a failed plan shows a plain reason and 'Start again' re-creates the run with the same options", async ({ page, context }) => {
+  const reason = "Your AI provider didn't answer — it was busy or down.";
+  const api = await installFakeApi(page, context, {
+    signedIn: true,
+    connections: [verifiedConnection()],
+    slots: ROUTED,
+    runs: [
+      fakeRun({
+        id: "r-failed",
+        status: "FAILED",
+        topic: "Java full stack roadmap for 2027",
+        config: { depth: "QUICK", sources: ["WEB", "BLOGS"] },
+        planError: reason,
+      }),
+    ],
+  });
+  await page.goto("/research/r-failed");
+  await expect(page).toHaveURL(/\/research\/r-failed\/live$/);
+  await expect(page.getByText(reason)).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Exception");
+  await page.getByRole("button", { name: "Start again" }).click();
+  await expect(page).toHaveURL(/\/research\/r\d+\/plan$/);
+  expect(api.runBodies[0]).toMatchObject({ topic: "Java full stack roadmap for 2027", depth: "QUICK", sources: ["WEB", "BLOGS"] });
+});

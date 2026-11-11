@@ -14,6 +14,7 @@ import dev.anveshan.byok.api.LlmGateway;
 import dev.anveshan.byok.api.LlmResult;
 import dev.anveshan.byok.api.NoModelForSlotException;
 import dev.anveshan.byok.api.Prompt;
+import dev.anveshan.byok.api.ProviderUnavailableException;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.research.domain.PlanRules;
 import dev.anveshan.research.domain.PlanRules.PlannedQuestion;
@@ -112,6 +113,12 @@ class PlanHandler implements StepHandler {
 		}
 		catch (NoModelForSlotException e) {
 			throw new StepFailedException("No AI model is set for planning. Choose one in Settings → AI, then start again.");
+		}
+		catch (ProviderUnavailableException e) {
+			// e.g. Gemini 503 "model overloaded": usually gone in a minute or two → retried with backoff first
+			throw new StepFailedException("Your AI provider didn't answer — it was busy or down (this happens with free "
+					+ "models at peak times). Anveshan tried several times. Start again in a few minutes, or add a second "
+					+ "model for planning in Settings → AI so Anveshan can switch to it.", true);
 		}
 		catch (InvalidLlmOutputException e) {
 			throw new StepFailedException(

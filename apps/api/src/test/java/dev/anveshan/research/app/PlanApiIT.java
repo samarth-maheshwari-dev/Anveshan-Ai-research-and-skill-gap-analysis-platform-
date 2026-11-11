@@ -45,6 +45,7 @@ import dev.anveshan.TestcontainersConfig;
 import dev.anveshan.byok.api.LlmGateway;
 import dev.anveshan.byok.api.LlmResult;
 import dev.anveshan.byok.api.Prompt;
+import dev.anveshan.byok.api.ProviderUnavailableException;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.identity.infra.security.SessionUser;
 import dev.anveshan.research.api.PlanReady;
@@ -318,6 +319,20 @@ class PlanApiIT {
 		}
 		assertThat(jdbc.sql("SELECT count(*) FROM research_run WHERE owner_id = :o").param("o", carol)
 				.query(Long.class).single()).isZero();
+	}
+
+	@Test
+	@DisplayName("T-10-14 provider busy (503) on every try → PLAN retried, then FAILED with a plain message (no class names)")
+	void providerBusy() throws Exception {
+		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class)))
+				.thenThrow(new ProviderUnavailableException("No AI route worked for PLAN: 503"));
+		UUID run = startRun(alice);
+		awaitStatus(run, RunStatus.FAILED);
+		var step = jdbc.sql("SELECT attempts, last_error FROM research_step WHERE run_id = :r AND kind = 'PLAN'")
+				.param("r", run).query((rs, n) -> new Object[] { rs.getInt(1), rs.getString(2) }).single();
+		assertThat((int) step[0]).as("retried before giving up").isEqualTo(3);
+		assertThat((String) step[1]).contains("didn't answer", "Settings → AI").doesNotContain("Exception", "503");
+		verify(gateway, org.mockito.Mockito.times(3)).call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class));
 	}
 
 	// --- helpers ---
