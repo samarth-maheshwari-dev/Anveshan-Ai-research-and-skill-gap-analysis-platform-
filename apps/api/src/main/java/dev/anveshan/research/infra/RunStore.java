@@ -34,12 +34,25 @@ public class RunStore {
 		this.jdbc = jdbc;
 	}
 
-	public void insert(UUID id, UUID owner, String topic, String configJson, String idempotencyKey, Instant now) {
+	public void insert(UUID id, UUID owner, String topic, String configJson, UUID templateId, String idempotencyKey,
+			Instant now) {
 		jdbc.sql("""
-				INSERT INTO research_run (id, owner_id, topic, config, idempotency_key, created_at, updated_at)
-				VALUES (:id, :owner, :topic, CAST(:config AS jsonb), :key, :now, :now)""")
+				INSERT INTO research_run (id, owner_id, topic, config, template_id, idempotency_key, created_at, updated_at)
+				VALUES (:id, :owner, :topic, CAST(:config AS jsonb), :template, :key, :now, :now)""")
 				.param("id", id).param("owner", owner).param("topic", topic).param("config", configJson)
-				.param("key", idempotencyKey).param("now", ts(now)).update();
+				.param("template", templateId).param("key", idempotencyKey).param("now", ts(now)).update();
+	}
+
+	/** A plan edit changes the run's representation: the next If-Match must name the new version (ETag). */
+	public int bumpVersion(UUID id) {
+		return jdbc.sql("UPDATE research_run SET version = version + 1 WHERE id = :id RETURNING version").param("id", id)
+				.query(Integer.class).single();
+	}
+
+	/** Runs of this user that are RUNNING or PAUSED (TECHSPEC §12.2 per-user limit). */
+	public int activeCount(UUID owner) {
+		return jdbc.sql("SELECT count(*) FROM research_run WHERE owner_id = :owner AND status IN ('RUNNING','PAUSED')")
+				.param("owner", owner).query(Integer.class).single();
 	}
 
 	public Optional<UUID> findByIdempotencyKey(UUID owner, String key) {

@@ -149,6 +149,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{id}/cancel": {
         parameters: {
             query?: never;
@@ -191,6 +207,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["pause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updatePlan"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -245,6 +277,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage": {
         parameters: {
             query?: never;
@@ -267,6 +315,20 @@ export interface components {
     schemas: {
         ConnectionList: {
             items?: components["schemas"]["ConnectionView"][];
+        };
+        ConnectionShare: {
+            /** Format: uuid */
+            connectionId?: string;
+            label?: string;
+            /** Format: double */
+            pctOfTodayRemaining?: number;
+            provider?: string;
+            /** Format: int32 */
+            remainingToday?: number;
+            /** Format: int32 */
+            requests?: number;
+            /** Format: int32 */
+            usedToday?: number;
         };
         ConnectionUsage: {
             /** Format: uuid */
@@ -301,15 +363,30 @@ export interface components {
             provider?: "GEMINI" | "GROQ" | "OPENROUTER" | "OPENAI" | "ANTHROPIC" | "CUSTOM" | "TAVILY";
         };
         CreateRunRequest: {
-            attachmentIds?: string[];
-            depth?: string;
-            language?: string;
-            objective?: string;
-            outputStyle?: string;
-            skillMode?: string;
-            sources?: string[];
+            /** @enum {string} */
+            depth?: "QUICK" | "STANDARD" | "DEEP" | "CUSTOM";
+            excludeSites?: string[];
+            includeSites?: string[];
+            instructions?: string;
+            /** @enum {string} */
+            language?: "en" | "hi";
+            /** @enum {string} */
+            objective?: "PROJECT_REPORT" | "COMPARISON" | "LEARNING" | "DECISION" | "OTHER";
+            objectiveText?: string;
+            /** @enum {string} */
+            outputStyle?: "PROJECT_REPORT" | "COMPARISON_TABLE" | "EXECUTIVE_SUMMARY" | "STUDY_NOTES" | "CUSTOM";
+            outputStyleText?: string;
+            sections?: string[];
+            /** Format: int32 */
+            sinceYear?: number;
+            sources?: ("WEB" | "ACADEMIC" | "GITHUB" | "BLOGS" | "DOCS")[];
+            /** Format: int32 */
+            sourcesPerQuestion?: number;
+            /** Format: int32 */
+            subQuestions?: number;
             templateCode?: string;
-            timeRange?: string;
+            /** @enum {string} */
+            timeRange?: "ANY" | "LAST_1_YEAR" | "LAST_2_YEARS" | "LAST_5_YEARS" | "SINCE_YEAR";
             topic: string;
         };
         Day: {
@@ -321,6 +398,24 @@ export interface components {
             tokensIn?: number;
             /** Format: int32 */
             tokensOut?: number;
+        };
+        EstimateView: {
+            /** Format: int32 */
+            minutes?: number;
+            /** Format: double */
+            minutesPerQuestion?: number;
+            perConnection?: components["schemas"]["ConnectionShare"][];
+            requests?: {
+                [key: string]: number;
+            };
+            routes?: components["schemas"]["SlotRoute"][];
+            /** Format: int32 */
+            sections?: number;
+            /** Format: int32 */
+            sourcesPerQuestion?: number;
+            /** Format: int32 */
+            totalRequests?: number;
+            unroutedSlots?: string[];
         };
         MeView: {
             avatarUrl?: string;
@@ -345,6 +440,16 @@ export interface components {
         Onboarding: {
             hasRun?: boolean;
             hasVerifiedConnection?: boolean;
+        };
+        PlanCard: {
+            /** Format: uuid */
+            id?: string;
+            queries?: string[];
+            sourceTypes?: ("WEB" | "ACADEMIC" | "GITHUB" | "BLOGS" | "DOCS")[];
+            text?: string;
+        };
+        PlanRequest: {
+            subQuestions: components["schemas"]["PlanCard"][];
         };
         Problem: {
             code?: string;
@@ -375,6 +480,7 @@ export interface components {
             };
             /** Format: date-time */
             createdAt?: string;
+            estimate?: components["schemas"]["EstimateView"];
             /** Format: uuid */
             id?: string;
             /** @enum {string} */
@@ -385,11 +491,17 @@ export interface components {
             /** @enum {string} */
             status?: "PLANNING" | "AWAITING_APPROVAL" | "RUNNING" | "PAUSED" | "COMPLETED" | "FAILED" | "CANCELLED";
             steps?: components["schemas"]["StepView"][];
+            subQuestions?: components["schemas"]["SubQuestionView"][];
             topic?: string;
             /** Format: date-time */
             updatedAt?: string;
             /** Format: int32 */
             version?: number;
+        };
+        SlotRoute: {
+            /** Format: uuid */
+            connectionId?: string;
+            slot?: string;
         };
         SseEmitter: {
             /** Format: int64 */
@@ -411,6 +523,26 @@ export interface components {
             status?: "PENDING" | "RUNNING" | "DONE" | "FAILED" | "SKIPPED";
             /** Format: uuid */
             subQuestionId?: string;
+        };
+        SubQuestionView: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: int32 */
+            position?: number;
+            queries?: string[];
+            sourceTypes?: ("WEB" | "ACADEMIC" | "GITHUB" | "BLOGS" | "DOCS")[];
+            text?: string;
+        };
+        TemplateList: {
+            items?: components["schemas"]["TemplateView"][];
+        };
+        TemplateView: {
+            code?: string;
+            formDefaults?: {
+                [key: string]: unknown;
+            };
+            name?: string;
+            sections?: string[];
         };
         TestRequest: {
             model?: string;
@@ -749,6 +881,38 @@ export interface operations {
             };
         };
     };
+    approve: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The run version the user saw (ETag) */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     cancel: {
         parameters: {
             query?: never;
@@ -828,6 +992,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    updatePlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The run version the user saw (ETag) */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunView"];
+                };
             };
             /** @description Problem Details */
             default: {
@@ -954,6 +1156,35 @@ export interface operations {
                     "application/json": {
                         [key: string]: components["schemas"]["RouteChoice"][];
                     };
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateList"];
                 };
             };
             /** @description Problem Details */

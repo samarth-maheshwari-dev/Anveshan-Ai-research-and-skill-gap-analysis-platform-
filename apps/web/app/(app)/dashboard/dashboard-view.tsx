@@ -60,9 +60,9 @@ export function DashboardView() {
           <h1 className="mt-2 text-display-lg font-semibold">{firstName ? `Welcome, ${firstName}` : "Welcome"}</h1>
           <p className="mt-1 text-body text-muted-foreground">Your research overview at a glance.</p>
         </div>
-        <span aria-disabled="true" title="Opens in the next update" className={buttonVariants({ variant: "primary" })}>
+        <Link href="/research/new" className={buttonVariants({ variant: "primary" })}>
           <Plus aria-hidden /> New research
-        </span>
+        </Link>
       </div>
 
       <div className="mt-8 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
@@ -72,7 +72,7 @@ export function DashboardView() {
           hint={connections.data ? `${connections.data.length} connected · ${verifiedCount} verified` : undefined}
         />
         <Stat label="Tasks routed" value={routed === null ? "—" : `${routed} / ${TASK_SLOTS.length}`} hint="Plan, extract, verify, write, ask, interview" />
-        <Stat label="Research" value="—" hint="Opens in the next update" />
+        <Stat label="Research" value="—" hint="Your runs list arrives soon" />
         <Stat label="Knowledge items" value="—" hint="Grows with every report" />
       </div>
 

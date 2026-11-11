@@ -29,7 +29,9 @@ import dev.anveshan.research.infra.ResearchProperties;
 import dev.anveshan.research.infra.RunEvents;
 import dev.anveshan.research.infra.RunStore;
 import dev.anveshan.research.infra.RunStore.RunRow;
+import dev.anveshan.research.api.PlanReady;
 import dev.anveshan.research.infra.StepStore;
+import dev.anveshan.research.infra.SubQuestionStore;
 import dev.anveshan.research.infra.StepStore.StageCounts;
 import dev.anveshan.research.infra.StepStore.StepRow;
 import tools.jackson.databind.json.JsonMapper;
@@ -58,9 +60,12 @@ public class RunEngine {
 	private final Clock clock;
 	private final JsonMapper json;
 	private final ResearchProperties props;
+	private final SubQuestionStore subQuestions;
 
 	RunEngine(RunStore runs, StepStore steps, RunEvents events, StepQueue queue, StageMaterializer materializer,
-			TransactionTemplate researchTx, Clock clock, JsonMapper json, ResearchProperties props) {
+			TransactionTemplate researchTx, Clock clock, JsonMapper json, ResearchProperties props,
+			SubQuestionStore subQuestions) {
+		this.subQuestions = subQuestions;
 		this.runs = runs;
 		this.steps = steps;
 		this.events = events;
@@ -280,6 +285,8 @@ public class RunEngine {
 		}
 		if (run.status() == RunStatus.PLANNING) {
 			move(run, RunStatus.AWAITING_APPROVAL, null, null);
+			// same transaction as the status change; listeners (notifications, P20) run after commit
+			events.publish(new PlanReady(run.id(), run.ownerId(), subQuestions.count(run.id())));
 			return;
 		}
 		materializeAfter(run, stage);

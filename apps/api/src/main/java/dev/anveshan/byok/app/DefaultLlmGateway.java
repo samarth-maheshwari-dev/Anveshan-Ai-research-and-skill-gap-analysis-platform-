@@ -10,6 +10,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
+import dev.anveshan.byok.api.CallContext;
 import dev.anveshan.byok.api.InvalidLlmOutputException;
 import dev.anveshan.byok.api.LlmGateway;
 import dev.anveshan.byok.api.LlmResult;
@@ -57,7 +58,8 @@ class DefaultLlmGateway implements LlmGateway {
 	}
 
 	@Override
-	public <T> LlmResult<T> call(UUID ownerId, TaskSlot slot, Prompt prompt, Class<T> outputType) {
+	public <T> LlmResult<T> call(UUID ownerId, TaskSlot slot, Prompt prompt, Class<T> outputType,
+			CallContext context) {
 		List<ChatMessage> messages = new ArrayList<>();
 		messages.add(ChatMessage.system(prompt.system() + "\n\nRespond with ONLY a JSON value (no prose, no Markdown) "
 				+ "that matches this JSON Schema:\n" + schemas.schemaFor(outputType)));
@@ -67,7 +69,7 @@ class DefaultLlmGateway implements LlmGateway {
 		String lastProblem = "no attempt";
 		for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 			List<ChatMessage> snapshot = List.copyOf(messages);
-			var routed = router.call(ownerId, slot,
+			var routed = router.call(ownerId, slot, context,
 					route -> vault.transportFor(route.connection().preset()).complete(route, snapshot, options));
 			var raw = routed.completion();
 			var route = routed.route();
@@ -76,13 +78,13 @@ class DefaultLlmGateway implements LlmGateway {
 			List<String> problems = parsed.map(this::violations).orElse(List.of("Output is not valid JSON for the schema"));
 			if (problems.isEmpty()) {
 				callLog.record(ownerId, slot, route.connection().id(), route.model(), raw.latencyMs(), LlmCallStatus.OK,
-						raw.tokensIn(), raw.tokensOut(), null);
+						raw.tokensIn(), raw.tokensOut(), null, context);
 				return new LlmResult<>(parsed.get(), route.connection().id(), route.model(), raw.tokensIn(),
 						raw.tokensOut(), attempt);
 			}
 			lastProblem = String.join("; ", problems);
 			callLog.record(ownerId, slot, route.connection().id(), route.model(), raw.latencyMs(),
-					LlmCallStatus.INVALID_OUTPUT, raw.tokensIn(), raw.tokensOut(), "INVALID_OUTPUT");
+					LlmCallStatus.INVALID_OUTPUT, raw.tokensIn(), raw.tokensOut(), "INVALID_OUTPUT", context);
 			messages.add(ChatMessage.assistant(truncate(raw.text(), 4000)));
 			messages.add(ChatMessage.user("Your output was invalid: " + lastProblem
 					+ ". Return only the corrected JSON, nothing else."));

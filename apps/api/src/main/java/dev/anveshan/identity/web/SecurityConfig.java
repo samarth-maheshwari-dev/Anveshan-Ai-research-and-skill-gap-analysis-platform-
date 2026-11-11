@@ -65,6 +65,7 @@ class SecurityConfig {
 				.requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll() // only on internal port 8081
 				.requestMatchers("/oauth2/**", "/login/**", "/error").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/v1/templates").permitAll() // public data (TECHSPEC §5.2)
 				.anyRequest().authenticated())
 			.oauth2Login(o -> o
 				.loginPage(props.appOrigin() + "/login") // no server-rendered login page

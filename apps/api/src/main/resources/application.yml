@@ -141,7 +141,7 @@ anveshan:
   # Research run engine (TECHSPEC §12.2)
   research:
     max-attempts: 3           # a step that throws 3× is FAILED → run FAILED; "Retry" restarts it (E-FR-4)
-    retry-backoff: 2s         # wait before attempt 2; attempt 3 waits 4× longer (8s)
+    retry-backoff: 15s        # wait before attempt 2; attempt 3 waits 4× longer (60s) — busy free models (503) usually recover in 1–2 min
     stale-after: 10m          # a RUNNING step older than this is treated as crashed and re-queued (AC-E1)
     sweep-interval: 30s       # how often stale steps and due auto-resumes (AI limit reset) are checked
     sse-timeout: 30m          # the browser reconnects with Last-Event-ID after this

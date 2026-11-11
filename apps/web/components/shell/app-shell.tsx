@@ -32,7 +32,7 @@ type NavItem = { href: string; label: string; Icon: typeof LayoutDashboard; soon
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { href: "/research/new", label: "New research", Icon: FlaskConical, soon: true },
+  { href: "/research/new", label: "New research", Icon: FlaskConical },
   { href: "/sources", label: "Sources", Icon: Library, soon: true },
   { href: "/knowledge", label: "Knowledge", Icon: BookOpen, soon: true },
   { href: "/graph", label: "Graph", Icon: Network, soon: true },

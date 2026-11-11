@@ -6,6 +6,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
@@ -13,6 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import dev.anveshan.byok.api.NoModelForSlotException;
+import dev.anveshan.byok.api.RouteQuery;
+import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.PauseReason;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
@@ -23,6 +28,8 @@ import dev.anveshan.research.infra.RunStore;
 import dev.anveshan.research.infra.RunStore.RunRow;
 import dev.anveshan.research.infra.SseHub;
 import dev.anveshan.research.infra.StepStore;
+import dev.anveshan.research.infra.TemplateStore;
+import dev.anveshan.research.infra.TemplateStore.TemplateRow;
 import dev.anveshan.shared.web.ApiException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
@@ -34,8 +41,12 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class RunService {
 
-	/** What {@code POST /runs} accepts in P09 (the New Research form and its validation arrive in P10). */
-	public record CreateCommand(String topic, Map<String, Object> config) {
+	/** The New Research form (PRD Module C): the topic and the options the user chose (gaps = defaults). */
+	public record CreateCommand(String topic, RunConfig options) {
+	}
+
+	/** A report template for the New Research form (C-FR-5). */
+	public record TemplateView(String code, String name, Map<String, Object> formDefaults, List<String> sections) {
 	}
 
 	public record Created(RunView run, boolean existing) {
@@ -46,9 +57,16 @@ public class RunService {
 	}
 
 	public record RunView(UUID id, RunStatus status, PauseReason pauseReason, Instant resumeAt, BigDecimal progress,
-			String topic, Map<String, Object> config, List<StepView> steps, int version, Instant createdAt,
-			Instant updatedAt, Instant completedAt) {
+			String topic, Map<String, Object> config, List<PlanService.SubQuestionView> subQuestions,
+			PlanService.EstimateView estimate, List<StepView> steps, int version, Instant createdAt, Instant updatedAt,
+			Instant completedAt) {
 	}
+
+	private record Section(String key, String title, String instructions) {
+	}
+
+	private static final TypeReference<List<Section>> SECTIONS = new TypeReference<>() {
+	};
 
 	static final Duration IDEMPOTENCY_WINDOW = Duration.ofHours(24);
 
@@ -66,9 +84,16 @@ public class RunService {
 	private final TransactionTemplate tx;
 	private final JsonMapper json;
 	private final Clock clock;
+	private final TemplateStore templates;
+	private final RouteQuery routes;
+	private final PlanService plans;
 
 	RunService(RunStore runs, StepStore steps, RunEngine engine, RunEvents events, SseHub hub,
-			TransactionTemplate researchTx, JsonMapper json, Clock clock) {
+			TransactionTemplate researchTx, JsonMapper json, Clock clock, TemplateStore templates, RouteQuery routes,
+			PlanService plans) {
+		this.templates = templates;
+		this.routes = routes;
+		this.plans = plans;
 		this.runs = runs;
 		this.steps = steps;
 		this.engine = engine;
@@ -102,11 +127,36 @@ public class RunService {
 				return new Created(get(owner, existing.get()), true);
 			}
 		}
+		// C-FR-3: planning and writing need an AI model before anything starts
+		Set<TaskSlot> ready = routes.readySlots(owner);
+		for (TaskSlot needed : List.of(TaskSlot.PLAN, TaskSlot.WRITE)) {
+			if (!ready.contains(needed)) {
+				throw new NoModelForSlotException(needed);
+			}
+		}
+		RunConfig options = cmd.options() == null ? RunConfig.empty() : cmd.options();
+		Optional<TemplateRow> template = Optional.empty();
+		if (options.templateCode() != null) {
+			template = templates.byCode(options.templateCode());
+			if (template.isEmpty()) {
+				throw ApiException.badRequest("Unknown template: " + options.templateCode() + ".");
+			}
+			options = options.withDefaults(json.readValue(template.get().formDefaultsJson(), RunConfig.class));
+		}
+		RunConfig checked;
+		try {
+			checked = options.resolved().validated(java.time.LocalDate.now(clock).getYear());
+		}
+		catch (IllegalArgumentException e) {
+			throw ApiException.badRequest(e.getMessage());
+		}
+		String config = json.writeValueAsString(checked.toMap());
+		UUID templateId = template.map(TemplateRow::id).orElse(null);
 		UUID id = UUID.randomUUID();
 		String finalKey = key;
 		try {
 			tx.executeWithoutResult(s -> {
-				runs.insert(id, owner, topic, json.writeValueAsString(cmd.config()), finalKey, clock.instant());
+				runs.insert(id, owner, topic, config, templateId, finalKey, clock.instant());
 				events.emit(id, "run.status", Map.of("status", RunStatus.PLANNING.name()));
 				engine.startPlanning(id);
 			});
@@ -126,8 +176,16 @@ public class RunService {
 						s.subQuestionId(), s.lastError()))
 				.toList();
 		return new RunView(r.id(), r.status(), r.pauseReason(), r.resumeAt(), r.progress(), r.topic(),
-				json.readValue(r.configJson(), MAP), stepViews, r.version(), r.createdAt(), r.updatedAt(),
-				r.completedAt());
+				json.readValue(r.configJson(), MAP), plans.plan(id), plans.estimate(r), stepViews, r.version(),
+				r.createdAt(), r.updatedAt(), r.completedAt());
+	}
+
+	/** The four report templates (public data, C-FR-5). */
+	public List<TemplateView> templates() {
+		return templates.all().stream()
+				.map(t -> new TemplateView(t.code(), t.name(), json.readValue(t.formDefaultsJson(), MAP),
+						json.readValue(t.sectionsJson(), SECTIONS).stream().map(Section::title).toList()))
+				.toList();
 	}
 
 	public void pause(UUID owner, UUID id) {

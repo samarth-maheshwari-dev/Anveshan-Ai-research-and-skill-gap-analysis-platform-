@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import dev.anveshan.byok.api.CallContext;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.byok.domain.ByokEnums.LlmCallStatus;
 import dev.anveshan.byok.domain.LlmCall;
@@ -19,10 +20,11 @@ public class LlmCallLog {
 	}
 
 	public void record(UUID ownerId, TaskSlot slot, UUID connectionId, String model, long latencyMs,
-			LlmCallStatus status, Integer tokensIn, Integer tokensOut, String errorCode) {
+			LlmCallStatus status, Integer tokensIn, Integer tokensOut, String errorCode, CallContext context) {
 		calls.save(new LlmCall(ownerId, slot, connectionId, model, (int) Math.min(latencyMs, Integer.MAX_VALUE), status)
 				.withTokens(tokensIn, tokensOut)
-				.withError(errorCode));
+				.withError(errorCode)
+				.forRun(context.runId(), context.stepId()));
 	}
 
 }

@@ -1,0 +1,38 @@
+-- The four report templates (PRD Module C, SCHEMA §2 "4 (seeded)"). Templates are data (C-FR-5): a new or
+-- changed template is a new migration, never a code change. form_defaults pre-fill the New Research form;
+-- sections are what the writer fills, in order (one WRITE call each — TECHSPEC §12.3).
+
+INSERT INTO template (code, name, form_defaults, sections, writer_instructions) VALUES
+('LITERATURE_REVIEW', 'Literature review',
+ '{"objective":"LEARNING","depth":"DEEP","sources":["ACADEMIC","WEB"],"outputStyle":"PROJECT_REPORT"}',
+ '[{"key":"introduction","title":"Introduction","instructions":"Scope of the topic and why it matters."},
+   {"key":"background","title":"Background","instructions":"Key concepts a reader needs first."},
+   {"key":"themes","title":"Themes in the literature","instructions":"Group findings by theme; compare what studies agree and disagree on."},
+   {"key":"methods","title":"Methods used","instructions":"How the studies got their results; note sample sizes and limits."},
+   {"key":"gaps","title":"Gaps and open questions","instructions":"What the sources do not answer; weak or conflicting evidence."},
+   {"key":"conclusion","title":"Conclusion","instructions":"What a reader can rely on, and with how much confidence."}]',
+ 'Academic tone. Cite every factual sentence. Prefer peer-reviewed sources; say plainly when only weak sources exist.'),
+('COMPETITOR_ANALYSIS', 'Competitor analysis',
+ '{"objective":"COMPARISON","depth":"STANDARD","sources":["WEB","GITHUB"],"outputStyle":"COMPARISON_TABLE"}',
+ '[{"key":"overview","title":"Overview","instructions":"The problem space and who the competitors are."},
+   {"key":"competitors","title":"Competitors","instructions":"One short profile per competitor: what it does, for whom."},
+   {"key":"comparison","title":"Feature comparison","instructions":"A comparison table of the features that matter, then the differences in words."},
+   {"key":"gaps","title":"Gaps and opportunities","instructions":"What none of them do well; where a new product could win."},
+   {"key":"recommendation","title":"Recommendation","instructions":"What to build or choose next, and why."}]',
+ 'Neutral, practical tone. Compare like with like. Cite every claim about a product.'),
+('TECH_COMPARISON', 'Technology comparison',
+ '{"objective":"DECISION","depth":"STANDARD","sources":["WEB","DOCS","GITHUB"],"outputStyle":"COMPARISON_TABLE"}',
+ '[{"key":"context","title":"Context and requirements","instructions":"The use case and what the choice must satisfy."},
+   {"key":"options","title":"Options","instructions":"Each technology in a few sentences."},
+   {"key":"comparison","title":"Comparison","instructions":"A table across performance, cost, ecosystem, learning curve and fit."},
+   {"key":"tradeoffs","title":"Trade-offs","instructions":"What you give up with each option."},
+   {"key":"recommendation","title":"Recommendation","instructions":"The best fit for the stated use case, with the conditions under which it changes."}]',
+ 'Engineering tone. Prefer official docs and benchmarks; mark vendor claims as such.'),
+('CAREER_ROADMAP', 'Career roadmap',
+ '{"objective":"LEARNING","depth":"STANDARD","sources":["WEB","BLOGS"],"outputStyle":"STUDY_NOTES"}',
+ '[{"key":"role","title":"The role today","instructions":"What people in this role do day to day."},
+   {"key":"skills","title":"Required skills","instructions":"Skills employers ask for, each with the level expected and its sources."},
+   {"key":"path","title":"Learning path","instructions":"An order to learn them in, with milestones."},
+   {"key":"proof","title":"How to prove each skill","instructions":"Projects or evidence that show the skill."},
+   {"key":"next","title":"Next steps","instructions":"What to do in the first month."}]',
+ 'Encouraging but honest. Base required skills on real job descriptions and roadmaps; never invent demand numbers.');

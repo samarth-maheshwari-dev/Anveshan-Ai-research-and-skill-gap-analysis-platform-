@@ -71,6 +71,20 @@ abstract class ResearchITBase {
 		fake.reset();
 		alice = newUser("alice");
 		bob = newUser("bob");
+		routeSlots(alice, "PLAN", "WRITE");
+		routeSlots(bob, "PLAN", "WRITE");
+	}
+
+	/** C-FR-3: a run starts only when PLAN and WRITE have a verified model. The key is never used here. */
+	void routeSlots(UUID user, String... slots) {
+		UUID conn = jdbc.sql("""
+				INSERT INTO ai_connection (owner_id, kind, provider, label, base_url, key_ciphertext, key_last4, status)
+				VALUES (:o, 'LLM', 'GROQ', 'Test Groq', 'https://api.groq.com/openai/v1/', :k, 'abcd', 'VERIFIED')
+				RETURNING id""").param("o", user).param("k", new byte[] { 1, 2, 3 }).query(UUID.class).single();
+		for (String slot : slots) {
+			jdbc.sql("INSERT INTO slot_route (owner_id, slot, position, connection_id, model) VALUES (:o, :s, 0, :c, 'm')")
+					.param("o", user).param("s", slot).param("c", conn).update();
+		}
 	}
 
 	UUID newUser(String name) {

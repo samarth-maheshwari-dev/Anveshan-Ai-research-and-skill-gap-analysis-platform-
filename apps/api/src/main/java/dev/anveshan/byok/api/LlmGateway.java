@@ -15,6 +15,12 @@ import java.util.UUID;
  */
 public interface LlmGateway {
 
-	<T> LlmResult<T> call(UUID ownerId, TaskSlot slot, Prompt prompt, Class<T> outputType);
+	/** A call outside a research run. */
+	default <T> LlmResult<T> call(UUID ownerId, TaskSlot slot, Prompt prompt, Class<T> outputType) {
+		return call(ownerId, slot, prompt, outputType, CallContext.NONE);
+	}
+
+	/** {@code context} ties every attempt in the usage log to its research run and step. */
+	<T> LlmResult<T> call(UUID ownerId, TaskSlot slot, Prompt prompt, Class<T> outputType, CallContext context);
 
 }
