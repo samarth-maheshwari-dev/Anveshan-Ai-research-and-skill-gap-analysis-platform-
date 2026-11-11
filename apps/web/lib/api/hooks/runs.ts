@@ -77,6 +77,21 @@ export function useUpdatePlan(id: string) {
   });
 }
 
+/** D-FR-6: a fresh plan from the AI (1 PLAN request), optionally guided ("focus on India"). */
+export function useRegeneratePlan(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ instruction, version }: { instruction: string; version: string }) =>
+      unwrap(
+        await api.POST("/api/v1/runs/{id}/plan/regenerate", {
+          params: { path: { id }, header: { "If-Match": version } },
+          body: instruction.trim() ? { instruction: instruction.trim() } : {},
+        }),
+      ),
+    onSuccess: (run) => qc.setQueryData(["run", id], run),
+  });
+}
+
 export function useApprove(id: string) {
   const qc = useQueryClient();
   return useMutation({

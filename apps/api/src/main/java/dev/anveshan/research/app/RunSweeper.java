@@ -75,6 +75,7 @@ class RunSweeper {
 		guarded("stale-step recovery", () -> recoverStale(now.minus(props.staleAfter())));
 		guarded("idle-run settle", this::settleIdle);
 		guarded("auto-resume", () -> resumeDue(now));
+		guarded("plan expiry", () -> expirePlans(now));
 		Instant last = lastRequeue;
 		if (last == null || !now.isBefore(last.plus(props.requeueInterval()))) {
 			guarded("periodic re-queue", this::requeuePending);
@@ -119,6 +120,18 @@ class RunSweeper {
 			}
 		});
 		return resumed[0];
+	}
+
+	/** D-FR-7: plans that waited longer than {@code plan-expiry} for approval are cancelled. */
+	int expirePlans(Instant now) {
+		Instant cutoff = now.minus(props.planExpiry());
+		int[] expired = { 0 };
+		eachRun(runs.plansWaitingSince(cutoff), runId -> {
+			if (engine.expirePlan(runId, cutoff)) {
+				expired[0]++;
+			}
+		});
+		return expired[0];
 	}
 
 	/** One id at a time, each failure logged and skipped — a single broken run or step never blocks the rest. */

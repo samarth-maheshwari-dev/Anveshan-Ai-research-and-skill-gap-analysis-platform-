@@ -48,9 +48,10 @@ import dev.anveshan.byok.api.Prompt;
 import dev.anveshan.byok.api.ProviderUnavailableException;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.identity.infra.security.SessionUser;
+import dev.anveshan.research.api.PlanExpired;
 import dev.anveshan.research.api.PlanReady;
-import dev.anveshan.research.app.PlanHandler.PlanItem;
-import dev.anveshan.research.app.PlanHandler.PlanOutput;
+import dev.anveshan.research.app.Planner.PlanItem;
+import dev.anveshan.research.app.Planner.PlanOutput;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -85,6 +86,13 @@ class PlanApiIT {
 			seen.add(e);
 		}
 
+		final List<PlanExpired> expired = new CopyOnWriteArrayList<>();
+
+		@EventListener
+		void on(PlanExpired e) {
+			expired.add(e);
+		}
+
 	}
 
 	@MockitoBean
@@ -101,6 +109,9 @@ class PlanApiIT {
 
 	@Autowired
 	PlanReadyLog planReady;
+
+	@Autowired
+	RunSweeper sweeper;
 
 	UUID alice;
 
@@ -333,6 +344,61 @@ class PlanApiIT {
 		assertThat((int) step[0]).as("retried before giving up").isEqualTo(3);
 		assertThat((String) step[1]).contains("didn't answer", "Settings → AI").doesNotContain("Exception", "503");
 		verify(gateway, org.mockito.Mockito.times(3)).call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any());
+	}
+
+	@Test
+	@DisplayName("T-10-16 D-FR-6 regenerate plan with an instruction → new plan, new version; stale / approved / other user / too long refused")
+	void regeneratePlan() throws Exception {
+		UUID run = startRun(alice);
+		awaitStatus(run, RunStatus.AWAITING_APPROVAL);
+		String etag = perform(alice, get("/api/v1/runs/" + run)).getResponse().getHeader("ETag");
+		answerPlan(4);
+		String body = "{\"instruction\":\"focus on India\"}";
+
+		var res = perform(alice, post("/api/v1/runs/" + run + "/plan/regenerate").header("If-Match", etag)
+				.contentType(MediaType.APPLICATION_JSON).content(body));
+		assertThat(res.getResponse().getStatus()).as(body(res)).isEqualTo(200);
+		assertThat(jsonOf(res).path("subQuestions").size()).isEqualTo(4);
+		assertThat(jsonOf(res).path("status").asString()).isEqualTo("AWAITING_APPROVAL");
+		String newEtag = res.getResponse().getHeader("ETag");
+		assertThat(newEtag).isNotEqualTo(etag);
+		ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+		verify(gateway, atLeastOnce()).call(any(), eq(TaskSlot.PLAN), prompt.capture(), eq(PlanOutput.class), any());
+		assertThat(prompt.getValue().user()).contains("For this new plan: focus on India");
+
+		assertThat(perform(alice, post("/api/v1/runs/" + run + "/plan/regenerate").header("If-Match", etag))
+				.getResponse().getStatus()).as("stale version").isEqualTo(409);
+		assertThat(perform(bob, post("/api/v1/runs/" + run + "/plan/regenerate").header("If-Match", newEtag))
+				.getResponse().getStatus()).as("other user").isEqualTo(404);
+		assertThat(perform(alice, post("/api/v1/runs/" + run + "/plan/regenerate").header("If-Match", newEtag)
+				.contentType(MediaType.APPLICATION_JSON).content("{\"instruction\":\"" + "x".repeat(301) + "\"}"))
+				.getResponse().getStatus()).as("instruction too long").isEqualTo(400);
+
+		assertThat(perform(alice, post("/api/v1/runs/" + run + "/approve").header("If-Match", newEtag)).getResponse()
+				.getStatus()).isEqualTo(202);
+		String now = perform(alice, get("/api/v1/runs/" + run)).getResponse().getHeader("ETag");
+		var locked = perform(alice, post("/api/v1/runs/" + run + "/plan/regenerate").header("If-Match", now));
+		assertThat(locked.getResponse().getStatus()).isEqualTo(409);
+		assertThat(jsonOf(locked).path("code").asString()).isEqualTo("RUN_INVALID_STATE");
+	}
+
+	@Test
+	@DisplayName("T-10-17 D-FR-7 a plan untouched for 7 days is cancelled (PlanExpired); a recent one stays")
+	void planExpiry() throws Exception {
+		UUID old = startRun(alice);
+		UUID fresh = startRun(bob);
+		awaitStatus(old, RunStatus.AWAITING_APPROVAL);
+		awaitStatus(fresh, RunStatus.AWAITING_APPROVAL);
+		jdbc.sql("UPDATE research_run SET updated_at = now() - interval '8 days' WHERE id = :id").param("id", old).update();
+
+		sweeper.expirePlans(java.time.Instant.now());
+
+		assertThat(status(old)).isEqualTo(RunStatus.CANCELLED);
+		assertThat(status(fresh)).isEqualTo(RunStatus.AWAITING_APPROVAL);
+		assertThat(jdbc.sql("SELECT count(*) FROM run_event WHERE run_id = :r AND type = 'plan.expired'").param("r", old)
+				.query(Long.class).single()).isEqualTo(1);
+		assertThat(planReady.expired).anySatisfy(e -> assertThat(e.runId()).isEqualTo(old));
+		assertThat(planReady.expired).noneSatisfy(e -> assertThat(e.runId()).isEqualTo(fresh));
 	}
 
 	// --- helpers ---

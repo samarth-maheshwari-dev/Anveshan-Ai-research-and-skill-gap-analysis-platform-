@@ -45,6 +45,8 @@ export type FakeState = {
   runKeys: string[];
   /** Body of every POST /runs. */
   runBodies: Record<string, unknown>[];
+  /** Instruction of every POST …/plan/regenerate. */
+  regenerateInstructions: string[];
 };
 
 export type FakeRun = {
@@ -129,6 +131,7 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
     runs: [],
     runKeys: [],
     runBodies: [],
+    regenerateInstructions: [],
     ...init,
   };
   let seq = 0;
@@ -318,7 +321,7 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
       state.runs.push(run);
       return json(route, 202, runView(run));
     }
-    const runPath = path.match(/^\/runs\/([^/]+)(\/plan|\/approve|\/pause|\/resume|\/cancel)?$/);
+    const runPath = path.match(/^\/runs\/([^/]+)(\/plan\/regenerate|\/plan|\/approve|\/pause|\/resume|\/cancel)?$/);
     if (runPath) {
       const run = state.runs.find((r) => r.id === runPath[1]);
       if (!run) return problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
@@ -337,7 +340,7 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
         return withEtag(200);
       }
       const ifMatch = Number(((await req.headerValue("if-match")) ?? "").replaceAll("\"", ""));
-      if (sub === "/plan" || sub === "/approve") {
+      if (sub === "/plan" || sub === "/approve" || sub === "/plan/regenerate") {
         if (run.status !== "AWAITING_APPROVAL") return problem(route, 409, "RUN_INVALID_STATE", "Plan is locked");
         if (ifMatch !== run.version) {
           return route.fulfill({
@@ -357,6 +360,19 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
           text: c.text,
           sourceTypes: c.sourceTypes?.length ? c.sourceTypes : run.config.sources,
           queries: [c.text],
+        }));
+        run.version += 1;
+        return withEtag(200);
+      }
+      if (sub === "/plan/regenerate" && method === "POST") {
+        const instruction = (req.postDataJSON() as { instruction?: string } | null)?.instruction ?? "";
+        state.regenerateInstructions.push(instruction);
+        run.subQuestions = [1, 2, 3].map((i) => ({
+          id: `sq-regen-${++seq}`,
+          position: i - 1,
+          text: `New angle ${i}: ${instruction || "different focus"}`,
+          sourceTypes: ["WEB"],
+          queries: [`new angle ${i}`],
         }));
         run.version += 1;
         return withEtag(200);

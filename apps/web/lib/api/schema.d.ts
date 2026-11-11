@@ -229,6 +229,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{id}/plan/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["regenerate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{id}/resume": {
         parameters: {
             query?: never;
@@ -466,6 +482,9 @@ export interface components {
             status?: number;
             title?: string;
             type?: string;
+        };
+        RegenerateRequest: {
+            instruction?: string;
         };
         RouteChoice: {
             /** Format: uuid */
@@ -1019,6 +1038,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunView"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    regenerate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The run version the user saw (ETag) */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RegenerateRequest"];
             };
         };
         responses: {

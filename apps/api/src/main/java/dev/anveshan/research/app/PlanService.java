@@ -1,5 +1,6 @@
 package dev.anveshan.research.app;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -7,11 +8,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import dev.anveshan.byok.api.CallContext;
 import dev.anveshan.byok.api.RouteQuery;
 import dev.anveshan.byok.api.RouteQuery.FirstRoute;
+import dev.anveshan.research.domain.CustomRules;
 import dev.anveshan.research.domain.Estimate;
 import dev.anveshan.research.domain.PlanExceptions.PlanLockedException;
 import dev.anveshan.research.domain.PlanExceptions.TooManyRunsException;
@@ -38,6 +42,9 @@ public class PlanService {
 
 	/** TECHSPEC §12.2: a user runs at most this many researches at once (RUNNING or PAUSED). */
 	static final int MAX_ACTIVE_RUNS = 2;
+
+	/** D-FR-6: "focus on India"-sized guidance for a new plan. */
+	static final int REGENERATE_INSTRUCTION_MAX = 300;
 
 	/** A card as the user sent it: {@code id} keeps an edited card's identity; new cards have none. */
 	public record PlanEdit(UUID id, String text, List<SourceType> sourceTypes, List<String> queries) {
@@ -73,9 +80,11 @@ public class PlanService {
 	private final RunEvents events;
 	private final TransactionTemplate tx;
 	private final JsonMapper json;
+	private final Planner planner;
+	private final Clock clock;
 
 	PlanService(RunStore runs, SubQuestionStore subQuestions, ReportSections reportSections, RouteQuery routes,
-			RunEngine engine, RunEvents events, TransactionTemplate researchTx, JsonMapper json) {
+			RunEngine engine, RunEvents events, TransactionTemplate researchTx, JsonMapper json, Planner planner, Clock clock) {
 		this.runs = runs;
 		this.subQuestions = subQuestions;
 		this.reportSections = reportSections;
@@ -84,6 +93,8 @@ public class PlanService {
 		this.events = events;
 		this.tx = researchTx;
 		this.json = json;
+		this.planner = planner;
+		this.clock = clock;
 	}
 
 	public List<SubQuestionView> plan(UUID runId) {
@@ -164,8 +175,46 @@ public class PlanService {
 				throw ApiException.badRequest(e.getMessage());
 			}
 			subQuestions.replace(runId, plan, ids);
-			runs.bumpVersion(runId);
+			runs.bumpVersion(runId, clock.instant());
 			events.emit(runId, "plan.updated", Map.of("subQuestions", plan.size()));
+		});
+	}
+
+	/**
+	 * D-FR-6: a new plan from the Planner, with optional guidance ("focus on India"). The run stays AWAITING_APPROVAL
+	 * (PRD §8.7 has no way back to PLANNING), so this is one PLAN call made here, outside any transaction; the plan
+	 * is saved only if nobody changed it meanwhile. Costs 1 PLAN request.
+	 */
+	public void regenerate(UUID owner, UUID runId, Integer expectedVersion, String instruction) {
+		String guidance;
+		try {
+			guidance = CustomRules.text(instruction, "The instruction", REGENERATE_INSTRUCTION_MAX);
+		}
+		catch (IllegalArgumentException e) {
+			throw ApiException.badRequest(e.getMessage());
+		}
+		RunRow before = runs.findOwned(owner, runId).orElseThrow(ApiException::notFound);
+		if (before.status() != RunStatus.AWAITING_APPROVAL) {
+			throw new PlanLockedException();
+		}
+		checkVersion(before, expectedVersion);
+		List<PlannedQuestion> plan;
+		try {
+			plan = planner.propose(before, guidance, CallContext.step(runId, null)).questions();
+		}
+		catch (IllegalArgumentException e) {
+			throw new ApiException(HttpStatus.BAD_GATEWAY, "INVALID_LLM_OUTPUT", "The AI answer was unusable",
+					"The AI's new plan wasn't usable (" + e.getMessage() + ") Try again, or keep the current plan.");
+		}
+		tx.executeWithoutResult(s -> {
+			RunRow run = runs.lock(runId).orElseThrow(ApiException::notFound);
+			if (run.status() != RunStatus.AWAITING_APPROVAL) {
+				throw new PlanLockedException();
+			}
+			checkVersion(run, expectedVersion); // edited or approved while the AI was thinking → keep theirs
+			subQuestions.replace(runId, plan, null);
+			runs.bumpVersion(runId, clock.instant());
+			events.emit(runId, "plan.regenerated", Map.of("subQuestions", plan.size()));
 		});
 	}
 

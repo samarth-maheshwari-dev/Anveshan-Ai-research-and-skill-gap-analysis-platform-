@@ -44,9 +44,16 @@ public class RunStore {
 	}
 
 	/** A plan edit changes the run's representation: the next If-Match must name the new version (ETag). */
-	public int bumpVersion(UUID id) {
-		return jdbc.sql("UPDATE research_run SET version = version + 1 WHERE id = :id RETURNING version").param("id", id)
-				.query(Integer.class).single();
+	/** A change the user made (plan edit): new version, and the run counts as touched {@code now}. */
+	public int bumpVersion(UUID id, Instant now) {
+		return jdbc.sql("UPDATE research_run SET version = version + 1, updated_at = :now WHERE id = :id RETURNING version")
+				.param("id", id).param("now", ts(now)).query(Integer.class).single();
+	}
+
+	/** D-FR-7: runs whose plan has waited for approval, untouched, since before {@code cutoff}. */
+	public List<UUID> plansWaitingSince(Instant cutoff) {
+		return jdbc.sql("SELECT id FROM research_run WHERE status = 'AWAITING_APPROVAL' AND updated_at < :cutoff")
+				.param("cutoff", ts(cutoff)).query(UUID.class).list();
 	}
 
 	/** Runs of this user that are RUNNING or PAUSED (TECHSPEC §12.2 per-user limit). */
