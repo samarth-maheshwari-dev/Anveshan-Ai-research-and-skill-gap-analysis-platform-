@@ -14,8 +14,8 @@ describe("T-10-01 estimate (mirror of Estimate.of)", () => {
     ["STANDARD", 8, 5, 1, 20, 11, 24],
   ] as const)("%s with %i sub-questions", (depth, subQ, sections, plan, extract, verify, minutes) => {
     const e = estimate(preset(depth), subQ, sections)!;
-    expect(e.requests).toEqual({ PLAN: plan, EXTRACT: extract, VERIFY: verify, WRITE: sections });
-    expect(e.total).toBe(plan + extract + verify + sections);
+    expect(e.requests).toEqual({ PLAN: plan, EXTRACT: extract, VERIFY: verify, WRITE: sections + 1 });
+    expect(e.total).toBe(plan + extract + verify + sections + 1);
     expect(e.minutes).toBe(minutes);
   });
 
@@ -40,7 +40,7 @@ describe("T-10-10 custom depth (mirror of ResearchSize.of)", () => {
     const size = sizeOf("CUSTOM", { subQuestions: 2, sourcesPerQuestion: 10 })!;
     expect(size.subQuestions).toBe(2);
     const e = estimate(size, 2, 3)!;
-    expect(e.requests).toEqual({ PLAN: 1, EXTRACT: 8, VERIFY: 5, WRITE: 3 });
+    expect(e.requests).toEqual({ PLAN: 1, EXTRACT: 8, VERIFY: 5, WRITE: 4 });
     expect(e.minutes).toBe(10);
   });
 

@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P13 are done: sign in, connect your own AI key, start a research, review and approve the plan, search and read sources, and extract, verify and label claims. Writing the cited report comes next, in P14–P16. See [Progress](#progress).
+> **Status:** early development. Phases P00–P14 are done: sign in, connect your own AI key, start a research, review and approve the plan, watch it search and read sources, extract, verify and label claims, and get a written report with numbered citations. Editing the report and export come next, in P15–P16. See [Progress](#progress).
 
 ## What works today
 
@@ -15,6 +15,9 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 - **Search.** After approval each sub-question is searched across up to 8 free sources at once — research papers, preprints, Wikipedia, GitHub, the web — then de-duplicated and ranked on your machine (no AI request). A source that is down is skipped and noted.
 - **Read.** The best results are opened and read: main text only (no menus, ads or scripts), PDFs page by page, sites that opt out via robots.txt are skipped. Each source gets a credibility tier with a reason (peer-reviewed paper, official docs, preprint, blog …), and the passages most relevant to each sub-question are picked — all locally, no AI request.
 - **Check.** Each passage becomes short factual claims, each tied to the exact sentence it came from (located by code, never trusted from the AI). Every claim is checked against other sources and labelled by fixed rules: Supported, Weak evidence, Conflicting or No source.
+- **Write.** Each report section is written only from Supported and Weak-evidence claims; every sentence carries a citation that code checks (unknown ones are removed). Citations are numbered by first appearance, references are formatted in IEEE, and a Conflicts section lists claims the sources disagree on — built by code, with a one-line reason from the AI.
+- **Read the report.** A clean report page with numbered citations, trust labels (icon + word), an evidence summary and references. Your dashboard lists every research with its status.
+- **Live Room.** Watch a research as it happens: steps and progress, sources as they are found (skip any you don't want), conflicts, and a live log. Close the tab and come back later — it kept going and the log is still there.
 - **Approve and watch it run.** Runs are durable: pause, resume or stop them, and they continue where they left off after a crash or an AI rate limit. A busy AI provider is retried; if it still fails you get a plain explanation and a "Start again" button.
 
 ## What it does (full plan)
@@ -127,7 +130,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P11 | Search: 8 free sources in parallel (OpenAlex, Semantic Scholar, arXiv, Crossref, Wikipedia, GitHub, your Tavily key, a built-in SearXNG), de-duplicated and ranked locally; one source down never stops a run | ✅ Done |
 | P12 | Read sources: robots.txt respected, web pages cleaned to their main text, PDFs read page by page, split into passages and embedded locally, credibility rated with a reason; public pages shared across runs, your own files kept private | ✅ Done |
 | P13 | Claims: atomic facts extracted with an exact quote whose position is found by code (exact / normalized / fuzzy), checked against other sources, trust-labelled by rules (Supported / Weak / Conflicting / No source); claims reused across runs; instructions hidden in web pages are ignored | ✅ Done |
-| P14–P16 | Write the cited report, live room, Report Studio, export | Next |
+| P14 | Report: sections written from verified claims only, code-checked citation markers, numbering by first appearance, IEEE/APA references, Conflicts section by code; Live Room (steps, sources with Skip, conflicts, live log that survives closing the tab); read-only report page; research list on the dashboard | ✅ Done |
+| P15–P16 | Report Studio (edit, citation panel, versions), export | Next |
 | P17–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
 
 ## Security

@@ -57,7 +57,7 @@ export function estimate(
     PLAN: 1,
     EXTRACT: Math.ceil(Math.ceil(sources / 2.5) * (1 - cacheHitRate)),
     VERIFY: Math.ceil((sources * 2) / 9),
-    WRITE: sections,
+    WRITE: sections + 1, // one per section + one for the conflicts' possible reasons
   };
   const total = requests.PLAN + requests.EXTRACT + requests.VERIFY + requests.WRITE;
   const minutes = Math.max(2, Math.round(size.minutesPerQuestion * subQuestions));

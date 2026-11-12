@@ -36,8 +36,12 @@ class LabelHandler implements StepHandler {
 		String msg = c.total() == 0 ? "No claims to label."
 				: "Labelled " + c.total() + " claims: " + c.supported() + " supported, " + c.weak() + " weak, "
 						+ c.conflicting() + " conflicting, " + c.noSource() + " with no source.";
-		return new StepResult(output, List.of(new NewEvent("log",
-				Map.of("stepId", step.stepId(), "level", "INFO", "message", msg))));
+		List<NewEvent> events = new java.util.ArrayList<>();
+		events.add(new NewEvent("log", Map.of("stepId", step.stepId(), "level", "INFO", "message", msg)));
+		claims.conflicts(step.runId()).stream().limit(10).forEach(k -> events.add(new NewEvent("conflict.found",
+				Map.of("claimId", k.claimId(), "text", k.text(), "supporting", k.supportingSources().size(),
+						"contradicting", k.contradictingSources().size()))));
+		return new StepResult(output, events);
 	}
 
 }

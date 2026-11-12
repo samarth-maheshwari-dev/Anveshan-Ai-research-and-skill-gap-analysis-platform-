@@ -36,11 +36,11 @@ test("T-10-07 template → topic → start → delete a card → estimate drops 
   await expect(page.getByRole("heading", { name: "Review your plan" })).toBeVisible();
   await expect(page.getByTestId("plan-card")).toHaveCount(5);
   const total = page.getByTestId("estimate-total");
-  await expect(total).toHaveText("25"); // STANDARD, 5 sub-questions, 5 sections: 1 + 12 + 7 + 5
+  await expect(total).toHaveText("26"); // STANDARD, 5 sub-questions, 5 sections: 1 + 12 + 7 + (5 + 1)
 
   await page.getByRole("button", { name: "Delete sub-question 5" }).click();
   await expect(page.getByTestId("plan-card")).toHaveCount(4);
-  await expect(total).toHaveText("22"); // 1 + 10 + 6 + 5
+  await expect(total).toHaveText("23"); // 1 + 10 + 6 + (5 + 1)
 
   await page.getByRole("button", { name: "Approve and start" }).click();
   await expect(page).toHaveURL(/\/research\/r\d+\/live$/);
@@ -60,11 +60,11 @@ test("T-10-08 /plan on a COMPLETED run redirects to the report", async ({ page, 
     signedIn: true,
     connections: [verifiedConnection()],
     slots: ROUTED,
-    runs: [fakeRun({ id: "r-done", status: "COMPLETED" })],
+    runs: [fakeRun({ id: "r-done", status: "COMPLETED", reportId: "rep-r-done" })],
   });
   await page.goto("/research/r-done/plan");
   await expect(page).toHaveURL(/\/research\/r-done\/report$/);
-  await expect(page.getByRole("heading", { name: "Research complete" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Key findings" })).toBeVisible();
 });
 
 test("/research/[id] routes by status: AWAITING_APPROVAL → plan, RUNNING → live", async ({ page, context }) => {

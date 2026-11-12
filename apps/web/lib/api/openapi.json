@@ -32,7 +32,7 @@
     },
     "/api/v1/connections" : {
       "get" : {
-        "operationId" : "list",
+        "operationId" : "list_1",
         "responses" : {
           "200" : {
             "content" : {
@@ -274,7 +274,87 @@
         "tags" : [ "me-controller" ]
       }
     },
+    "/api/v1/reports/{id}" : {
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReportView"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "report-controller" ]
+      }
+    },
     "/api/v1/runs" : {
+      "get" : {
+        "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RunPage"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "run-controller" ]
+      },
       "post" : {
         "operationId" : "create",
         "parameters" : [ {
@@ -640,6 +720,84 @@
         "tags" : [ "run-controller" ]
       }
     },
+    "/api/v1/runs/{id}/sources" : {
+      "get" : {
+        "operationId" : "sources",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/RunSource"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "run-controller" ]
+      }
+    },
+    "/api/v1/runs/{id}/sources/{sourceId}/skip" : {
+      "post" : {
+        "operationId" : "skip",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "path",
+          "name" : "sourceId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "tags" : [ "run-controller" ]
+      }
+    },
     "/api/v1/runs/{id}/steps/{stepId}/retry" : {
       "post" : {
         "operationId" : "retryStep",
@@ -836,6 +994,57 @@
   },
   "components" : {
     "schemas" : {
+      "CitationView" : {
+        "type" : "object",
+        "properties" : {
+          "claimId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "n" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "sourceId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
+      "ClaimView" : {
+        "type" : "object",
+        "properties" : {
+          "chunkId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "labelReason" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          },
+          "quote" : {
+            "type" : "string"
+          },
+          "quoteEnd" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "quoteStart" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "sourceId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "text" : {
+            "type" : "string"
+          },
+          "trustLabel" : {
+            "type" : "string"
+          }
+        }
+      },
       "ConnectionList" : {
         "type" : "object",
         "properties" : {
@@ -1305,6 +1514,56 @@
           }
         }
       },
+      "ReportView" : {
+        "type" : "object",
+        "properties" : {
+          "citationStyle" : {
+            "type" : "string"
+          },
+          "citations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CitationView"
+            }
+          },
+          "claims" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/ClaimView"
+            }
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "language" : {
+            "type" : "string"
+          },
+          "runId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "sections" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SectionView"
+            }
+          },
+          "sources" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/SourceView"
+            }
+          },
+          "title" : {
+            "type" : "string"
+          }
+        }
+      },
       "RouteChoice" : {
         "type" : "object",
         "properties" : {
@@ -1314,6 +1573,97 @@
           },
           "model" : {
             "type" : "string"
+          }
+        }
+      },
+      "RunPage" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/RunSummary"
+            }
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        }
+      },
+      "RunSource" : {
+        "type" : "object",
+        "properties" : {
+          "claims" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "rank" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "site" : {
+            "type" : "string"
+          },
+          "sourceId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "subQuestionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tier" : {
+            "type" : "string"
+          },
+          "tierReason" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "url" : {
+            "type" : "string"
+          }
+        }
+      },
+      "RunSummary" : {
+        "type" : "object",
+        "properties" : {
+          "completedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "progress" : {
+            "type" : "number"
+          },
+          "reportId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PLANNING", "AWAITING_APPROVAL", "RUNNING", "PAUSED", "COMPLETED", "FAILED", "CANCELLED" ]
+          },
+          "topic" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
           }
         }
       },
@@ -1345,6 +1695,10 @@
           },
           "progress" : {
             "type" : "number"
+          },
+          "reportId" : {
+            "type" : "string",
+            "format" : "uuid"
           },
           "resumeAt" : {
             "type" : "string",
@@ -1379,6 +1733,29 @@
           }
         }
       },
+      "SectionView" : {
+        "type" : "object",
+        "properties" : {
+          "contentDoc" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
       "SlotRoute" : {
         "type" : "object",
         "properties" : {
@@ -1387,6 +1764,33 @@
             "format" : "uuid"
           },
           "slot" : {
+            "type" : "string"
+          }
+        }
+      },
+      "SourceView" : {
+        "type" : "object",
+        "properties" : {
+          "credibilityReason" : {
+            "type" : "string"
+          },
+          "credibilityTier" : {
+            "type" : "string"
+          },
+          "publishedAt" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "site" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "url" : {
             "type" : "string"
           }
         }

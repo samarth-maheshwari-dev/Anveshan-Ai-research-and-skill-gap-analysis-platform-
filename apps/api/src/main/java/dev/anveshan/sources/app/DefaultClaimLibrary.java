@@ -139,6 +139,38 @@ class DefaultClaimLibrary implements ClaimLibrary {
 				counts[TrustLabel.CONFLICTING.ordinal()], counts[TrustLabel.NO_SOURCE.ordinal()]);
 	}
 
+	@Override
+	public List<ReportClaim> reportClaims(UUID runId, List<UUID> claimIds) {
+		return store.reportClaims(runId, claimIds);
+	}
+
+	@Override
+	public List<Match> usableMatches(UUID runId, float[] vector) {
+		return store.usableMatches(runId, vector);
+	}
+
+	@Override
+	public List<Conflict> conflicts(UUID runId) {
+		Map<UUID, String> text = new LinkedHashMap<>();
+		Map<UUID, java.util.LinkedHashSet<UUID>> supports = new HashMap<>();
+		Map<UUID, java.util.LinkedHashSet<UUID>> contradicts = new HashMap<>();
+		for (Object[] row : store.conflictRows(runId)) {
+			UUID claim = (UUID) row[0];
+			text.putIfAbsent(claim, (String) row[1]);
+			(("SUPPORTS".equals(row[3])) ? supports : contradicts)
+					.computeIfAbsent(claim, k -> new java.util.LinkedHashSet<>()).add((UUID) row[2]);
+		}
+		List<Conflict> out = new ArrayList<>();
+		text.forEach((claim, t) -> {
+			var s = supports.getOrDefault(claim, new java.util.LinkedHashSet<>());
+			var c = contradicts.getOrDefault(claim, new java.util.LinkedHashSet<>());
+			if (!s.isEmpty() && !c.isEmpty()) { // both sides still there (a skipped source can remove one)
+				out.add(new Conflict(claim, t, List.copyOf(s), List.copyOf(c)));
+			}
+		});
+		return out;
+	}
+
 	/** Which verdicts produced the label, so the UI can show "supported by 2 sources (1 high)". */
 	private static Map<String, Object> reason(List<VerdictRow> rows) {
 		Map<String, Object> r = new LinkedHashMap<>();

@@ -34,6 +34,27 @@ public interface SourceLibrary {
 	/** The run's passages most similar to {@code question}, only from sources the run USES (T-12-07). */
 	List<RelevantChunk> topChunks(UUID runId, String question, int k);
 
+	/** What a reference needs about each source (citations, References list, Report view). */
+	List<SourceInfo> describe(List<UUID> sourceIds);
+
+	/** Every source linked to the run, best rank first, with its status (Live Room, E-FR-5). */
+	List<RunSource> runSources(UUID runId);
+
+	/**
+	 * E-FR-5: the user skips a source — its claims won't be used in the report. Only a USED source of this run.
+	 *
+	 * @return false when the source isn't a USED source of the run
+	 */
+	boolean skip(UUID runId, UUID sourceId);
+
+	record SourceInfo(UUID id, String title, List<String> authors, String site, java.time.LocalDate publishedAt,
+			String url, String doi, String type, String tier, String tierReason) {
+	}
+
+	record RunSource(UUID sourceId, String title, String site, String url, String type, String tier, String tierReason,
+			String status, Integer rank, UUID subQuestionId, int claims) {
+	}
+
 	enum Outcome {
 		NEW, REUSED, UNAVAILABLE
 	}

@@ -49,3 +49,14 @@ jobs:
           if ! diff <(tr -d '\r' < target/openapi.json) <(tr -d '\r' < ../web/lib/api/openapi.json) > /dev/null; then
             echo "::error::apps/web/lib/api/openapi.json is stale — run: pnpm -C apps/web sync:api"; exit 1
           fi
+      - name: Upload test reports (only when something failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-reports
+          path: |
+            apps/api/target/surefire-reports/*.txt
+            apps/api/target/failsafe-reports/*.txt
+            apps/api/target/failsafe-reports/*-output.txt
+          retention-days: 7
+          if-no-files-found: ignore

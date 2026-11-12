@@ -201,6 +201,12 @@ public class StepStore {
 				.param("run", runId).param("kind", kind.name()).param("sq", subQuestionId).query(String.class).optional();
 	}
 
+	/** Checkpoints of every DONE step of {@code kind} in the run, in seq order (ASSEMBLE reads the WRITE outputs). */
+	public List<String> doneOutputs(UUID runId, StepKind kind) {
+		return jdbc.sql("SELECT output::text FROM research_step WHERE run_id = :run AND kind = :kind AND status = 'DONE' ORDER BY seq")
+				.param("run", runId).param("kind", kind.name()).query(String.class).list();
+	}
+
 	public Optional<UUID> runOf(UUID stepId) {
 		return jdbc.sql("SELECT run_id FROM research_step WHERE id = :id").param("id", stepId).query(UUID.class)
 				.optional();

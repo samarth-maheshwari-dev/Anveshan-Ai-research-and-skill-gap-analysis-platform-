@@ -60,6 +60,7 @@ class FetchHandler implements StepHandler {
 		List<Map<String, Object>> used = new ArrayList<>();
 		List<Map<String, Object>> unavailable = new ArrayList<>();
 		int fresh = 0;
+		List<NewEvent> addedEvents = new ArrayList<>();
 		int reused = 0;
 		for (IngestResult r : results) {
 			if (r.outcome() == Outcome.UNAVAILABLE) {
@@ -83,6 +84,9 @@ class FetchHandler implements StepHandler {
 			s.put("outcome", r.outcome().name());
 			s.put("chunks", r.chunks());
 			used.add(s);
+			addedEvents.add(new NewEvent("source.added", Map.of("sourceId", r.sourceId(), "title", r.title(),
+					"url", r.url() == null ? "" : r.url(), "tier", r.tier() == null ? "" : r.tier(),
+					"subQuestionId", step.subQuestionId())));
 			if (r.outcome() == Outcome.NEW) {
 				fresh++;
 			}
@@ -91,7 +95,7 @@ class FetchHandler implements StepHandler {
 			}
 		}
 
-		List<NewEvent> events = new ArrayList<>();
+		List<NewEvent> events = new ArrayList<>(addedEvents);
 		if (used.isEmpty()) {
 			events.add(log("WARN", step, "No readable source was found for this sub-question."));
 		}

@@ -127,6 +127,46 @@ public class SourceStore {
 				.list();
 	}
 
+	public List<dev.anveshan.sources.api.SourceLibrary.SourceInfo> describe(List<UUID> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return jdbc.sql("""
+				SELECT id, title, array_to_json(authors)::text, site, published_at, canonical_url, doi, type,
+				       credibility_tier, credibility_reason
+				  FROM source_document WHERE id IN (:ids)""")
+				.param("ids", ids)
+				.query((rs, n) -> new dev.anveshan.sources.api.SourceLibrary.SourceInfo(rs.getObject(1, UUID.class),
+						rs.getString(2), List.of(json.readValue(rs.getString(3), String[].class)), rs.getString(4),
+						rs.getObject(5, java.time.LocalDate.class), rs.getString(6), rs.getString(7), rs.getString(8),
+						rs.getString(9), rs.getString(10)))
+				.list();
+	}
+
+	public List<dev.anveshan.sources.api.SourceLibrary.RunSource> runSources(UUID runId) {
+		return jdbc.sql("""
+				SELECT d.id, d.title, d.site, d.canonical_url, d.type, d.credibility_tier, d.credibility_reason,
+				       rs.status, rs.rank, rs.sub_question_id,
+				       (SELECT count(*) FROM run_claim rc JOIN claim cl ON cl.id = rc.claim_id
+				         WHERE rc.run_id = rs.run_id AND cl.source_id = d.id) AS claims
+				  FROM run_source rs JOIN source_document d ON d.id = rs.source_id
+				  JOIN research_run r ON r.id = rs.run_id
+				 WHERE rs.run_id = :run AND (d.visibility = 'PUBLIC' OR d.owner_id = r.owner_id)
+				 ORDER BY rs.rank NULLS LAST, d.title""")
+				.param("run", runId)
+				.query((rs, n) -> new dev.anveshan.sources.api.SourceLibrary.RunSource(rs.getObject(1, UUID.class),
+						rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6),
+						rs.getString(7), rs.getString(8), (Integer) rs.getObject(9) == null ? null : rs.getInt(9),
+						rs.getObject(10, UUID.class), rs.getInt(11)))
+				.list();
+	}
+
+	/** USED → REJECTED_BY_USER for one source of one run. */
+	public boolean skip(UUID runId, UUID sourceId) {
+		return jdbc.sql("UPDATE run_source SET status = 'REJECTED_BY_USER' WHERE run_id = :r AND source_id = :s AND status = 'USED'")
+				.param("r", runId).param("s", sourceId).update() == 1;
+	}
+
 	static String vector(float[] v) {
 		StringBuilder b = new StringBuilder(v.length * 10).append('[');
 		for (int i = 0; i < v.length; i++) {

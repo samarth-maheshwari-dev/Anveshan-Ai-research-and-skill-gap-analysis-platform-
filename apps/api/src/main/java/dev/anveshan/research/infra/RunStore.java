@@ -81,6 +81,21 @@ public class RunStore {
 	}
 
 	/** Scoped by owner in SQL (RULES rule 6): someone else's run is simply not found. */
+	/**
+	 * The owner's runs, newest first, keyset-paginated by (created_at, id); child runs (config.mode set, S-9) are
+	 * left out. Returns up to {@code limit + 1} rows so the caller knows whether there is a next page.
+	 */
+	public List<RunRow> list(UUID owner, Instant beforeCreated, UUID beforeId, int limit) {
+		return jdbc.sql("SELECT " + COLUMNS + """
+				 FROM research_run
+				 WHERE owner_id = :owner AND mode IS NULL
+				   AND (CAST(:ts AS timestamptz) IS NULL OR (created_at, id) < (CAST(:ts AS timestamptz), CAST(:bid AS uuid)))
+				 ORDER BY created_at DESC, id DESC
+				 LIMIT :limit""".stripLeading().replaceFirst("^", " "))
+				.param("owner", owner).param("ts", beforeCreated == null ? null : java.sql.Timestamp.from(beforeCreated))
+				.param("bid", beforeId).param("limit", limit + 1).query(RunStore::row).list();
+	}
+
 	public Optional<RunRow> findOwned(UUID owner, UUID id) {
 		return jdbc.sql("SELECT " + COLUMNS + " FROM research_run WHERE id = :id AND owner_id = :owner")
 				.param("id", id).param("owner", owner).query(RunStore::row).optional();

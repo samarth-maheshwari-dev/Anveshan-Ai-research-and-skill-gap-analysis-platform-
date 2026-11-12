@@ -68,7 +68,7 @@ class CustomRulesTest {
 		assertThat(size.chunksPerSource()).isEqualTo(3);
 		Estimate e = Estimate.of(size, 2, 3, 0.0); // 20 sources
 		assertThat(e.requests()).containsExactly(Map.entry("PLAN", 1), Map.entry("EXTRACT", 8), Map.entry("VERIFY", 5),
-				Map.entry("WRITE", 3));
+				Map.entry("WRITE", 4));
 		assertThat(e.minutes()).isEqualTo(10);
 		assertThat(Estimate.of(ResearchSize.of(Depth.STANDARD, 2, 10), 5, 5, 0.0))
 				.isEqualTo(Estimate.of(Depth.STANDARD, 5, 5, 0.0)); // custom numbers ignored for a preset
