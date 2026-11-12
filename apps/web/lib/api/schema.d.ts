@@ -28,7 +28,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list"];
+        get: operations["list_1"];
         put?: never;
         post: operations["create_1"];
         delete?: never;
@@ -117,6 +117,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -124,7 +140,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["list"];
         put?: never;
         post: operations["create"];
         delete?: never;
@@ -261,6 +277,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{id}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{id}/sources/{sourceId}/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["skip"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{id}/steps/{stepId}/retry": {
         parameters: {
             query?: never;
@@ -329,6 +377,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CitationView: {
+            /** Format: uuid */
+            claimId?: string;
+            /** Format: int32 */
+            n?: number;
+            /** Format: uuid */
+            sourceId?: string;
+        };
+        ClaimView: {
+            /** Format: uuid */
+            chunkId?: string;
+            labelReason?: {
+                [key: string]: unknown;
+            };
+            quote?: string;
+            /** Format: int32 */
+            quoteEnd?: number;
+            /** Format: int32 */
+            quoteStart?: number;
+            /** Format: uuid */
+            sourceId?: string;
+            text?: string;
+            trustLabel?: string;
+        };
         ConnectionList: {
             items?: components["schemas"]["ConnectionView"][];
         };
@@ -486,10 +558,66 @@ export interface components {
         RegenerateRequest: {
             instruction?: string;
         };
+        ReportView: {
+            citationStyle?: string;
+            citations?: components["schemas"]["CitationView"][];
+            claims?: {
+                [key: string]: components["schemas"]["ClaimView"];
+            };
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            id?: string;
+            language?: string;
+            /** Format: uuid */
+            runId?: string;
+            sections?: components["schemas"]["SectionView"][];
+            sources?: {
+                [key: string]: components["schemas"]["SourceView"];
+            };
+            title?: string;
+        };
         RouteChoice: {
             /** Format: uuid */
             connectionId?: string;
             model?: string;
+        };
+        RunPage: {
+            items?: components["schemas"]["RunSummary"][];
+            nextCursor?: string;
+        };
+        RunSource: {
+            /** Format: int32 */
+            claims?: number;
+            /** Format: int32 */
+            rank?: number;
+            site?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            status?: string;
+            /** Format: uuid */
+            subQuestionId?: string;
+            tier?: string;
+            tierReason?: string;
+            title?: string;
+            type?: string;
+            url?: string;
+        };
+        RunSummary: {
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            id?: string;
+            progress?: number;
+            /** Format: uuid */
+            reportId?: string;
+            /** @enum {string} */
+            status?: "PLANNING" | "AWAITING_APPROVAL" | "RUNNING" | "PAUSED" | "COMPLETED" | "FAILED" | "CANCELLED";
+            topic?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         RunView: {
             /** Format: date-time */
@@ -505,6 +633,8 @@ export interface components {
             /** @enum {string} */
             pauseReason?: "USER" | "AI_LIMIT_REACHED" | "SEARCH_LIMIT_REACHED";
             progress?: number;
+            /** Format: uuid */
+            reportId?: string;
             /** Format: date-time */
             resumeAt?: string;
             /** @enum {string} */
@@ -517,10 +647,31 @@ export interface components {
             /** Format: int32 */
             version?: number;
         };
+        SectionView: {
+            contentDoc?: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            id?: string;
+            key?: string;
+            title?: string;
+            /** Format: int32 */
+            version?: number;
+        };
         SlotRoute: {
             /** Format: uuid */
             connectionId?: string;
             slot?: string;
+        };
+        SourceView: {
+            credibilityReason?: string;
+            credibilityTier?: string;
+            /** Format: date */
+            publishedAt?: string;
+            site?: string;
+            title?: string;
+            type?: string;
+            url?: string;
         };
         SseEmitter: {
             /** Format: int64 */
@@ -614,7 +765,7 @@ export interface operations {
             };
         };
     };
-    list: {
+    list_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -820,6 +971,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeView"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportView"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunPage"];
                 };
             };
             /** @description Problem Details */
@@ -1112,6 +1326,67 @@ export interface operations {
         responses: {
             /** @description Accepted */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSource"][];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    skip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };

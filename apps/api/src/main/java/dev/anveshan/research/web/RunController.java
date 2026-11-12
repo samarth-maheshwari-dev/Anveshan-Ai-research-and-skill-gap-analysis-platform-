@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -128,6 +129,26 @@ class RunController {
 		Created c = runs.create(me, new CreateCommand(req.topic(), req.options()), idempotencyKey);
 		return ResponseEntity.accepted().location(URI.create("/api/v1/runs/" + c.run().id()))
 				.eTag("\"" + c.run().version() + "\"").body(c.run());
+	}
+
+	/** The caller's researches, newest first (dashboard "Ongoing research", history). */
+	@GetMapping
+	ResponseEntity<RunService.RunPage> list(@RequestParam(name = "cursor", required = false) String cursor,
+			@RequestParam(name = "limit", defaultValue = "20") int limit) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(runs.list(currentUser.id(), cursor, limit));
+	}
+
+	/** S-07: the run's sources with status (USED / REJECTED_BY_USER) and credibility. */
+	@GetMapping("/{id}/sources")
+	ResponseEntity<List<dev.anveshan.sources.api.SourceLibrary.RunSource>> sources(@PathVariable UUID id) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(runs.sources(currentUser.id(), id));
+	}
+
+	/** E-FR-5: skip a source; its claims won't be used in the report. */
+	@PostMapping("/{id}/sources/{sourceId}/skip")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	void skip(@PathVariable UUID id, @PathVariable UUID sourceId) {
+		runs.skipSource(currentUser.id(), id, sourceId);
 	}
 
 	@GetMapping("/{id}")

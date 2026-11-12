@@ -142,6 +142,12 @@
 			<artifactId>crawler-commons</artifactId>
 			<version>1.6</version>
 		</dependency>
+		<!-- Report assembly (TECHSPEC §12.9): the writer's Markdown → TipTap JSON (no raw HTML is ever kept) -->
+		<dependency>
+			<groupId>org.commonmark</groupId>
+			<artifactId>commonmark</artifactId>
+			<version>0.32.0</version>
+		</dependency>
 		<!-- Embeddings (TECHSPEC §12.5): ONNX Runtime + HF tokenizer, natives bundled in the jars -->
 		<dependency>
 			<groupId>com.microsoft.onnxruntime</groupId>

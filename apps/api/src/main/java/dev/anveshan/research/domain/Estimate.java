@@ -50,7 +50,7 @@ public record Estimate(Map<String, Integer> requests, int minutes) {
 		requests.put("PLAN", 1);
 		requests.put("EXTRACT", extract);
 		requests.put("VERIFY", verify);
-		requests.put("WRITE", sections);
+		requests.put("WRITE", sections + 1); // one per section + one for the conflicts' possible reasons (§12.9)
 		// time scales with the number of sub-questions; never under 2 minutes
 		int minutes = Math.max(2, (int) Math.round(size.minutesPerQuestion() * subQuestions));
 		return new Estimate(requests, minutes);

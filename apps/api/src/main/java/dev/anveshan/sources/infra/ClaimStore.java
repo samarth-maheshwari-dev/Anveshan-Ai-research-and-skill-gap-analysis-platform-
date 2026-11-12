@@ -119,6 +119,53 @@ public class ClaimStore {
 				.param("l", label).param("why", reasonJson).param("r", runId).param("c", claimId).update();
 	}
 
+	public List<dev.anveshan.sources.api.ClaimLibrary.ReportClaim> reportClaims(UUID runId, List<UUID> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return jdbc.sql("""
+				SELECT cl.id, cl.chunk_id, cl.source_id, cl.text, cl.quote, cl.quote_start, cl.quote_end,
+				       rc.trust_label, rc.label_reason::text
+				  FROM run_claim rc JOIN claim cl ON cl.id = rc.claim_id
+				 WHERE rc.run_id = :r AND cl.id IN (:ids)""")
+				.param("r", runId).param("ids", ids)
+				.query((rs, n) -> new dev.anveshan.sources.api.ClaimLibrary.ReportClaim(rs.getObject(1, UUID.class),
+						rs.getObject(2, UUID.class), rs.getObject(3, UUID.class), rs.getString(4), rs.getString(5),
+						rs.getInt(6), rs.getInt(7), rs.getString(8), rs.getString(9)))
+				.list();
+	}
+
+	/** SUPPORTED / WEAK claims whose source the run still USES, by similarity to {@code v}. */
+	public List<dev.anveshan.sources.api.ClaimLibrary.Match> usableMatches(UUID runId, float[] v) {
+		return jdbc.sql("""
+				SELECT cl.id, 1 - (cl.embedding <=> CAST(:v AS vector)) AS similarity
+				  FROM run_claim rc JOIN claim cl ON cl.id = rc.claim_id
+				  JOIN run_source rs ON rs.run_id = rc.run_id AND rs.source_id = cl.source_id AND rs.status = 'USED'
+				 WHERE rc.run_id = :r AND rc.trust_label IN ('SUPPORTED', 'WEAK')
+				 ORDER BY cl.embedding <=> CAST(:v AS vector)""")
+				.param("v", SourceStore.vector(v)).param("r", runId)
+				.query((rs, n) -> new dev.anveshan.sources.api.ClaimLibrary.Match(rs.getObject(1, UUID.class),
+						rs.getDouble(2)))
+				.list();
+	}
+
+	/** CONFLICTING claims (source still USED) with each verdict's source and verdict, from sources still USED. */
+	public List<Object[]> conflictRows(UUID runId) {
+		return jdbc.sql("""
+				SELECT cl.id, cl.text, c.source_id, v.verdict
+				  FROM run_claim rc JOIN claim cl ON cl.id = rc.claim_id
+				  JOIN run_source own ON own.run_id = rc.run_id AND own.source_id = cl.source_id AND own.status = 'USED'
+				  JOIN verdict v ON v.run_id = rc.run_id AND v.claim_id = cl.id AND v.verdict IN ('SUPPORTS', 'CONTRADICTS')
+				  JOIN source_chunk c ON c.id = v.chunk_id
+				  JOIN run_source rs ON rs.run_id = rc.run_id AND rs.source_id = c.source_id AND rs.status = 'USED'
+				 WHERE rc.run_id = :r AND rc.trust_label = 'CONFLICTING'
+				 ORDER BY cl.created_at, cl.id""")
+				.param("r", runId)
+				.query((rs, n) -> new Object[] { rs.getObject(1, UUID.class), rs.getString(2), rs.getObject(3, UUID.class),
+						rs.getString(4) })
+				.list();
+	}
+
 	private Claim claim(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
 		return new Claim(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getObject(3, UUID.class),
 				rs.getString(4), rs.getString(5), rs.getInt(6), rs.getInt(7));

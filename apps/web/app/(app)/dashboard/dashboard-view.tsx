@@ -10,6 +10,7 @@ import { ErrorLine } from "@/components/anveshan/error-line";
 import { buttonVariants } from "@/components/ui/button";
 import { Overline, Skeleton, Stat } from "@/components/ui/card";
 import { useConnections, type Connection } from "@/lib/api/hooks/connections";
+import { runHref, useRuns, type RunSummary } from "@/lib/api/hooks/runs";
 import { useMe } from "@/lib/api/hooks/me";
 import { TASK_SLOTS, useSlots } from "@/lib/api/hooks/slots";
 import { timeAgo } from "@/lib/time";
@@ -41,6 +42,7 @@ export function DashboardView() {
   const me = useMe();
   const connections = useConnections();
   const slots = useSlots();
+  const runs = useRuns(10);
   const verified = me.data?.onboarding?.hasVerifiedConnection;
 
   // First visit without a working key → offer the wizard once per browser session.
@@ -72,7 +74,11 @@ export function DashboardView() {
           hint={connections.data ? `${connections.data.length} connected · ${verifiedCount} verified` : undefined}
         />
         <Stat label="Tasks routed" value={routed === null ? "—" : `${routed} / ${TASK_SLOTS.length}`} hint="Plan, extract, verify, write, ask, interview" />
-        <Stat label="Research" value="—" hint="Your runs list arrives soon" />
+        <Stat
+          label="Research"
+          value={runs.data ? `${runs.data.items?.length ?? 0}${runs.data.nextCursor ? "+" : ""}` : "—"}
+          hint={runs.data ? `${(runs.data.items ?? []).filter((r) => r.status === "COMPLETED").length} with a report` : undefined}
+        />
         <Stat label="Knowledge items" value="—" hint="Grows with every report" />
       </div>
 
@@ -80,31 +86,48 @@ export function DashboardView() {
         <section aria-labelledby="ongoing" className="rounded-lg border border-border bg-surface lg:col-span-2">
           <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <h2 id="ongoing" className="text-heading-sm font-semibold">
-              Ongoing research
+              Your research
             </h2>
           </div>
-          <div className="p-6">
-            <div className="flex items-start gap-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-2">
-                <FlaskConical aria-hidden className="size-5 text-muted-foreground" />
-              </span>
-              <div>
-                <h3 className="text-heading-sm font-semibold">Start your first research</h3>
-                <p className="mt-1 max-w-lg text-body-sm text-muted-foreground">
-                  Ask a question once. Anveshan plans it with you, reads the sources and writes a report where every
-                  claim shows its proof.
-                </p>
-              </div>
+          {runs.isPending ? (
+            <div className="space-y-2 p-6">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
             </div>
-            <p className="mt-6 text-caption font-medium text-subtle-foreground">Try a topic like</p>
-            <ul className="mt-2 space-y-2">
-              {EXAMPLES.map((t) => (
-                <li key={t} className="rounded-md border border-border bg-background px-4 py-3 text-body-sm">
-                  {t}
-                </li>
+          ) : runs.isError ? (
+            <div className="p-6">
+              <ErrorLine message="Couldn't load your researches." onRetry={() => void runs.refetch()} />
+            </div>
+          ) : (runs.data?.items ?? []).length > 0 ? (
+            <ul className="divide-y divide-border">
+              {(runs.data?.items ?? []).map((r) => (
+                <RunRow key={r.id} run={r} />
               ))}
             </ul>
-          </div>
+          ) : (
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-2">
+                  <FlaskConical aria-hidden className="size-5 text-muted-foreground" />
+                </span>
+                <div>
+                  <h3 className="text-heading-sm font-semibold">Start your first research</h3>
+                  <p className="mt-1 max-w-lg text-body-sm text-muted-foreground">
+                    Ask a question once. Anveshan plans it with you, reads the sources and writes a report where every
+                    claim shows its proof.
+                  </p>
+                </div>
+              </div>
+              <p className="mt-6 text-caption font-medium text-subtle-foreground">Try a topic like</p>
+              <ul className="mt-2 space-y-2">
+                {EXAMPLES.map((t) => (
+                  <li key={t} className="rounded-md border border-border bg-background px-4 py-3 text-body-sm">
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
 
         <div className="space-y-6">
@@ -148,6 +171,48 @@ export function DashboardView() {
         </div>
       </div>
     </div>
+  );
+}
+
+const RUN_STATUS: Record<string, string> = {
+  PLANNING: "Planning",
+  AWAITING_APPROVAL: "Plan ready — review it",
+  RUNNING: "Running",
+  PAUSED: "Paused",
+  COMPLETED: "Report ready",
+  FAILED: "Failed",
+  CANCELLED: "Stopped",
+};
+
+/** One research in the list: topic, status in words, progress while it runs; opens the right screen (APPFLOW §1.3). */
+function RunRow({ run }: { run: RunSummary }) {
+  const [now] = useState(() => new Date());
+  const working = run.status === "RUNNING" || run.status === "PAUSED";
+  const progress = Math.round(Number(run.progress ?? 0));
+  return (
+    <li>
+      <Link href={runHref(run.id!, run.status)} className="block px-6 py-4 transition-colors hover:bg-surface-2">
+        <div className="flex items-start justify-between gap-4">
+          <p className="line-clamp-2 text-body-sm font-medium">{run.topic}</p>
+          <span
+            className={`shrink-0 rounded-sm px-2 py-0.5 text-caption font-medium ${run.status === "COMPLETED" ? "bg-primary-soft text-primary" : run.status === "FAILED" ? "bg-danger-soft text-danger" : "bg-surface-2 text-muted-foreground"}`}
+          >
+            {RUN_STATUS[run.status ?? ""] ?? run.status}
+          </span>
+        </div>
+        <div className="mt-2 flex items-center gap-3 text-caption text-subtle-foreground">
+          <span>{run.updatedAt ? timeAgo(run.updatedAt, now) : ""}</span>
+          {working && (
+            <span className="flex flex-1 items-center gap-2" aria-label={`${progress}% done`}>
+              <span className="h-1.5 max-w-40 flex-1 overflow-hidden rounded-full bg-surface-2">
+                <span className="block h-full bg-primary" style={{ width: `${progress}%` }} />
+              </span>
+              <span className="tabular">{progress}%</span>
+            </span>
+          )}
+        </div>
+      </Link>
+    </li>
   );
 }
 

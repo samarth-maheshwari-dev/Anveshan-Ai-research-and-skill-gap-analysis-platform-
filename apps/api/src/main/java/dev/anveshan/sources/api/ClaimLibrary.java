@@ -60,4 +60,27 @@ public interface ClaimLibrary {
 	/** Computes and saves every claim's trust label for the run (pure rules, §12.8). */
 	LabelCounts labelRun(UUID runId);
 
+	/** A claim of a run with its label — what the writer, the assembler and the report view need. */
+	record ReportClaim(UUID id, UUID chunkId, UUID sourceId, String text, String quote, int quoteStart, int quoteEnd,
+			String label, String labelReasonJson) {
+	}
+
+	/** Claims of the run by id (only claims the run uses; skipped sources' claims included — the caller filters). */
+	List<ReportClaim> reportClaims(UUID runId, List<UUID> claimIds);
+
+	/**
+	 * Claims usable in the report body — labelled SUPPORTED or WEAK, from sources the run still USES — with their
+	 * similarity to {@code vector} (a section's meaning), most similar first.
+	 */
+	List<Match> usableMatches(UUID runId, float[] vector);
+
+	record Match(UUID claimId, double similarity) {
+	}
+
+	/** CONFLICTING claims of the run (not from skipped sources) with the sources on each side. */
+	List<Conflict> conflicts(UUID runId);
+
+	record Conflict(UUID claimId, String text, List<UUID> supportingSources, List<UUID> contradictingSources) {
+	}
+
 }

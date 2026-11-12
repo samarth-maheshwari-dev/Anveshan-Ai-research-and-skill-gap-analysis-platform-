@@ -190,6 +190,21 @@ class DefaultSourceLibrary implements SourceLibrary {
 	}
 
 	@Override
+	public List<SourceInfo> describe(List<UUID> sourceIds) {
+		return store.describe(sourceIds);
+	}
+
+	@Override
+	public List<RunSource> runSources(UUID runId) {
+		return store.runSources(runId);
+	}
+
+	@Override
+	public boolean skip(UUID runId, UUID sourceId) {
+		return store.skip(runId, sourceId);
+	}
+
+	@Override
 	public List<RelevantChunk> topChunks(UUID runId, String question, int k) {
 		float[] q;
 		try {

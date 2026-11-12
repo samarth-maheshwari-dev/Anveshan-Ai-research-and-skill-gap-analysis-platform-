@@ -30,6 +30,7 @@ import dev.anveshan.research.infra.RunEvents;
 import dev.anveshan.research.infra.RunStore;
 import dev.anveshan.research.infra.RunStore.RunRow;
 import dev.anveshan.research.api.PlanExpired;
+import dev.anveshan.research.api.RunCompleted;
 import dev.anveshan.research.api.PlanReady;
 import dev.anveshan.research.infra.StepStore;
 import dev.anveshan.research.infra.SubQuestionStore;
@@ -315,6 +316,7 @@ public class RunEngine {
 				closedStage);
 		if (next.isEmpty()) {
 			move(runs.find(run.id()).orElseThrow(), RunStatus.COMPLETED, null, null);
+			events.publish(new RunCompleted(run.id(), run.ownerId())); // same tx; listeners run after commit
 			return;
 		}
 		for (NewStep n : next) {

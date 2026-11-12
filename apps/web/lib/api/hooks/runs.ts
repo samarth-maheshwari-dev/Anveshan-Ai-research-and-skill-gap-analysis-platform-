@@ -118,3 +118,47 @@ export function useRunAction(id: string) {
     onSettled: () => qc.invalidateQueries({ queryKey: ["run", id] }),
   });
 }
+
+export type RunSummary = components["schemas"]["RunSummary"];
+export type RunSource = components["schemas"]["RunSource"];
+
+/** The caller's researches, newest first (dashboard). Polls while any is still working. */
+export function useRuns(limit = 10) {
+  return useQuery({
+    queryKey: ["runs", limit],
+    queryFn: async () => unwrap(await api.GET("/api/v1/runs", { params: { query: { limit } } })),
+    refetchInterval: (q) =>
+      q.state.data?.items?.some((r) => r.status === "RUNNING" || r.status === "PLANNING") ? 5000 : false,
+  });
+}
+
+/** S-07: the run's sources with status and credibility. */
+export function useRunSources(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["run-sources", id],
+    queryFn: async () => unwrap(await api.GET("/api/v1/runs/{id}/sources", { params: { path: { id } } })),
+    enabled,
+  });
+}
+
+/** E-FR-5: skip a source; its claims stay out of the report. */
+export function useSkipSource(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceId: string) => {
+      unwrap(await api.POST("/api/v1/runs/{id}/sources/{sourceId}/skip", { params: { path: { id, sourceId } } }));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["run-sources", id] }),
+  });
+}
+
+/** E-FR-4: re-run one failed step. */
+export function useRetryStep(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (stepId: string) => {
+      unwrap(await api.POST("/api/v1/runs/{id}/steps/{stepId}/retry", { params: { path: { id, stepId } } }));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["run", id] }),
+  });
+}

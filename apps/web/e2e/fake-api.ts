@@ -45,6 +45,10 @@ export type FakeState = {
   runKeys: string[];
   /** Body of every POST /runs. */
   runBodies: Record<string, unknown>[];
+  /** Last-Event-ID of every events request (0 = from the start). */
+  eventRequests: number[];
+  skipped: string[];
+  actions: string[];
   /** Instruction of every POST …/plan/regenerate. */
   regenerateInstructions: string[];
 };
@@ -60,6 +64,25 @@ export type FakeRun = {
   planningPolls: number;
   /** The PLAN step failed with this message (status FAILED). */
   planError?: string;
+  /** S-07: the run's sources (USED / REJECTED_BY_USER). */
+  sources?: FakeSource[];
+  /** SSE events, replayed after Last-Event-ID. */
+  events?: { id: number; type: string; data: Record<string, unknown> }[];
+  /** Resuming this run finishes it with a report (lets E2E reach "Report ready"). */
+  completeOnResume?: boolean;
+  reportId?: string;
+};
+
+export type FakeSource = {
+  sourceId: string;
+  title: string;
+  site: string;
+  url: string;
+  type: string;
+  tier: "HIGH" | "MEDIUM" | "LOW";
+  tierReason: string;
+  status: "USED" | "REJECTED_BY_USER";
+  claims: number;
 };
 
 export const TEMPLATES = [
@@ -131,6 +154,9 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
     runs: [],
     runKeys: [],
     runBodies: [],
+    eventRequests: [],
+    skipped: [],
+    actions: [],
     regenerateInstructions: [],
     ...init,
   };
@@ -177,13 +203,13 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
   };
 
   // OAuth start: the real API redirects to Google; here "Google" approves at once and comes back.
-  await page.route(`${API}/oauth2/authorization/**`, async (route) => {
+  await context.route(`${API}/oauth2/authorization/**`, async (route) => {
     state.calls.push("oauth");
     await signIn();
     await route.fulfill({ status: 302, headers: { location: `${APP}/dashboard` } });
   });
 
-  await page.route(`${API}/api/v1/**`, async (route) => {
+  await context.route(`${API}/api/v1/**`, async (route) => {
     const req = route.request();
     const method = req.method();
     const path = new URL(req.url()).pathname.replace("/api/v1", "");
@@ -321,6 +347,41 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
       state.runs.push(run);
       return json(route, 202, runView(run));
     }
+    if (path === "/runs" && method === "GET") {
+      return json(route, 200, { items: [...state.runs].reverse().map(runSummary), nextCursor: null });
+    }
+    const reportPath = path.match(/^\/reports\/([^/]+)$/);
+    if (reportPath && method === "GET") {
+      const run = state.runs.find((r) => r.reportId === reportPath[1]);
+      return run ? json(route, 200, fakeReport(run)) : problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
+    }
+    const runExtra = path.match(/^\/runs\/([^/]+)\/(events|sources)(?:\/([^/]+)\/skip)?$/);
+    if (runExtra) {
+      const run = state.runs.find((r) => r.id === runExtra[1]);
+      if (!run) return problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
+      if (runExtra[2] === "events") {
+        const after = Number((await req.headerValue("last-event-id")) ?? "0") || 0;
+        const body = ["retry: 600000", ""]
+          .concat((run.events ?? []).filter((e) => e.id > after)
+            .flatMap((e) => [`id: ${e.id}`, `event: ${e.type}`, `data: ${JSON.stringify(e.data)}`, ""]))
+          .join("\n") + "\n";
+        state.eventRequests.push(after);
+        return route.fulfill({
+          status: 200,
+          headers: { ...cors, "content-type": "text/event-stream", "cache-control": "no-store" },
+          body,
+        });
+      }
+      if (runExtra[3] && method === "POST") {
+        const src = run.sources?.find((x) => x.sourceId === runExtra[3]);
+        if (!src) return problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
+        src.status = "REJECTED_BY_USER";
+        state.skipped.push(src.sourceId);
+        addEvent(run, "source.skipped", { sourceId: src.sourceId });
+        return route.fulfill({ status: 204, headers: cors });
+      }
+      return json(route, 200, run.sources ?? []);
+    }
     const runPath = path.match(/^\/runs\/([^/]+)(\/plan\/regenerate|\/plan|\/approve|\/pause|\/resume|\/cancel)?$/);
     if (runPath) {
       const run = state.runs.find((r) => r.id === runPath[1]);
@@ -385,6 +446,15 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
       if (sub && method === "POST") {
         run.status = sub === "/pause" ? "PAUSED" : sub === "/resume" ? "RUNNING" : "CANCELLED";
         run.version += 1;
+        state.actions.push(sub.slice(1));
+        addEvent(run, "run.status", { status: run.status });
+        if (sub === "/resume" && run.completeOnResume) {
+          run.status = "COMPLETED";
+          run.reportId = `rep-${run.id}`;
+          addEvent(run, "log", { level: "INFO", message: "Report ready: 5 sections, 3 citations from 2 sources." });
+          addEvent(run, "report.ready", { reportId: run.reportId });
+          addEvent(run, "run.status", { status: "COMPLETED" });
+        }
         return route.fulfill({ status: 202, headers: cors });
       }
     }
@@ -395,6 +465,60 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
 }
 
 /** RunView as the API sends it; the estimate mirrors Estimate.of (sections: the template's, or 5). */
+function addEvent(run: FakeRun, type: string, data: Record<string, unknown>) {
+  run.events = run.events ?? [];
+  run.events.push({ id: (run.events.at(-1)?.id ?? 0) + 1, type, data });
+}
+
+function runSummary(run: FakeRun) {
+  return {
+    id: run.id,
+    topic: run.topic,
+    status: run.status,
+    progress: run.status === "COMPLETED" ? 100 : run.status === "RUNNING" ? 40 : 0,
+    createdAt: "2026-11-11T06:00:00Z",
+    updatedAt: "2026-11-11T06:00:00Z",
+    reportId: run.reportId ?? null,
+  };
+}
+
+/** A small report in the API's shape: two sections citing two sources, conflicts, references. */
+function fakeReport(run: FakeRun) {
+  const cite = (claimId: string, sourceId: string, n: number, label: string) => ({
+    type: "citation",
+    attrs: { claimId, sourceId, n, label },
+  });
+  const para = (...content: unknown[]) => ({ type: "paragraph", content });
+  const text = (t: string) => ({ type: "text", text: t });
+  return {
+    id: run.reportId,
+    runId: run.id,
+    title: run.topic,
+    language: "en",
+    citationStyle: "IEEE",
+    createdAt: "2026-11-12T06:00:00Z",
+    sections: [
+      { id: "s1", key: "introduction", title: "Introduction", version: 0,
+        contentDoc: { type: "doc", content: [para(text("Students report lost items from their phones."), cite("cl1", "src1", 1, "SUPPORTED"))] } },
+      { id: "s2", key: "key_findings", title: "Key findings", version: 0,
+        contentDoc: { type: "doc", content: [para(text("Some apps return about 40 percent of items."), cite("cl2", "src2", 2, "WEAK"))] } },
+      { id: "s3", key: "conflicts", title: "Conflicts & open questions", version: 0,
+        contentDoc: { type: "doc", content: [para(text("No conflicting evidence was found between the sources."))] } },
+      { id: "s4", key: "references", title: "References", version: 0,
+        contentDoc: { type: "doc", content: [para(text("[1] \"Lost and found apps compared,\" campus.example, 2025.")), para(text("[2] \"Item recovery study,\" study.example, 2024."))] } },
+    ],
+    citations: [{ n: 1, claimId: "cl1", sourceId: "src1" }, { n: 2, claimId: "cl2", sourceId: "src2" }],
+    claims: {
+      cl1: { text: "Students report lost items from their phones.", trustLabel: "SUPPORTED", labelReason: {}, quote: "q", sourceId: "src1", chunkId: "c1", quoteStart: 0, quoteEnd: 1 },
+      cl2: { text: "About 40 percent of items are returned.", trustLabel: "WEAK", labelReason: {}, quote: "q", sourceId: "src2", chunkId: "c2", quoteStart: 0, quoteEnd: 1 },
+    },
+    sources: {
+      src1: { title: "Lost and found apps compared", site: "campus.example", type: "OTHER", credibilityTier: "LOW", credibilityReason: "Personal blog / unknown author", url: "https://campus.example/a" },
+      src2: { title: "Item recovery study", site: "study.example", type: "PREPRINT", credibilityTier: "MEDIUM", credibilityReason: "Preprint (not peer-reviewed), 2024", url: "https://study.example/b" },
+    },
+  };
+}
+
 function runView(run: FakeRun) {
   const sections =
     run.config.sections?.length ?? TEMPLATES.find((t) => t.code === run.config.templateCode)?.sections.length ?? 5;
@@ -433,6 +557,7 @@ function runView(run: FakeRun) {
     version: run.version,
     createdAt: "2026-11-11T06:00:00Z",
     updatedAt: "2026-11-11T06:00:00Z",
+    reportId: run.status === "COMPLETED" ? (run.reportId ?? null) : null,
   };
 }
 

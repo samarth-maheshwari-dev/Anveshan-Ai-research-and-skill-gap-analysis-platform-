@@ -17,6 +17,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import dev.anveshan.byok.api.NoModelForSlotException;
 import dev.anveshan.byok.api.RouteQuery;
+import dev.anveshan.report.api.Reports;
+import dev.anveshan.sources.api.SourceLibrary;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.PauseReason;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
@@ -59,7 +61,15 @@ public class RunService {
 	public record RunView(UUID id, RunStatus status, PauseReason pauseReason, Instant resumeAt, BigDecimal progress,
 			String topic, Map<String, Object> config, List<PlanService.SubQuestionView> subQuestions,
 			PlanService.EstimateView estimate, List<StepView> steps, int version, Instant createdAt, Instant updatedAt,
-			Instant completedAt) {
+			Instant completedAt, UUID reportId) {
+	}
+
+	/** One run in the list (dashboard, research history). */
+	public record RunSummary(UUID id, String topic, RunStatus status, BigDecimal progress, Instant createdAt,
+			Instant updatedAt, Instant completedAt, UUID reportId) {
+	}
+
+	public record RunPage(List<RunSummary> items, String nextCursor) {
 	}
 
 	private record Section(String key, String title, String instructions) {
@@ -87,10 +97,14 @@ public class RunService {
 	private final TemplateStore templates;
 	private final RouteQuery routes;
 	private final PlanService plans;
+	private final Reports reports;
+	private final SourceLibrary sources;
 
 	RunService(RunStore runs, StepStore steps, RunEngine engine, RunEvents events, SseHub hub,
 			TransactionTemplate researchTx, JsonMapper json, Clock clock, TemplateStore templates, RouteQuery routes,
-			PlanService plans) {
+			PlanService plans, Reports reports, SourceLibrary sources) {
+		this.reports = reports;
+		this.sources = sources;
 		this.templates = templates;
 		this.routes = routes;
 		this.plans = plans;
@@ -177,7 +191,59 @@ public class RunService {
 				.toList();
 		return new RunView(r.id(), r.status(), r.pauseReason(), r.resumeAt(), r.progress(), r.topic(),
 				json.readValue(r.configJson(), MAP), plans.plan(id), plans.estimate(r), stepViews, r.version(),
-				r.createdAt(), r.updatedAt(), r.completedAt());
+				r.createdAt(), r.updatedAt(), r.completedAt(),
+				r.status() == RunStatus.COMPLETED ? reports.reportIdForRun(id).orElse(null) : null);
+	}
+
+	/** The caller's runs, newest first; {@code cursor} is the opaque value of the previous page's nextCursor. */
+	public RunPage list(UUID owner, String cursor, int limit) {
+		int size = Math.clamp(limit, 1, 50);
+		Instant ts = null;
+		UUID id = null;
+		if (cursor != null && !cursor.isBlank()) {
+			try {
+				String[] parts = new String(java.util.Base64.getUrlDecoder().decode(cursor), java.nio.charset.StandardCharsets.UTF_8)
+						.split("\\|", 2);
+				ts = Instant.parse(parts[0]);
+				id = UUID.fromString(parts[1]);
+			}
+			catch (RuntimeException e) {
+				throw ApiException.badRequest("This page link is no longer valid. Load the list again.");
+			}
+		}
+		List<RunRow> rows = runs.list(owner, ts, id, size);
+		List<RunSummary> items = new java.util.ArrayList<>();
+		for (RunRow r : rows.subList(0, Math.min(size, rows.size()))) {
+			items.add(new RunSummary(r.id(), r.topic(), r.status(), r.progress(), r.createdAt(), r.updatedAt(),
+					r.completedAt(), r.status() == RunStatus.COMPLETED ? reports.reportIdForRun(r.id()).orElse(null) : null));
+		}
+		String next = null;
+		if (rows.size() > size) {
+			RunRow last = rows.get(size - 1);
+			next = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+					(last.createdAt() + "|" + last.id()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		}
+		return new RunPage(items, next);
+	}
+
+	/** E-FR-5 / S-07: the run's sources with their status and tier. */
+	public List<SourceLibrary.RunSource> sources(UUID owner, UUID id) {
+		return sources.runSources(owned(owner, id));
+	}
+
+	/**
+	 * E-FR-5: skip a source while the run is still working — its claims stay out of the report. After the report
+	 * is written (or the run stopped) there is nothing left to skip: 409 RUN_INVALID_STATE.
+	 */
+	public void skipSource(UUID owner, UUID id, UUID sourceId) {
+		RunRow run = runs.findOwned(owner, id).orElseThrow(ApiException::notFound);
+		if (run.status() != RunStatus.RUNNING && run.status() != RunStatus.PAUSED) {
+			throw new dev.anveshan.research.domain.RunInvalidStateException(run.status(), run.status());
+		}
+		if (!sources.skip(id, sourceId)) {
+			throw ApiException.notFound();
+		}
+		tx.executeWithoutResult(s -> events.emit(id, "source.skipped", Map.of("sourceId", sourceId)));
 	}
 
 	/** The four report templates (public data, C-FR-5). */
