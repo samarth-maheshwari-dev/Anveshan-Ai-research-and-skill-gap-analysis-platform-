@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P12 are done: sign in, connect your own AI key, start a research, review and approve the plan the AI proposes, search for sources and read them. Verifying claims and writing the report come next, in P13–P16. See [Progress](#progress).
+> **Status:** early development. Phases P00–P13 are done: sign in, connect your own AI key, start a research, review and approve the plan, search and read sources, and extract, verify and label claims. Writing the cited report comes next, in P14–P16. See [Progress](#progress).
 
 ## What works today
 
@@ -14,6 +14,7 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 - **Review the plan before anything is spent.** The AI splits your question into 1–8 sub-questions. Edit, reorder, delete or add them, or ask for a new plan ("focus on India"). The estimate — AI requests, minutes, and the share of each key's remaining daily quota — updates as you edit.
 - **Search.** After approval each sub-question is searched across up to 8 free sources at once — research papers, preprints, Wikipedia, GitHub, the web — then de-duplicated and ranked on your machine (no AI request). A source that is down is skipped and noted.
 - **Read.** The best results are opened and read: main text only (no menus, ads or scripts), PDFs page by page, sites that opt out via robots.txt are skipped. Each source gets a credibility tier with a reason (peer-reviewed paper, official docs, preprint, blog …), and the passages most relevant to each sub-question are picked — all locally, no AI request.
+- **Check.** Each passage becomes short factual claims, each tied to the exact sentence it came from (located by code, never trusted from the AI). Every claim is checked against other sources and labelled by fixed rules: Supported, Weak evidence, Conflicting or No source.
 - **Approve and watch it run.** Runs are durable: pause, resume or stop them, and they continue where they left off after a crash or an AI rate limit. A busy AI provider is retried; if it still fails you get a plain explanation and a "Start again" button.
 
 ## What it does (full plan)
@@ -125,7 +126,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P10 | New Research form (templates + custom options), AI planner, Plan Review (edit, regenerate, live estimate, approve), unapproved plans expire after 7 days | ✅ Done |
 | P11 | Search: 8 free sources in parallel (OpenAlex, Semantic Scholar, arXiv, Crossref, Wikipedia, GitHub, your Tavily key, a built-in SearXNG), de-duplicated and ranked locally; one source down never stops a run | ✅ Done |
 | P12 | Read sources: robots.txt respected, web pages cleaned to their main text, PDFs read page by page, split into passages and embedded locally, credibility rated with a reason; public pages shared across runs, your own files kept private | ✅ Done |
-| P13–P16 | Extract and verify claims, write the cited report, Report Studio, export | Next |
+| P13 | Claims: atomic facts extracted with an exact quote whose position is found by code (exact / normalized / fuzzy), checked against other sources, trust-labelled by rules (Supported / Weak / Conflicting / No source); claims reused across runs; instructions hidden in web pages are ignored | ✅ Done |
+| P14–P16 | Write the cited report, live room, Report Studio, export | Next |
 | P17–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
 
 ## Security
@@ -134,6 +136,7 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 - Accounts are linked by email only when the provider has verified it (no account takeover via unverified emails).
 - User AI keys are encrypted at rest (Tink AES-256-GCM, bound to their row and owner) and never logged or returned (only the last 4 characters are shown); provider error messages are never passed through, since they can echo the key.
 - Every LLM call goes through one gateway: the reply must parse into a typed record and pass validation (max 3 tries), and a rate-limited key falls back to the user's next key instead of waiting. Each attempt is logged with counts and timings only (never prompts or keys).
+- Text from web pages is wrapped as untrusted data in prompts; an instruction hidden in a page ("ignore previous instructions…") can't add a claim, because every claim must quote the page exactly and stay about that quote.
 - What a user types (topic, instructions, section names) is treated as data in AI prompts: it is wrapped in tags and cannot close them, so it can't take over the prompt. AI output (like a plan) is checked by code before it is saved.
 - Plan edits and approval carry the version the user saw (`If-Match`); a change made elsewhere meanwhile is never silently overwritten. Starting research and asking for new plans are rate-limited per user.
 - Every outbound request to a user-supplied URL goes through an SSRF guard: private/loopback/metadata IPs and odd IP spellings are refused, DNS answers are checked at connect time (no rebinding), redirects are re-checked (max 3) and bodies are size-capped.

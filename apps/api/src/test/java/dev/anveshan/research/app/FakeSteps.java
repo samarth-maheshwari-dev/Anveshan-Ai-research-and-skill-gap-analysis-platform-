@@ -85,7 +85,8 @@ public class FakeSteps {
 		@Bean
 		static BeanDefinitionRegistryPostProcessor withoutRealPlanner() {
 			return registry -> {
-				for (String real : new String[] { "planHandler", "searchHandler", "fetchHandler", "relevanceHandler" }) {
+				for (String real : new String[] { "planHandler", "searchHandler", "fetchHandler", "relevanceHandler", "extractHandler",
+						"verifyHandler", "labelHandler" }) {
 					if (registry.containsBeanDefinition(real)) {
 						registry.removeBeanDefinition(real);
 					}
