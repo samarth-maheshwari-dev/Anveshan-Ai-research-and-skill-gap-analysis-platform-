@@ -19,9 +19,16 @@ mgmt=$(docker compose port api 8081 2>/dev/null)
 [[ "$mgmt" == *:[1-9]* ]] && bad "T-02-02 actuator 8081 is published at $mgmt" || pass "T-02-02 actuator 8081 not published"
 for svc_port in "postgres 5432" "api 8080" "web 3000"; do
   set -- $svc_port
-  bind=$(docker compose port "$1" "$2" 2>/dev/null)
-  [[ "$bind" == 127.0.0.1:* ]] && pass "T-02-02 $1:$2 bound to $bind only" || bad "T-02-02 $1:$2 bound to '${bind:-none}'"
+  binds=$(docker ps --filter "label=com.docker.compose.service=$1" --format '{{.Ports}}' | tr ',' '\n' | grep -- "->$2/" | sed 's/->.*//; s/^ *//')
+  ok=1; [[ -z "$binds" ]] && ok=0
+  while read -r bind; do [[ -z "$bind" || "$bind" == 127.0.0.1:* || "$bind" == "[::1]:"* ]] || ok=0; done <<< "$binds"
+  [[ $ok == 1 ]] && pass "T-02-02 $1:$2 bound to loopback only ($(echo $binds | tr '\n' ' '))" || bad "T-02-02 $1:$2 bound to '${binds:-none}'"
 done
+# Windows resolves "localhost" to ::1 first: the app must answer there too
+code6=$(curl -s -6 -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:3000/ 2>/dev/null)
+[[ "$code6" == "200" ]] && pass "T-02-06 http://localhost:3000 over IPv6 (::1) -> 200" || bad "T-02-06 localhost:3000 over IPv6 -> ${code6:-no answer}"
+code6=$(curl -s -6 -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/api/v1/health 2>/dev/null)
+[[ "$code6" == "200" ]] && pass "T-02-01 http://localhost:8080 over IPv6 (::1) -> 200" || bad "T-02-01 localhost:8080 over IPv6 -> ${code6:-no answer}"
 # P11: SearXNG is internal only — never published, but the API reaches it and gets JSON
 sx=$(docker compose port searxng 8080 2>/dev/null)
 [[ "$sx" == *:[1-9]* ]] && bad "T-11 searxng 8080 is published at $sx" || pass "T-11 searxng not published"

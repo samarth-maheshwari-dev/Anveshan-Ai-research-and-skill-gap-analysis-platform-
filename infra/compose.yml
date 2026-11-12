@@ -50,7 +50,8 @@ services:
       ANV_TINK_EPHEMERAL: ${ANV_TINK_EPHEMERAL:-false}   # true only in CI (throwaway key)
       ANV_SEARXNG_URL: http://searxng:8080/          # internal network only
     secrets: [tink_keyset]
-    ports: ["127.0.0.1:8080:8080"]          # 8081 (actuator) is NOT published
+    # loopback only, IPv4 and IPv6: Windows resolves "localhost" to ::1 first. 8081 (actuator) is NOT published
+    ports: ["127.0.0.1:8080:8080", "[::1]:8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
       searxng: { condition: service_started }      # search works without it too (that API is then just missing)
@@ -66,7 +67,7 @@ services:
   web:
     build: ../apps/web
     image: anveshan-web:${WEB_TAG:-dev}
-    ports: ["127.0.0.1:3000:3000"]
+    ports: ["127.0.0.1:3000:3000", "[::1]:3000:3000"]   # loopback only, IPv4 + IPv6 ("localhost" → ::1 on Windows)
     depends_on:
       api: { condition: service_healthy }
     healthcheck:
