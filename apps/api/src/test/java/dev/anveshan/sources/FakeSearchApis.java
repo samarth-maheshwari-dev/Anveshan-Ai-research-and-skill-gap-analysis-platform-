@@ -31,6 +31,7 @@ public final class FakeSearchApis {
 
 	private final HttpServer server;
 	private final Map<String, Integer> failures = new ConcurrentHashMap<>();
+	private final Map<String, String> bodies = new ConcurrentHashMap<>();
 	public final List<Request> requests = Collections.synchronizedList(new ArrayList<>());
 
 	public FakeSearchApis() {
@@ -66,8 +67,14 @@ public final class FakeSearchApis {
 		failures.put(api, status);
 	}
 
+	/** {@code api} answers with {@code json} instead of its recorded response, until {@link #reset}. */
+	public void respond(String api, String json) {
+		bodies.put(api, json);
+	}
+
 	public void reset() {
 		failures.clear();
+		bodies.clear();
 		requests.clear();
 	}
 
@@ -85,6 +92,11 @@ public final class FakeSearchApis {
 		Integer status = failures.get(api);
 		if (status != null) {
 			send(ex, status, "application/json", "{\"error\":\"down\"}");
+			return;
+		}
+		String custom = bodies.get(api);
+		if (custom != null) {
+			send(ex, 200, "application/json", custom);
 			return;
 		}
 		switch (api) {
