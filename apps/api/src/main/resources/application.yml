@@ -138,6 +138,24 @@ anveshan:
     model-dir: ${ANV_EMBEDDINGS_MODEL_DIR:${user.home}/.cache/anveshan/models/multilingual-e5-small}
     batch-size: 32
     threads: ${ANV_EMBEDDINGS_THREADS:2}
+  # External search APIs (TECHSPEC §11). Platform keys are optional (keyless = lower limits) and come from env only.
+  search:
+    user-agent: "Anveshan/0.1 (open-source research tool)"   # no personal data
+    contact-email: ${ANV_SEARCH_CONTACT_EMAIL:}   # optional polite-pool mailto for Crossref/OpenAlex; empty = not sent
+    results-per-query: 10
+    queries-per-adapter: 2      # the plan's 2 best queries per API: enough recall, half the requests
+    cache-ttl: 1h
+    retry-wait: 1s              # 5xx/429/network: 3 attempts, 1 s then 2 s
+    adapter-timeout: 45s        # an API slower than this for one sub-question counts as failed
+    apis:
+      openalex:        { enabled: true, base-url: "https://api.openalex.org/", api-key: "${ANV_OPENALEX_KEY:}", limit-for-period: 5, limit-refresh-period: 1s, timeout: 10s, daily-budget: 10000 }
+      semanticscholar: { enabled: true, base-url: "https://api.semanticscholar.org/", api-key: "${ANV_S2_KEY:}", limit-for-period: 1, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
+      arxiv:           { enabled: true, base-url: "https://export.arxiv.org/", limit-for-period: 1, limit-refresh-period: 3s, timeout: 15s, daily-budget: 0 }
+      crossref:        { enabled: true, base-url: "https://api.crossref.org/", limit-for-period: 3, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
+      wikipedia:       { enabled: true, base-url: "https://en.wikipedia.org/", limit-for-period: 5, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
+      github:          { enabled: true, base-url: "https://api.github.com/", api-key: "${ANV_GITHUB_TOKEN:}", limit-for-period: 10, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
+      tavily:          { enabled: true, base-url: "", limit-for-period: 2, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }   # the user's own key (byok); URL from the byok preset
+      searxng:         { enabled: true, base-url: "${ANV_SEARXNG_URL:}", limit-for-period: 2, limit-refresh-period: 1s, timeout: 15s, daily-budget: 0 }   # empty = no instance → off
   # Research run engine (TECHSPEC §12.2)
   research:
     max-attempts: 3           # a step that throws 3× is FAILED → run FAILED; "Retry" restarts it (E-FR-4)

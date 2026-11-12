@@ -1,5 +1,5 @@
 # Anveshan local stack (zero-budget P02): Postgres + API + Web on one laptop.
-# Based on TECHSPEC §16.2. Caddy/HTTPS, SearXNG, Prometheus and Grafana come later.
+# Based on TECHSPEC §16.2. SearXNG (free web search, internal only) since P11; Caddy/HTTPS, Prometheus, Grafana later.
 #
 #   cd infra
 #   cp .env.example .env        # then set PG_PASSWORD
@@ -37,6 +37,10 @@ services:
       # the repo; point OAUTH_ENV_FILE at it in infra/.env. Optional: without it login is disabled.
       - path: ${OAUTH_ENV_FILE:-./oauth.env}
         required: false
+      # Optional platform search keys (ANV_OPENALEX_KEY, ANV_S2_KEY, ANV_GITHUB_TOKEN, ANV_SEARCH_CONTACT_EMAIL).
+      # Without them the APIs run keyless at lower limits. Keep this file OUTSIDE the repo too.
+      - path: ${SEARCH_ENV_FILE:-./search.env}
+        required: false
     environment:
       ANV_APP_ORIGIN: http://localhost:3000
       ANV_DB_URL: jdbc:postgresql://postgres:5432/anveshan
@@ -44,10 +48,12 @@ services:
       ANV_DB_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in infra/.env}
       ANV_TINK_KEYSET_FILE: /run/secrets/tink_keyset
       ANV_TINK_EPHEMERAL: ${ANV_TINK_EPHEMERAL:-false}   # true only in CI (throwaway key)
+      ANV_SEARXNG_URL: http://searxng:8080/          # internal network only
     secrets: [tink_keyset]
     ports: ["127.0.0.1:8080:8080"]          # 8081 (actuator) is NOT published
     depends_on:
       postgres: { condition: service_healthy }
+      searxng: { condition: service_started }      # search works without it too (that API is then just missing)
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health | grep -q UP"]
       interval: 10s
@@ -71,6 +77,22 @@ services:
       start_period: 20s
     restart: unless-stopped
     mem_limit: 512m
+
+  # Free fallback web search for users without a Tavily key (TECHSPEC §11.1). NOT published: only the API reaches it.
+  searxng:
+    image: searxng/searxng:2026.11.6-ac11e14c5
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-local-only-change-me}   # internal service; set your own in infra/.env
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+    mem_limit: 256m
 
   # On-demand backup (TECHSPEC §16.7, local version):
   #   docker compose --profile backup run --rm backup

@@ -29,7 +29,12 @@ class ResearchStages implements StageMaterializer {
 					.map(q -> new NewStep(StepKind.SEARCH, q.id(), Map.of("subQuestionId", q.id().toString())))
 					.toList();
 		}
-		return List.of(); // later stages arrive with their handlers (P11–P14)
+		if (closedStage == 1) { // after SEARCH: fetch each sub-question's candidates (FETCH handler arrives in P12)
+			return subQuestions.forRun(run.id()).stream()
+					.map(q -> new NewStep(StepKind.FETCH, q.id(), Map.of("subQuestionId", q.id().toString())))
+					.toList();
+		}
+		return List.of(); // later stages arrive with their handlers (P12–P14)
 	}
 
 }

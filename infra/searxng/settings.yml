@@ -1,0 +1,15 @@
+# SearXNG for Anveshan (TECHSPEC §11.1): a free fallback web search the API calls on the internal network only.
+# No port is published; the API reads JSON results. The secret comes from SEARXNG_SECRET (compose env).
+use_default_settings: true
+general:
+  instance_name: "anveshan-search"
+  enable_metrics: false
+server:
+  limiter: false          # only the API talks to it, on the compose network
+  image_proxy: false
+  public_instance: false
+search:
+  safe_search: 1
+  formats: [html, json]   # json is what the API uses
+outgoing:
+  request_timeout: 6.0
