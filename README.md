@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P11 are done: sign in, connect your own AI key, start a research, review and approve the plan the AI proposes, and search for sources. Reading the sources, verifying claims and writing the report come next, in P12–P16. See [Progress](#progress).
+> **Status:** early development. Phases P00–P12 are done: sign in, connect your own AI key, start a research, review and approve the plan the AI proposes, search for sources and read them. Verifying claims and writing the report come next, in P13–P16. See [Progress](#progress).
 
 ## What works today
 
@@ -13,6 +13,7 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 - **Start a research** in 4 steps: topic (optionally from a template), objective, sources, review. Every choice has a "your own" option — your own objective, depth (sub-questions × sources), report format, report sections, websites to prefer or avoid, a start year, and extra instructions.
 - **Review the plan before anything is spent.** The AI splits your question into 1–8 sub-questions. Edit, reorder, delete or add them, or ask for a new plan ("focus on India"). The estimate — AI requests, minutes, and the share of each key's remaining daily quota — updates as you edit.
 - **Search.** After approval each sub-question is searched across up to 8 free sources at once — research papers, preprints, Wikipedia, GitHub, the web — then de-duplicated and ranked on your machine (no AI request). A source that is down is skipped and noted.
+- **Read.** The best results are opened and read: main text only (no menus, ads or scripts), PDFs page by page, sites that opt out via robots.txt are skipped. Each source gets a credibility tier with a reason (peer-reviewed paper, official docs, preprint, blog …), and the passages most relevant to each sub-question are picked — all locally, no AI request.
 - **Approve and watch it run.** Runs are durable: pause, resume or stop them, and they continue where they left off after a crash or an AI rate limit. A busy AI provider is retried; if it still fails you get a plain explanation and a "Start again" button.
 
 ## What it does (full plan)
@@ -123,7 +124,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P09 | Research run engine: state machine, durable background steps, pause / resume / stop / retry, live events (SSE) with replay, crash recovery | ✅ Done |
 | P10 | New Research form (templates + custom options), AI planner, Plan Review (edit, regenerate, live estimate, approve), unapproved plans expire after 7 days | ✅ Done |
 | P11 | Search: 8 free sources in parallel (OpenAlex, Semantic Scholar, arXiv, Crossref, Wikipedia, GitHub, your Tavily key, a built-in SearXNG), de-duplicated and ranked locally; one source down never stops a run | ✅ Done |
-| P12–P16 | Read and verify sources, write the cited report, Report Studio, export | Next |
+| P12 | Read sources: robots.txt respected, web pages cleaned to their main text, PDFs read page by page, split into passages and embedded locally, credibility rated with a reason; public pages shared across runs, your own files kept private | ✅ Done |
+| P13–P16 | Extract and verify claims, write the cited report, Report Studio, export | Next |
 | P17–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
 
 ## Security

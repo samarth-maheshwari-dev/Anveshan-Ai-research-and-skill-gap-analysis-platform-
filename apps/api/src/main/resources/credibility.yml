@@ -1,0 +1,80 @@
+# Credibility rules (TECHSPEC §12.8): data, not code. Imported by application.yml. Host lists match the host and its
+# sub-domains ("spring.io" also covers "docs.spring.io"). Change a list here, never a rule in Java.
+anveshan:
+  credibility:
+    official-docs:
+      - docs.spring.io
+      - developer.mozilla.org
+      - docs.oracle.com
+      - docs.python.org
+      - learn.microsoft.com
+      - docs.github.com
+      - kubernetes.io
+      - docs.docker.com
+      - react.dev
+      - nextjs.org
+      - www.postgresql.org
+      - docs.aws.amazon.com
+      - cloud.google.com
+      - developer.android.com
+      - developer.apple.com
+      - go.dev
+      - doc.rust-lang.org
+      - nodejs.org
+      - typescriptlang.org
+      - pytorch.org
+      - tensorflow.org
+      - scikit-learn.org
+    government-suffixes:
+      - .gov
+      - .gov.in
+      - .nic.in
+      - .gov.uk
+      - .europa.eu
+      - .gc.ca
+      - .gov.au
+      - .edu
+      - .ac.in
+      - .ac.uk
+    standards-bodies:
+      - w3.org
+      - ietf.org
+      - rfc-editor.org
+      - iso.org
+      - ieee.org
+      - owasp.org
+      - nist.gov
+      - who.int
+      - un.org
+      - worldbank.org
+    preprint-hosts:
+      - arxiv.org
+      - biorxiv.org
+      - medrxiv.org
+      - ssrn.com
+      - preprints.org
+      - osf.io
+      - researchsquare.com
+    established-publications:
+      - thehindu.com
+      - indianexpress.com
+      - livemint.com
+      - economictimes.indiatimes.com
+      - bbc.com
+      - bbc.co.uk
+      - reuters.com
+      - apnews.com
+      - nytimes.com
+      - theguardian.com
+      - nature.com
+      - sciencemag.org
+      - technologyreview.com
+      - wired.com
+      - arstechnica.com
+      - infoq.com
+      - martinfowler.com
+    encyclopedias:
+      - wikipedia.org
+      - britannica.com
+    repo-min-stars: 100
+    repo-max-months-since-commit: 12

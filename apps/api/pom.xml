@@ -110,6 +110,38 @@
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
 		</dependency>
+		<!-- Fetch and clean (TECHSPEC §12.4): HTML main text, PDF text, robots.txt -->
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>1.24.1</version>
+		</dependency>
+		<dependency>
+			<groupId>net.dankito.readability4j</groupId>
+			<artifactId>readability4j</artifactId>
+			<version>1.0.8</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.jsoup</groupId>
+					<artifactId>jsoup</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>3.0.8</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox-io</artifactId>
+			<version>3.0.8</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.crawler-commons</groupId>
+			<artifactId>crawler-commons</artifactId>
+			<version>1.6</version>
+		</dependency>
 		<!-- Embeddings (TECHSPEC §12.5): ONNX Runtime + HF tokenizer, natives bundled in the jars -->
 		<dependency>
 			<groupId>com.microsoft.onnxruntime</groupId>

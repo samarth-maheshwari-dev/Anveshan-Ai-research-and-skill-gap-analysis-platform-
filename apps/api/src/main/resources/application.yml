@@ -1,6 +1,8 @@
 spring:
   application:
     name: anveshan-api
+  config:
+    import: classpath:credibility.yml   # credibility rules are data (TECHSPEC §12.8)
   threads:
     virtual:
       enabled: true
@@ -156,6 +158,13 @@ anveshan:
       github:          { enabled: true, base-url: "https://api.github.com/", api-key: "${ANV_GITHUB_TOKEN:}", limit-for-period: 10, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
       tavily:          { enabled: true, base-url: "", limit-for-period: 2, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }   # the user's own key (byok); URL from the byok preset
       searxng:         { enabled: true, base-url: "${ANV_SEARXNG_URL:}", limit-for-period: 2, limit-refresh-period: 1s, timeout: 15s, daily-budget: 0 }   # empty = no instance → off
+  # Fetch and clean (TECHSPEC §12.4). Credibility lists live in credibility.yml (imported above).
+  fetch:
+    min-text-chars: 200       # less readable text than this = paywall stub / empty shell → unavailable
+    max-pdf-pages: 60
+    parallel: 4               # pages fetched at once per sub-question
+    robots-ttl: 1d
+    extra-ports: []           # tests only (local fake site); production allows 80/443 only
   # Research run engine (TECHSPEC §12.2)
   research:
     max-attempts: 3           # a step that throws 3× is FAILED → run FAILED; "Retry" restarts it (E-FR-4)

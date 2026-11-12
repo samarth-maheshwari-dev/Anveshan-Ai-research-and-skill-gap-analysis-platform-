@@ -81,11 +81,11 @@ public class FakeSteps {
 	@TestConfiguration(proxyBeanMethods = false)
 	public static class Config {
 
-		/** The engine tests script PLAN and SEARCH themselves: the real handlers (LLM, search APIs) step aside. */
+		/** The engine tests script every step themselves: the real handlers (LLM, search APIs, fetching) step aside. */
 		@Bean
 		static BeanDefinitionRegistryPostProcessor withoutRealPlanner() {
 			return registry -> {
-				for (String real : new String[] { "planHandler", "searchHandler" }) {
+				for (String real : new String[] { "planHandler", "searchHandler", "fetchHandler", "relevanceHandler" }) {
 					if (registry.containsBeanDefinition(real)) {
 						registry.removeBeanDefinition(real);
 					}

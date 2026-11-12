@@ -192,6 +192,15 @@ public class StepStore {
 				.param("run", runId).param("stage", stage).query(UUID.class).list();
 	}
 
+	/** The checkpoint of the run's DONE step of {@code kind} for one sub-question (e.g. SEARCH → FETCH reads it). */
+	public Optional<String> doneOutput(UUID runId, StepKind kind, UUID subQuestionId) {
+		return jdbc.sql("""
+				SELECT output::text FROM research_step
+				 WHERE run_id = :run AND kind = :kind AND sub_question_id = :sq AND status = 'DONE'
+				 ORDER BY seq DESC LIMIT 1""")
+				.param("run", runId).param("kind", kind.name()).param("sq", subQuestionId).query(String.class).optional();
+	}
+
 	public Optional<UUID> runOf(UUID stepId) {
 		return jdbc.sql("SELECT run_id FROM research_step WHERE id = :id").param("id", stepId).query(UUID.class)
 				.optional();
