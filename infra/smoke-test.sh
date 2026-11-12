@@ -22,6 +22,13 @@ for svc_port in "postgres 5432" "api 8080" "web 3000"; do
   bind=$(docker compose port "$1" "$2" 2>/dev/null)
   [[ "$bind" == 127.0.0.1:* ]] && pass "T-02-02 $1:$2 bound to $bind only" || bad "T-02-02 $1:$2 bound to '${bind:-none}'"
 done
+# P11: SearXNG is internal only — never published, but the API reaches it and gets JSON
+sx=$(docker compose port searxng 8080 2>/dev/null)
+[[ "$sx" == *:[1-9]* ]] && bad "T-11 searxng 8080 is published at $sx" || pass "T-11 searxng not published"
+sxjson=$(docker compose exec -T api sh -c 'curl -s -m 20 "http://searxng:8080/search?q=test&format=json"' 2>/dev/null)
+[[ "$sxjson" == *'"results"'* ]] && pass "T-11 API reaches SearXNG on the internal network (JSON)" \
+  || bad "T-11 API can't get JSON from SearXNG"
+
 resp=$(curl -s -w '\n%{http_code}' http://127.0.0.1:8080/actuator/health)
 code=${resp##*$'\n'}
 [[ ( "$code" == "401" || "$code" == "404" ) && "$resp" != *'"UP"'* ]] \

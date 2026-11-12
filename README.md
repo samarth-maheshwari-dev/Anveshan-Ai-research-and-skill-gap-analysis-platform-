@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P10 are done: sign in, connect your own AI key, start a research, and review and approve the plan the AI proposes. The research steps after the plan (search, reading sources, verifying claims, writing the report) come next, in P11–P16. See [Progress](#progress).
+> **Status:** early development. Phases P00–P11 are done: sign in, connect your own AI key, start a research, review and approve the plan the AI proposes, and search for sources. Reading the sources, verifying claims and writing the report come next, in P12–P16. See [Progress](#progress).
 
 ## What works today
 
@@ -12,6 +12,7 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 - **Connect your own AI key** (Gemini, Groq, OpenRouter, OpenAI, Anthropic or any OpenAI-compatible provider). The key is tested, stored encrypted, and only its last 4 characters are ever shown. Pick a model per task (plan, write, …) with fallbacks.
 - **Start a research** in 4 steps: topic (optionally from a template), objective, sources, review. Every choice has a "your own" option — your own objective, depth (sub-questions × sources), report format, report sections, websites to prefer or avoid, a start year, and extra instructions.
 - **Review the plan before anything is spent.** The AI splits your question into 1–8 sub-questions. Edit, reorder, delete or add them, or ask for a new plan ("focus on India"). The estimate — AI requests, minutes, and the share of each key's remaining daily quota — updates as you edit.
+- **Search.** After approval each sub-question is searched across up to 8 free sources at once — research papers, preprints, Wikipedia, GitHub, the web — then de-duplicated and ranked on your machine (no AI request). A source that is down is skipped and noted.
 - **Approve and watch it run.** Runs are durable: pause, resume or stop them, and they continue where they left off after a crash or an AI rate limit. A busy AI provider is retried; if it still fails you get a plain explanation and a "Start again" button.
 
 ## What it does (full plan)
@@ -47,7 +48,7 @@ apps/
 │           DB migrations: src/main/resources/db/migration/<module>/
 └── web/    Next.js frontend
 infra/
-├── compose.yml      local stack: Postgres (pgvector) + API + Web
+├── compose.yml      local stack: Postgres (pgvector) + API + Web + SearXNG (internal web search)
 ├── smoke-test.sh    checks a running stack
 └── backup/run.sh    pg_dump backup with verify + 14-day rotation
 .github/workflows/   api.yml, web.yml, stack.yml
@@ -121,7 +122,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P08 | Frontend foundation + connect-your-AI wizard: black-first 60·30·10 design, landing, login, wizard, dashboard, Settings → AI; key test that picks a working model and survives busy providers | ✅ Done |
 | P09 | Research run engine: state machine, durable background steps, pause / resume / stop / retry, live events (SSE) with replay, crash recovery | ✅ Done |
 | P10 | New Research form (templates + custom options), AI planner, Plan Review (edit, regenerate, live estimate, approve), unapproved plans expire after 7 days | ✅ Done |
-| P11–P16 | Search, read and verify sources, write the cited report, Report Studio, export | Next |
+| P11 | Search: 8 free sources in parallel (OpenAlex, Semantic Scholar, arXiv, Crossref, Wikipedia, GitHub, your Tavily key, a built-in SearXNG), de-duplicated and ranked locally; one source down never stops a run | ✅ Done |
+| P12–P16 | Read and verify sources, write the cited report, Report Studio, export | Next |
 | P17–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
 
 ## Security
