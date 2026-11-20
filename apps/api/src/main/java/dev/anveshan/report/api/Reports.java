@@ -39,4 +39,45 @@ public interface Reports {
 	record MarkerCheck(String markdown, int removed, int unmarked) {
 	}
 
+	// ------------------------------------------------------------------ Report Studio (P15)
+
+	/** A report and the run it was written from. */
+	record ReportRef(UUID id, UUID runId, UUID ownerId, String language) {
+	}
+
+	/** The owner's report, or empty (another user's report is simply not found). */
+	Optional<ReportRef> owned(UUID ownerId, UUID reportId);
+
+	/** {@code editable} is false for the sections built by code (Conflicts, References). */
+	record SectionRef(UUID id, String key, String title, int version, boolean editable) {
+	}
+
+	Optional<SectionRef> section(UUID reportId, UUID sectionId);
+
+	/** Selected text with {@code [c:<claimId>]} markers for the citations inside it. */
+	record SelectedText(String text, List<UUID> claimIds) {
+	}
+
+	/**
+	 * The text between two editor positions of a section (Assist on a selection, F-FR-4).
+	 *
+	 * @throws IllegalArgumentException with a message for the user (empty selection)
+	 */
+	SelectedText select(UUID reportId, UUID sectionId, int from, int to);
+
+	record SavedSection(UUID id, String key, String title, java.util.Map<String, Object> contentDoc, int version) {
+	}
+
+	/**
+	 * Regenerate (F-FR-7): Markdown with {@code [c:<claimId>]} markers replaces the section — at
+	 * {@code expectedVersion} when given (else 409) — and the report is renumbered and saved as a new version.
+	 */
+	SavedSection replaceSection(UUID ownerId, UUID reportId, UUID sectionId, Integer expectedVersion, String markdown);
+
+	/** An Assist suggestion as a TipTap fragment, citations numbered like the report (claims of its run only). */
+	java.util.Map<String, Object> fragment(UUID reportId, String markdown);
+
+	/** A claim's label changed (Find better sources): the report's citation labels follow. */
+	void refreshLabels(UUID reportId);
+
 }

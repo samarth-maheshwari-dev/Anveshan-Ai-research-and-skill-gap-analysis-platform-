@@ -86,7 +86,9 @@ public class FakeSteps {
 		static BeanDefinitionRegistryPostProcessor withoutRealPlanner() {
 			return registry -> {
 				for (String real : new String[] { "planHandler", "searchHandler", "fetchHandler", "relevanceHandler", "extractHandler",
-						"verifyHandler", "labelHandler", "writeHandler", "assembleHandler" }) {
+						"verifyHandler", "labelHandler", "writeHandler", "assembleHandler",
+						// the Report Studio reuses the real writer, so it goes with it
+						"reportStudio", "reportStudioController" }) {
 					if (registry.containsBeanDefinition(real)) {
 						registry.removeBeanDefinition(real);
 					}

@@ -140,6 +140,18 @@ class DefaultClaimLibrary implements ClaimLibrary {
 	}
 
 	@Override
+	public String labelClaim(UUID runId, UUID claimId) {
+		if (!store.runClaimIds(runId).contains(claimId)) {
+			return null;
+		}
+		List<VerdictRow> rows = store.verdicts(runId).stream().filter(v -> v.claimId().equals(claimId)).toList();
+		TrustLabel label = TrustLabeler.label(rows.stream()
+				.map(v -> new Judged(Verdict.valueOf(v.verdict()), Tier.valueOf(v.tier()))).toList());
+		tx.executeWithoutResult(s -> store.setLabel(runId, claimId, label.name(), json.writeValueAsString(reason(rows))));
+		return label.name();
+	}
+
+	@Override
 	public List<ReportClaim> reportClaims(UUID runId, List<UUID> claimIds) {
 		return store.reportClaims(runId, claimIds);
 	}

@@ -60,6 +60,14 @@ public interface ClaimLibrary {
 	/** Computes and saves every claim's trust label for the run (pure rules, §12.8). */
 	LabelCounts labelRun(UUID runId);
 
+	/**
+	 * Recomputes one claim's label in a run from all its verdicts there (Find better sources adds verdicts from new
+	 * sources to the original run, F-FR-5). Pure rules, §12.8.
+	 *
+	 * @return the new label, or null when the claim isn't the run's
+	 */
+	String labelClaim(UUID runId, UUID claimId);
+
 	/** A claim of a run with its label — what the writer, the assembler and the report view need. */
 	record ReportClaim(UUID id, UUID chunkId, UUID sourceId, String text, String quote, int quoteStart, int quoteEnd,
 			String label, String labelReasonJson) {

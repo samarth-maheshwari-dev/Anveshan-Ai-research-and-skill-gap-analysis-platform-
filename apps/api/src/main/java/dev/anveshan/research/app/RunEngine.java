@@ -86,6 +86,16 @@ public class RunEngine {
 		queue.enqueue(steps.insert(runId, 0, StepKind.PLAN, null, "{}"));
 	}
 
+	/**
+	 * A Find-better-sources child run (F-FR-5): its one sub-question (the claim) is already saved, so it skips the
+	 * PLAN step and approval and starts searching. Call inside the transaction that inserted the run.
+	 */
+	void startRefresh(UUID runId) {
+		move(locked(runId), RunStatus.AWAITING_APPROVAL, null, null);
+		move(runs.find(runId).orElseThrow(), RunStatus.RUNNING, null, null);
+		materializeAfter(runs.find(runId).orElseThrow(), 0);
+	}
+
 	/** AWAITING_APPROVAL → RUNNING and the first research stage (the approve endpoint arrives in P10). */
 	public void approve(UUID runId) {
 		tx.executeWithoutResult(s -> {

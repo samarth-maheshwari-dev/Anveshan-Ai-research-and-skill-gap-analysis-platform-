@@ -53,8 +53,15 @@ class ResearchStages implements StageMaterializer {
 		this.embeddings = embeddings;
 	}
 
+	/** {@code config.mode} of a Find-better-sources child run (SCHEMA §13 S-9). */
+	static final String CLAIM_REFRESH = "CLAIM_REFRESH";
+
 	@Override
 	public List<NewStep> next(RunSnapshot run, int closedStage) {
+		JsonNode config = json.readTree(run.configJson());
+		if (CLAIM_REFRESH.equals(config.path("mode").asString(""))) {
+			return refresh(run, config, closedStage);
+		}
 		return switch (closedStage) {
 			case 0 -> perSubQuestion(run, StepKind.SEARCH);
 			case 1 -> perSubQuestion(run, StepKind.FETCH);
@@ -64,6 +71,27 @@ class ResearchStages implements StageMaterializer {
 			case 5 -> List.of(new NewStep(StepKind.LABEL, null, Map.of()));
 			case 6 -> writeSteps(run);
 			case 7 -> List.of(new NewStep(StepKind.ASSEMBLE, null, Map.of()));
+			default -> List.of();
+		};
+	}
+
+	/**
+	 * F-FR-5 / TECHSPEC §12.10: a child run looks for stronger sources for ONE claim of its parent run. Stages 1–3
+	 * as usual (its one sub-question is the claim), nothing to extract (the claim exists), VERIFY judges that claim
+	 * against the new passages and saves the verdicts on the PARENT run, LABEL relabels it there. No report.
+	 */
+	private List<NewStep> refresh(RunSnapshot run, JsonNode config, int closedStage) {
+		String claimId = config.path("claimId").asString();
+		String parent = config.path("parentRunId").asString();
+		return switch (closedStage) {
+			case 0 -> perSubQuestion(run, StepKind.SEARCH);
+			case 1 -> perSubQuestion(run, StepKind.FETCH);
+			case 2 -> perSubQuestion(run, StepKind.RELEVANCE);
+			case 3 -> List.of(new NewStep(StepKind.EXTRACT, null, Map.of("items", List.of())));
+			case 4 -> List.of(new NewStep(StepKind.VERIFY, null,
+					Map.of("claimIds", List.of(claimId), "verdictRunId", parent)));
+			case 5 -> List.of(new NewStep(StepKind.LABEL, null,
+					Map.of("refreshRunId", parent, "claimId", claimId, "reportId", config.path("reportId").asString())));
 			default -> List.of();
 		};
 	}

@@ -68,10 +68,14 @@ class VerifyHandler implements StepHandler {
 
 	@Override
 	public StepResult handle(StepContext step) {
+		JsonNode input = json.readTree(step.inputJson());
 		List<UUID> ids = new ArrayList<>();
-		for (JsonNode id : json.readTree(step.inputJson()).path("claimIds")) {
+		for (JsonNode id : input.path("claimIds")) {
 			ids.add(UUID.fromString(id.asString()));
 		}
+		// Find better sources (F-FR-5): passages come from this child run, the verdicts belong to the parent run
+		String verdictRun = input.path("verdictRunId").asString("");
+		UUID verdictRunId = verdictRun.isEmpty() ? step.runId() : UUID.fromString(verdictRun);
 		List<Claim> batch = claims.claims(ids);
 		if (batch.isEmpty()) {
 			return new StepResult(Map.of("claims", 0, "verdicts", 0, "ignored", 0, "llmCalls", 0), List.of());
@@ -114,7 +118,7 @@ class VerifyHandler implements StepHandler {
 			if (reason != null && reason.length() > 200) {
 				reason = reason.substring(0, 199) + "…";
 			}
-			claims.saveVerdict(step.runId(), claim.id(), passageByAlias.get(pa).chunkId(), verdict, reason);
+			claims.saveVerdict(verdictRunId, claim.id(), passageByAlias.get(pa).chunkId(), verdict, reason);
 			saved++;
 		}
 
