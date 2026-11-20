@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import dev.anveshan.byok.api.LlmGateway;
 import dev.anveshan.byok.api.LlmResult;
 import dev.anveshan.byok.api.Prompt;
+import dev.anveshan.byok.api.RequestTooLargeException;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.research.app.StepHandler.StepContext;
 import dev.anveshan.research.app.StepHandler.StepResult;
@@ -102,6 +103,36 @@ class VerifyHandlerTest {
 		assertThat(prompts).hasSize(1);
 		assertThat(r.output()).containsEntry("llmCalls", 1).containsEntry("retried", 0).containsEntry("unchecked", 0)
 				.containsEntry("verdicts", 6);
+	}
+
+	@Test
+	@DisplayName("T-15-30 VERIFY: a batch the models refuse as too large is checked in halves; every claim judged, no pause loop")
+	void splitsTooLargeBatches() {
+		setUp();
+		when(gateway.call(any(), eq(TaskSlot.VERIFY), any(), eq(VerifyOutput.class), any())).thenAnswer(inv -> {
+			Prompt p = inv.getArgument(2);
+			prompts.add(p);
+			Matcher m = CLAIM_LINE.matcher(p.user());
+			List<VerdictItem> out = new ArrayList<>();
+			int claimsInPrompt = 0;
+			while (m.find()) {
+				claimsInPrompt++;
+				for (String pa : m.group(2).split(",")) {
+					out.add(new VerdictItem(m.group(1), pa.strip(), "INSUFFICIENT", "Doesn't say."));
+				}
+			}
+			if (claimsInPrompt > 1) {
+				throw new RequestTooLargeException("too large");
+			}
+			return result(new VerifyOutput(out));
+		});
+
+		StepResult r = handler.handle(step());
+
+		// 3 claims: [3] too large → [1] ok + [2] too large → [1] ok + [1] ok
+		assertThat(prompts).hasSize(5);
+		assertThat(r.output()).containsEntry("verdicts", 6).containsEntry("unchecked", 0).containsEntry("llmCalls", 5);
+		assertThat(messages(r)).anyMatch(m -> m.startsWith("The request was too large for your AI models — checking 3 claims"));
 	}
 
 	// --- helpers ---

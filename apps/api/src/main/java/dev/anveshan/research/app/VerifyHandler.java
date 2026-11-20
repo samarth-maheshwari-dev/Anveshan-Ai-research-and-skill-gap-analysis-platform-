@@ -16,6 +16,7 @@ import dev.anveshan.byok.api.LlmGateway;
 import dev.anveshan.byok.api.NoModelForSlotException;
 import dev.anveshan.byok.api.Prompt;
 import dev.anveshan.byok.api.ProviderUnavailableException;
+import dev.anveshan.byok.api.RequestTooLargeException;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.infra.PromptFiles;
@@ -92,8 +93,8 @@ class VerifyHandler implements StepHandler {
 		}
 
 		List<NewEvent> events = new ArrayList<>();
-		Judging first = judge(step, verdictRunId, batch, passagesOf);
-		int llmCalls = 1;
+		Judging first = judgeFitting(step, verdictRunId, batch, passagesOf, events);
+		int llmCalls = first.calls();
 		int saved = first.saved();
 		int ignored = first.ignored();
 		boolean unusable = first.unusable();
@@ -102,8 +103,8 @@ class VerifyHandler implements StepHandler {
 		if (!skipped.isEmpty()) {
 			events.add(log("INFO", step, "The AI skipped " + skipped.size() + " of " + batch.size()
 					+ " claims — asking again for those."));
-			Judging second = judge(step, verdictRunId, skipped, passagesOf);
-			llmCalls++;
+			Judging second = judgeFitting(step, verdictRunId, skipped, passagesOf, events);
+			llmCalls += second.calls();
 			saved += second.saved();
 			ignored += second.ignored();
 			unusable = unusable && second.unusable();
@@ -134,8 +135,34 @@ class VerifyHandler implements StepHandler {
 		return new StepResult(output, events);
 	}
 
-	/** One VERIFY call over {@code batch}; which claims got at least one saved verdict. */
-	record Judging(int saved, int ignored, boolean unusable, Set<UUID> judged) {
+	/** VERIFY call(s) over {@code batch}; which claims got at least one saved verdict, and how many calls it took. */
+	record Judging(int saved, int ignored, boolean unusable, Set<UUID> judged, int calls) {
+	}
+
+	/**
+	 * {@link #judge}, but a batch the models refuse as too large is checked in two halves, recursively (I-017): the
+	 * same request would be refused forever, smaller ones fit. A single claim that is still too large stays unchecked.
+	 */
+	private Judging judgeFitting(StepContext step, UUID verdictRunId, List<Claim> batch, Map<UUID, List<Passage>> passagesOf,
+			List<NewEvent> events) {
+		try {
+			return judge(step, verdictRunId, batch, passagesOf);
+		}
+		catch (RequestTooLargeException e) {
+			if (batch.size() == 1) {
+				events.add(log("WARN", step, "One claim and its passages were too large for your AI models; it stays unchecked."));
+				return new Judging(0, 0, false, Set.of(), 1);
+			}
+			events.add(log("INFO", step, "The request was too large for your AI models — checking " + batch.size()
+					+ " claims in two smaller parts."));
+			int mid = batch.size() / 2;
+			Judging a = judgeFitting(step, verdictRunId, batch.subList(0, mid), passagesOf, events);
+			Judging b = judgeFitting(step, verdictRunId, batch.subList(mid, batch.size()), passagesOf, events);
+			Set<UUID> judged = new LinkedHashSet<>(a.judged());
+			judged.addAll(b.judged());
+			return new Judging(a.saved() + b.saved(), a.ignored() + b.ignored(), a.unusable() && b.unusable(), judged,
+					1 + a.calls() + b.calls());
+		}
 	}
 
 	private Judging judge(StepContext step, UUID verdictRunId, List<Claim> batch, Map<UUID, List<Passage>> passagesOf) {
@@ -181,7 +208,7 @@ class VerifyHandler implements StepHandler {
 			judged.add(claim.id());
 			saved++;
 		}
-		return new Judging(saved, ignored, out == null, judged);
+		return new Judging(saved, ignored, out == null, judged, 1);
 	}
 
 	private VerifyOutput call(StepContext step, Map<String, Claim> claimByAlias, Map<String, Passage> passageByAlias,
@@ -202,6 +229,9 @@ class VerifyHandler implements StepHandler {
 		catch (NoModelForSlotException e) {
 			throw new StepFailedException("No AI model is set for verifying claims. Choose one for \"Verify\" in "
 					+ "Settings → AI, then retry this step.");
+		}
+		catch (RequestTooLargeException e) {
+			throw e; // judgeFitting splits the batch
 		}
 		catch (ProviderUnavailableException e) {
 			throw new StepFailedException("Your AI provider didn't answer — it was busy or down. Anveshan will try again.",

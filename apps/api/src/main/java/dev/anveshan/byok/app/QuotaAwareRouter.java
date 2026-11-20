@@ -6,16 +6,20 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import dev.anveshan.byok.api.AllRoutesExhaustedException;
 import dev.anveshan.byok.api.CallContext;
 import dev.anveshan.byok.api.NoModelForSlotException;
 import dev.anveshan.byok.api.ProviderUnavailableException;
+import dev.anveshan.byok.api.RequestTooLargeException;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.byok.app.ProviderModels.ProviderAuthException;
 import dev.anveshan.byok.app.ProviderModels.ProviderException;
 import dev.anveshan.byok.app.ProviderModels.ProviderRateLimitException;
+import dev.anveshan.byok.app.ProviderModels.ProviderRequestTooLargeException;
 import dev.anveshan.byok.app.ProviderModels.RawCompletion;
 import dev.anveshan.byok.app.ProviderModels.ResolvedRoute;
 import dev.anveshan.byok.domain.ByokEnums.ConnectionStatus;
@@ -32,6 +36,8 @@ import dev.anveshan.byok.infra.SlotStore;
  */
 @Component
 public class QuotaAwareRouter {
+
+	private static final Logger log = LoggerFactory.getLogger(QuotaAwareRouter.class);
 
 	/** A successful provider answer and the route that produced it. */
 	public record Routed(RawCompletion completion, ResolvedRoute route) {
@@ -61,6 +67,7 @@ public class QuotaAwareRouter {
 		}
 		Instant earliestRetry = null;
 		String lastFailure = null;
+		boolean tooLarge = false;
 		for (SlotStore.RouteRow row : routes) {
 			var cooling = quota.activeCooldown(row.connectionId(), row.model());
 			if (cooling.isPresent()) {
@@ -96,11 +103,24 @@ public class QuotaAwareRouter {
 				markFailing(owner, row.connectionId(), e.getMessage());
 				lastFailure = e.getMessage();
 			}
+			catch (ProviderRequestTooLargeException e) {
+				callLog.record(owner, slot, row.connectionId(), row.model(), e.latencyMs(), LlmCallStatus.ERROR, null,
+						null, e.code(), context);
+				log.warn("{} route {} refused the request as too large", slot, row.model());
+				lastFailure = e.getMessage();
+				tooLarge = true;
+			}
 			catch (ProviderException e) {
 				callLog.record(owner, slot, row.connectionId(), row.model(), e.latencyMs(), LlmCallStatus.ERROR, null,
 						null, e.code(), context);
+				// fixed text with the HTTP status only — never the provider body
+				log.warn("{} route {} failed: {}", slot, row.model(), e.getMessage());
 				lastFailure = e.getMessage();
 			}
+		}
+		if (tooLarge) {
+			// waiting for a rate-limited route would only repeat this forever: the caller must send less (I-017)
+			throw new RequestTooLargeException("The request is too large for the " + slot + " models");
 		}
 		if (earliestRetry != null) {
 			throw new AllRoutesExhaustedException(slot, earliestRetry);

@@ -127,6 +127,23 @@ public final class ProviderModels {
 
 	}
 
+	/**
+	 * The provider refused this request as too big for the model or for the key's per-minute token budget (HTTP 413,
+	 * or a 400 saying the context is too long). The same request will never pass; a smaller one may.
+	 */
+	public static final class ProviderRequestTooLargeException extends ProviderException {
+
+		public ProviderRequestTooLargeException(long latencyMs) {
+			super("The request is too large for this model", latencyMs);
+		}
+
+		@Override
+		public String code() {
+			return "REQUEST_TOO_LARGE";
+		}
+
+	}
+
 	public static final class ProviderCallException extends ProviderException {
 
 		private final String code;
