@@ -2,6 +2,7 @@ package dev.anveshan.report.app;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -59,8 +60,13 @@ class DefaultReports implements Reports {
 		in.sections().forEach(s -> cited.addAll(Markers.citedClaims(s.markdown())));
 		in.conflicts().forEach(c -> cited.add(c.claimId()));
 		in.openQuestions().forEach(q -> cited.add(q.claimId()));
+		// a source skipped after its claims were written (T-14-06) is never cited: its claims count as unknown here
+		Set<UUID> used = new HashSet<>();
+		sources.runSources(in.runId()).stream().filter(s -> "USED".equals(s.status()))
+				.forEach(s -> used.add(s.sourceId()));
 		Map<UUID, ReportClaim> claimById = new HashMap<>();
-		claims.reportClaims(in.runId(), List.copyOf(cited)).forEach(c -> claimById.put(c.id(), c));
+		claims.reportClaims(in.runId(), List.copyOf(cited)).stream().filter(c -> used.contains(c.sourceId()))
+				.forEach(c -> claimById.put(c.id(), c));
 
 		// 2. reading order of sources → numbers (body first, then the conflicts section)
 		List<UUID> reading = new ArrayList<>();
@@ -88,7 +94,7 @@ class DefaultReports implements Reports {
 			if (c == null) {
 				return null;
 			}
-			UUID src = sourceId != null ? sourceId : c.sourceId();
+			UUID src = sourceId != null && used.contains(sourceId) ? sourceId : c.sourceId();
 			Integer n = numbers.get(src);
 			return n == null ? null : new Citation(claimId, src, n, c.label());
 		};
@@ -96,18 +102,21 @@ class DefaultReports implements Reports {
 			ReportClaim c = claimById.get(claimId);
 			return c == null ? null : numbers.get(c.sourceId());
 		};
+		// same fallback as cite: an explicit source that is no longer used gives way to the claim's own source
+		java.util.function.BiFunction<UUID, UUID, Integer> numberOfSource = (claimId, src) -> src != null
+				&& used.contains(src) ? numbers.get(src) : numberOfClaim.apply(claimId);
 
 		// 3. sections
 		boolean hindi = "hi".equals(in.language());
 		List<NewSection> out = new ArrayList<>();
 		for (var s : in.sections()) {
 			out.add(new NewSection(s.key(), s.title(), TipTapDoc.from(s.markdown(), cite),
-					TipTapDoc.markdownWithNumbers(s.markdown(), numberOfClaim, (c, src) -> numbers.get(src))));
+					TipTapDoc.markdownWithNumbers(s.markdown(), numberOfClaim, numberOfSource)));
 		}
 		String conflictsMd = conflicts(in.conflicts(), open, info, hindi);
 		out.add(new NewSection(CONFLICTS_KEY, hindi ? "विरोधाभास और खुले प्रश्न" : "Conflicts & open questions",
 				TipTapDoc.from(conflictsMd, cite),
-				TipTapDoc.markdownWithNumbers(conflictsMd, numberOfClaim, (c, src) -> numbers.get(src))));
+				TipTapDoc.markdownWithNumbers(conflictsMd, numberOfClaim, numberOfSource)));
 		List<String> refs = referenceLines(numbers, info);
 		out.add(new NewSection(REFERENCES_KEY, hindi ? "संदर्भ" : "References", TipTapDoc.paragraphs(refs),
 				String.join("\n\n", refs)));

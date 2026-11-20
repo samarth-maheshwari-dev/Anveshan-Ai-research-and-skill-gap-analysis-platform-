@@ -2,9 +2,11 @@ package dev.anveshan.research.app;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -148,8 +150,13 @@ class WriteHandler implements StepHandler {
 		List<UUID> ids = new ArrayList<>();
 		in.path("claimIds").forEach(id -> ids.add(UUID.fromString(id.asString())));
 
+		// the claim ids were chosen when the step was planned; a source skipped since then must not be written from
+		Set<UUID> used = new HashSet<>();
+		sources.runSources(run.id()).stream().filter(s -> "USED".equals(s.status()))
+				.forEach(s -> used.add(s.sourceId()));
 		List<ReportClaim> usable = claims.reportClaims(run.id(), ids).stream()
-				.filter(c -> "SUPPORTED".equals(c.label()) || "WEAK".equals(c.label())).toList();
+				.filter(c -> "SUPPORTED".equals(c.label()) || "WEAK".equals(c.label()))
+				.filter(c -> used.contains(c.sourceId())).toList();
 		if (usable.isEmpty()) {
 			return new Written(null, 0, 0, 0);
 		}

@@ -3,9 +3,12 @@ package dev.anveshan.research.app;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
@@ -20,6 +23,7 @@ import dev.anveshan.report.api.Reports.Assembled;
 import dev.anveshan.report.api.Reports.ConflictDraft;
 import dev.anveshan.report.api.Reports.SectionDraft;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
+import dev.anveshan.research.domain.ResearchEnums.StepStatus;
 import dev.anveshan.research.domain.RunOptions.Language;
 import dev.anveshan.research.infra.PromptFiles;
 import dev.anveshan.research.infra.RunStore;
@@ -60,9 +64,11 @@ class AssembleHandler implements StepHandler {
 	private final LlmGateway gateway;
 	private final PromptFiles prompts;
 	private final JsonMapper json;
+	private final WriteHandler writer;
 
 	AssembleHandler(Reports reports, ClaimLibrary claims, SourceLibrary sources, StepStore steps, RunStore runs,
-			LlmGateway gateway, PromptFiles prompts, JsonMapper json) {
+			LlmGateway gateway, PromptFiles prompts, JsonMapper json, WriteHandler writer) {
+		this.writer = writer;
 		this.reports = reports;
 		this.claims = claims;
 		this.sources = sources;
@@ -85,10 +91,8 @@ class AssembleHandler implements StepHandler {
 		RunConfig config = json.readValue(run.configJson(), RunConfig.class).resolved();
 		boolean hindi = config.language() == Language.hi;
 
-		List<JsonNode> written = new ArrayList<>();
-		for (String out : steps.doneOutputs(step.runId(), StepKind.WRITE_SECTION)) {
-			written.add(json.readTree(out));
-		}
+		List<NewEvent> rewriteLogs = new ArrayList<>();
+		List<JsonNode> written = writtenSections(step, run, rewriteLogs);
 		written.sort(Comparator.comparingInt(n -> n.path("position").asInt()));
 		List<SectionDraft> drafts = written.stream().map(n -> new SectionDraft(n.path("key").asString(),
 				n.path("title").asString(), n.path("markdown").asString(""))).toList();
@@ -118,12 +122,82 @@ class AssembleHandler implements StepHandler {
 		output.put("sources", a.sources());
 		output.put("conflicts", conflicts.size());
 		output.put("openQuestions", open.size());
-		List<NewEvent> events = List.of(
+		List<NewEvent> events = new ArrayList<>(rewriteLogs);
+		events.addAll(List.of(
 				new NewEvent("log", Map.of("stepId", step.stepId(), "level", "INFO", "message",
 						"Report ready: " + drafts.size() + " sections, " + a.citations() + " citations from "
 								+ a.sources() + " sources.")),
-				new NewEvent("report.ready", Map.of("reportId", a.reportId())));
+				new NewEvent("report.ready", Map.of("reportId", a.reportId()))));
 		return new StepResult(output, events);
+	}
+
+	/**
+	 * The DONE section checkpoints. A section written from a claim whose source was skipped after it was written
+	 * (E-FR-5: pause → skip → resume) is written again from the same step input — the writer keeps only claims of
+	 * sources still used — so the skipped source's statements don't stay in the text uncited. The DONE step itself
+	 * is never re-run (L4).
+	 */
+	private List<JsonNode> writtenSections(StepContext step, RunStore.RunRow run, List<NewEvent> logs) {
+		List<StepStore.StepRow> done = steps.forRun(step.runId()).stream()
+				.filter(s -> s.kind() == StepKind.WRITE_SECTION && s.status() == StepStatus.DONE).toList();
+		Set<UUID> used = new HashSet<>();
+		sources.runSources(step.runId()).stream().filter(s -> "USED".equals(s.status()))
+				.forEach(s -> used.add(s.sourceId()));
+		List<UUID> allClaims = new ArrayList<>();
+		Map<UUID, JsonNode> inputs = new HashMap<>();
+		for (StepStore.StepRow s : done) {
+			JsonNode in = json.readTree(s.inputJson());
+			inputs.put(s.id(), in);
+			in.path("claimIds").forEach(id -> allClaims.add(UUID.fromString(id.asString())));
+		}
+		Map<UUID, UUID> sourceOf = new HashMap<>();
+		claims.reportClaims(step.runId(), allClaims.stream().distinct().toList())
+				.forEach(c -> sourceOf.put(c.id(), c.sourceId()));
+
+		List<JsonNode> out = new ArrayList<>();
+		for (StepStore.StepRow s : done) {
+			JsonNode in = inputs.get(s.id());
+			JsonNode section = json.readTree(s.outputJson());
+			boolean stale = false;
+			for (JsonNode id : in.path("claimIds")) {
+				UUID src = sourceOf.get(UUID.fromString(id.asString()));
+				stale |= src != null && !used.contains(src);
+			}
+			if (stale) {
+				String markdown = rewrite(step, run, in);
+				var copy = (tools.jackson.databind.node.ObjectNode) section.deepCopy();
+				copy.put("markdown", markdown);
+				section = copy;
+				logs.add(new NewEvent("log", Map.of("stepId", step.stepId(), "level", "INFO", "message",
+						"Wrote \"" + in.path("title").asString("Section") + "\" again without the skipped source.")));
+			}
+			out.add(section);
+		}
+		return out;
+	}
+
+	private String rewrite(StepContext step, RunStore.RunRow run, JsonNode in) {
+		boolean hindi = json.readValue(run.configJson(), RunConfig.class).resolved().language() == Language.hi;
+		try {
+			WriteHandler.Written w = writer.write(step.ownerId(), run, in, CallContext.step(step.runId(), step.stepId()));
+			if (w.markdown() != null) {
+				return w.markdown();
+			}
+			return hindi ? "इस हिस्से के लिए पर्याप्त सत्यापित प्रमाण नहीं मिला।"
+					: "Not enough verified evidence was found for this section.";
+		}
+		catch (NoModelForSlotException e) {
+			throw new StepFailedException("No AI model is set for writing. Choose one for \"Write\" in Settings → AI, "
+					+ "then retry this step.");
+		}
+		catch (ProviderUnavailableException e) {
+			throw new StepFailedException("Your AI provider didn't answer — it was busy or down. Anveshan will try again.",
+					true);
+		}
+		catch (InvalidLlmOutputException e) {
+			return hindi ? "यह हिस्सा लिखा नहीं जा सका। रिपोर्ट स्टूडियो में इसे दोबारा लिखवाएँ।"
+					: "This section couldn't be written. You can regenerate it in the Report Studio.";
+		}
 	}
 
 	/** One WRITE call for every conflict's possible reason; any failure just leaves the reasons out. */

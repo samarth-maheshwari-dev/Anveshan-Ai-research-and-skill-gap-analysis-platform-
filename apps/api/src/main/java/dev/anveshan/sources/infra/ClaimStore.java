@@ -99,11 +99,17 @@ public class ClaimStore {
 				.param("r", runId).param("c", claimId).param("k", chunkId).param("v", verdict).param("why", reason).update();
 	}
 
+	/**
+	 * The run's verdicts, except on passages of a source the user skipped in this run (E-FR-5). Sources found later
+	 * by "Find better sources" belong to a child run, not this one, and still count (F-FR-5).
+	 */
 	public List<VerdictRow> verdicts(UUID runId) {
 		return jdbc.sql("""
 				SELECT v.claim_id, v.chunk_id, c.source_id, v.verdict, d.credibility_tier
 				  FROM verdict v JOIN source_chunk c ON c.id = v.chunk_id JOIN source_document d ON d.id = c.source_id
-				 WHERE v.run_id = :r""")
+				 WHERE v.run_id = :r
+				   AND NOT EXISTS (SELECT 1 FROM run_source rs WHERE rs.run_id = v.run_id AND rs.source_id = c.source_id
+				                      AND rs.status = 'REJECTED_BY_USER')""")
 				.param("r", runId)
 				.query((rs, n) -> new VerdictRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class),
 						rs.getObject(3, UUID.class), rs.getString(4), rs.getString(5)))
