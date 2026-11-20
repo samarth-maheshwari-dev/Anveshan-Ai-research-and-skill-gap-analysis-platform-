@@ -99,10 +99,12 @@ public class ClaimStore {
 				.param("r", runId).param("c", claimId).param("k", chunkId).param("v", verdict).param("why", reason).update();
 	}
 
+	/** The run's verdicts on passages of sources it still USES (a skipped source no longer counts, E-FR-5). */
 	public List<VerdictRow> verdicts(UUID runId) {
 		return jdbc.sql("""
 				SELECT v.claim_id, v.chunk_id, c.source_id, v.verdict, d.credibility_tier
 				  FROM verdict v JOIN source_chunk c ON c.id = v.chunk_id JOIN source_document d ON d.id = c.source_id
+				  JOIN run_source rs ON rs.run_id = v.run_id AND rs.source_id = c.source_id AND rs.status = 'USED'
 				 WHERE v.run_id = :r""")
 				.param("r", runId)
 				.query((rs, n) -> new VerdictRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class),

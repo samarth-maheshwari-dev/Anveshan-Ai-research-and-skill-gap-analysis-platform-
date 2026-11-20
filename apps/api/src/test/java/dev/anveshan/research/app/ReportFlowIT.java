@@ -221,25 +221,8 @@ class ReportFlowIT {
 	@Test
 	@DisplayName("T-15-32 (API) skip a source after the section steps were planned → its claims are neither written nor cited")
 	void skipSourceAfterWritePlanned() throws Exception {
-		writeDelay.set(2500);
-		UUID run = approvedRun();
-		await().atMost(WAIT).pollInterval(Duration.ofMillis(100)).untilAsserted(() -> assertThat(
-				jdbc.sql("SELECT count(*) FROM research_step WHERE run_id = :r AND kind = 'WRITE_SECTION'")
-						.param("r", run).query(Long.class).single()).isPositive());
-		assertThat(perform(post("/api/v1/runs/" + run + "/pause")).getResponse().getStatus()).isEqualTo(202);
-		awaitStatus(run, RunStatus.PAUSED);
-		writeDelay.set(0);
-
-		// skip the source the planned sections lean on most, so both the written and the not-yet-written paths are hit
-		String skipped = jdbc.sql("""
-				SELECT cl.source_id::text FROM research_step s
-				  CROSS JOIN LATERAL jsonb_array_elements_text(s.input->'claimIds') AS ids(id)
-				  JOIN claim cl ON cl.id = ids.id::uuid
-				 WHERE s.run_id = :r AND s.kind = 'WRITE_SECTION'
-				 GROUP BY cl.source_id ORDER BY count(*) DESC, cl.source_id LIMIT 1""")
-				.param("r", run).query(String.class).single();
-		assertThat(perform(post("/api/v1/runs/" + run + "/sources/" + skipped + "/skip")).getResponse().getStatus())
-				.isEqualTo(204);
+		UUID run = pausedWhileWriting();
+		String skipped = skipMostWrittenSource(run);
 
 		assertThat(perform(post("/api/v1/runs/" + run + "/resume")).getResponse().getStatus()).isEqualTo(202);
 		awaitStatus(run, RunStatus.COMPLETED);
@@ -252,6 +235,62 @@ class ReportFlowIT {
 		// no citation node in any section (body, conflicts) points at it
 		report.path("sections").forEach(s -> assertThat(s.path("contentDoc").toString())
 				.doesNotContain("\"sourceId\":\"" + skipped + "\""));
+	}
+
+	@Test
+	@DisplayName("T-15-33 (API) skip a source after labelling → labels are computed again without its verdicts")
+	void skipSourceRelabels() throws Exception {
+		UUID run = pausedWhileWriting();
+		String skipped = mostWrittenSource(run);
+		assertThat(labelReasons(run)).as("before: some label leans on the source about to be skipped")
+				.anyMatch(r -> r.contains(skipped));
+		skip(run, skipped);
+
+		// at once, still paused: no label reason of the run mentions the skipped source any more
+		assertThat(labelReasons(run)).isNotEmpty().noneMatch(r -> r.contains(skipped));
+		assertThat(perform(post("/api/v1/runs/" + run + "/resume")).getResponse().getStatus()).isEqualTo(202);
+		awaitStatus(run, RunStatus.COMPLETED);
+		assertThat(labelReasons(run)).noneMatch(r -> r.contains(skipped));
+	}
+
+	/** Approves a run and pauses it once its section steps exist (each WRITE call is slow meanwhile). */
+	UUID pausedWhileWriting() throws Exception {
+		writeDelay.set(2500);
+		UUID run = approvedRun();
+		await().atMost(WAIT).pollInterval(Duration.ofMillis(100)).untilAsserted(() -> assertThat(
+				jdbc.sql("SELECT count(*) FROM research_step WHERE run_id = :r AND kind = 'WRITE_SECTION'")
+						.param("r", run).query(Long.class).single()).isPositive());
+		assertThat(perform(post("/api/v1/runs/" + run + "/pause")).getResponse().getStatus()).isEqualTo(202);
+		awaitStatus(run, RunStatus.PAUSED);
+		writeDelay.set(0);
+		return run;
+	}
+
+	/** Skips the source the planned sections lean on most (both written and not-yet-written sections are hit). */
+	String skipMostWrittenSource(UUID run) throws Exception {
+		String skipped = mostWrittenSource(run);
+		skip(run, skipped);
+		return skipped;
+	}
+
+	String mostWrittenSource(UUID run) {
+		return jdbc.sql("""
+				SELECT cl.source_id::text FROM research_step s
+				  CROSS JOIN LATERAL jsonb_array_elements_text(s.input->'claimIds') AS ids(id)
+				  JOIN claim cl ON cl.id = ids.id::uuid
+				 WHERE s.run_id = :r AND s.kind = 'WRITE_SECTION'
+				 GROUP BY cl.source_id ORDER BY count(*) DESC, cl.source_id LIMIT 1""")
+				.param("r", run).query(String.class).single();
+	}
+
+	void skip(UUID run, String source) throws Exception {
+		assertThat(perform(post("/api/v1/runs/" + run + "/sources/" + source + "/skip")).getResponse().getStatus())
+				.isEqualTo(204);
+	}
+
+	List<String> labelReasons(UUID run) {
+		return jdbc.sql("SELECT label_reason::text FROM run_claim WHERE run_id = :r AND label_reason IS NOT NULL")
+				.param("r", run).query(String.class).list();
 	}
 
 	// --- the scripted LLM ---

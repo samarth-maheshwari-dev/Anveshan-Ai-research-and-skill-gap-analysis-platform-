@@ -18,6 +18,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import dev.anveshan.byok.api.NoModelForSlotException;
 import dev.anveshan.byok.api.RouteQuery;
 import dev.anveshan.report.api.Reports;
+import dev.anveshan.sources.api.ClaimLibrary;
 import dev.anveshan.sources.api.SourceLibrary;
 import dev.anveshan.byok.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.PauseReason;
@@ -99,10 +100,12 @@ public class RunService {
 	private final PlanService plans;
 	private final Reports reports;
 	private final SourceLibrary sources;
+	private final ClaimLibrary claims;
 
 	RunService(RunStore runs, StepStore steps, RunEngine engine, RunEvents events, SseHub hub,
 			TransactionTemplate researchTx, JsonMapper json, Clock clock, TemplateStore templates, RouteQuery routes,
-			PlanService plans, Reports reports, SourceLibrary sources) {
+			PlanService plans, Reports reports, SourceLibrary sources, ClaimLibrary claims) {
+		this.claims = claims;
 		this.reports = reports;
 		this.sources = sources;
 		this.templates = templates;
@@ -242,6 +245,12 @@ public class RunService {
 		}
 		if (!sources.skip(id, sourceId)) {
 			throw ApiException.notFound();
+		}
+		// labels already computed leaned on this source's verdicts too: compute them again without it
+		boolean labelled = steps.forRun(id).stream()
+				.anyMatch(st -> st.kind() == StepKind.LABEL && st.status() == StepStatus.DONE);
+		if (labelled) {
+			claims.labelRun(id);
 		}
 		tx.executeWithoutResult(s -> events.emit(id, "source.skipped", Map.of("sourceId", sourceId)));
 	}
