@@ -43,7 +43,7 @@ import tools.jackson.databind.json.JsonMapper;
 class WriteHandler implements StepHandler {
 
 	static final String PROMPT = "writer";
-	static final int PROMPT_VERSION = 1;
+	static final int PROMPT_VERSION = 2;
 
 	record WriteOutput(@NotBlank @Size(max = 30_000) String markdown) {
 	}
@@ -187,7 +187,7 @@ class WriteHandler implements StepHandler {
 		values.put("sectionPurpose", Planner.data(in.path("instructions").asString("")));
 		values.put("otherSections", Planner.data(others.isEmpty() ? "none" : String.join(", ", others)));
 		values.put("claims", claimList.toString().strip());
-		Prompt prompt = prompts.load(PROMPT, PROMPT_VERSION, values, 0.4, 2500);
+		Prompt prompt = prompts.load(PROMPT, PROMPT_VERSION, values, 0.4, 4000);
 
 		String markdown = gateway.call(ownerId, TaskSlot.WRITE, prompt, WriteOutput.class, context).value().markdown();
 		Reports.MarkerCheck r = reports.checkMarkers(markdown.replaceAll("(?m)^#\\s+.*$", "").strip(), aliases);

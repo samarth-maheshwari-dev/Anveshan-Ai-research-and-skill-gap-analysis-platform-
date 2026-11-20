@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.domain.ResearchSize;
+import dev.anveshan.research.domain.SectionClaims;
 import dev.anveshan.research.infra.StepStore;
 import dev.anveshan.research.infra.SubQuestionStore;
 import dev.anveshan.sources.api.ClaimLibrary;
@@ -32,8 +33,9 @@ class ResearchStages implements StageMaterializer {
 
 	static final int SOURCES_PER_EXTRACT = 3;
 	static final int CLAIMS_PER_VERIFY = 9;
-	/** Claims a section gets: its closest ones (TD token diet), plus leftovers so every usable claim is used once. */
-	static final int CLAIMS_PER_SECTION = 15;
+	/** A thin section borrows its closest claims up to this many (the only overlap between sections). */
+	static final int MIN_CLAIMS_PER_SECTION = 3;
+	/** TD token diet: never more claims than this in one WRITE call. */
 	static final int MAX_CLAIMS_PER_SECTION = 25;
 
 	private final SubQuestionStore subQuestions;
@@ -146,41 +148,20 @@ class ResearchStages implements StageMaterializer {
 	}
 
 	/**
-	 * One WRITE step per section. Each section gets the usable claims (SUPPORTED / WEAK, sources still used) closest
-	 * in meaning to it — local embeddings, no LLM — and every usable claim goes to at least one section.
+	 * One WRITE step per section. Each usable claim (SUPPORTED / WEAK, source still used) goes to the section closest
+	 * to it in meaning — local embeddings, no LLM — so sections don't repeat each other (SectionClaims).
 	 */
 	private List<NewStep> writeSteps(RunSnapshot run) {
 		RunConfig config = json.readValue(run.configJson(), RunConfig.class).resolved();
 		List<ReportSections.Spec> specs = sections.specs(config);
-		List<List<ClaimLibrary.Match>> matches = new ArrayList<>();
+		List<List<SectionClaims.Scored>> scores = new ArrayList<>();
 		for (ReportSections.Spec s : specs) {
 			float[] v = embeddings.query(run.topic() + " — " + s.title() + ". " + s.instructions());
-			matches.add(claims.usableMatches(run.id(), v));
+			scores.add(claims.usableMatches(run.id(), v).stream()
+					.map(m -> new SectionClaims.Scored(m.claimId().toString(), m.similarity())).toList());
 		}
-		List<java.util.LinkedHashSet<String>> assigned = new ArrayList<>();
-		Set<String> used = new HashSet<>();
-		for (List<ClaimLibrary.Match> m : matches) {
-			java.util.LinkedHashSet<String> mine = new java.util.LinkedHashSet<>();
-			m.stream().limit(CLAIMS_PER_SECTION).forEach(x -> mine.add(x.claimId().toString()));
-			used.addAll(mine);
-			assigned.add(mine);
-		}
-		// leftovers: each to the section it is closest to (while that section has room)
-		Map<String, double[]> best = new HashMap<>();
-		for (int i = 0; i < matches.size(); i++) {
-			for (ClaimLibrary.Match x : matches.get(i)) {
-				String id = x.claimId().toString();
-				if (!used.contains(id) && (!best.containsKey(id) || x.similarity() > best.get(id)[1])) {
-					best.put(id, new double[] { i, x.similarity() });
-				}
-			}
-		}
-		best.forEach((id, b) -> {
-			var target = assigned.get((int) b[0]);
-			if (target.size() < MAX_CLAIMS_PER_SECTION) {
-				target.add(id);
-			}
-		});
+		List<java.util.LinkedHashSet<String>> assigned = SectionClaims.assign(scores, MIN_CLAIMS_PER_SECTION,
+				MAX_CLAIMS_PER_SECTION);
 		List<String> titles = specs.stream().map(ReportSections.Spec::title).toList();
 		List<NewStep> out = new ArrayList<>();
 		for (int i = 0; i < specs.size(); i++) {

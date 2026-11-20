@@ -58,6 +58,7 @@ class DefaultReports implements Reports {
 		Set<UUID> cited = new LinkedHashSet<>();
 		in.sections().forEach(s -> cited.addAll(Markers.citedClaims(s.markdown())));
 		in.conflicts().forEach(c -> cited.add(c.claimId()));
+		in.openQuestions().forEach(q -> cited.add(q.claimId()));
 		Map<UUID, ReportClaim> claimById = new HashMap<>();
 		claims.reportClaims(in.runId(), List.copyOf(cited)).forEach(c -> claimById.put(c.id(), c));
 
@@ -75,6 +76,9 @@ class DefaultReports implements Reports {
 			reading.addAll(c.supporting());
 			reading.addAll(c.contradicting());
 		}
+		List<OpenQuestionDraft> open = in.openQuestions().stream().filter(q -> claimById.containsKey(q.claimId()))
+				.toList();
+		open.forEach(q -> reading.add(claimById.get(q.claimId()).sourceId()));
 		Map<UUID, Integer> numbers = CitationNumbering.number(reading);
 		Map<UUID, SourceInfo> info = new LinkedHashMap<>();
 		sources.describe(List.copyOf(numbers.keySet())).forEach(s -> info.put(s.id(), s));
@@ -100,7 +104,7 @@ class DefaultReports implements Reports {
 			out.add(new NewSection(s.key(), s.title(), TipTapDoc.from(s.markdown(), cite),
 					TipTapDoc.markdownWithNumbers(s.markdown(), numberOfClaim, (c, src) -> numbers.get(src))));
 		}
-		String conflictsMd = conflicts(in.conflicts(), info, hindi);
+		String conflictsMd = conflicts(in.conflicts(), open, info, hindi);
 		out.add(new NewSection(CONFLICTS_KEY, hindi ? "विरोधाभास और खुले प्रश्न" : "Conflicts & open questions",
 				TipTapDoc.from(conflictsMd, cite),
 				TipTapDoc.markdownWithNumbers(conflictsMd, numberOfClaim, (c, src) -> numbers.get(src))));
@@ -187,8 +191,29 @@ class DefaultReports implements Reports {
 		return refs;
 	}
 
-	/** F-FR-11: both sides of every conflict with their sources, plus the one-line possible reason. */
-	static String conflicts(List<ConflictDraft> conflicts, Map<UUID, SourceInfo> info, boolean hindi) {
+	/**
+	 * F-FR-11: both sides of every conflict with their sources, plus the one-line possible reason. Then the open
+	 * questions: NO_SOURCE claims, each cited to the source it came from, so they are visible instead of dropped.
+	 */
+	static String conflicts(List<ConflictDraft> conflicts, List<OpenQuestionDraft> open, Map<UUID, SourceInfo> info,
+			boolean hindi) {
+		String body = conflictLines(conflicts, info, hindi);
+		if (open.isEmpty()) {
+			return body;
+		}
+		StringBuilder md = new StringBuilder(body).append("\n\n");
+		md.append("**").append(hindi ? "खुले प्रश्न" : "Open questions").append("**\n\n");
+		md.append(hindi
+				? "ये बातें किसी स्रोत में मिलीं, लेकिन जाँच में इनकी पुष्टि नहीं हुई। इन्हें अपुष्ट मानें:"
+				: "These statements appear in a source, but the check could not confirm them. Treat them as unverified:")
+				.append("\n\n");
+		for (OpenQuestionDraft q : open) {
+			md.append("- ").append(escape(q.text())).append(" [c:").append(q.claimId()).append("]\n");
+		}
+		return md.toString().strip();
+	}
+
+	private static String conflictLines(List<ConflictDraft> conflicts, Map<UUID, SourceInfo> info, boolean hindi) {
 		if (conflicts.isEmpty()) {
 			return hindi ? "स्रोतों के बीच कोई विरोधाभास नहीं मिला।" : "No conflicting evidence was found between the sources.";
 		}

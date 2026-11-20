@@ -126,7 +126,7 @@ anveshan:
   # How the key test and default routing order a provider's model list (ModelRanking).
   model-ranking:
     # ids that can't answer a chat request: embeddings, speech, images, video, safety classifiers, Responses-only …
-    exclude: [embed, tts, audio, image, vision, veo, aqa, guard, moderation, whisper, transcri, realtime, "(^|[-_/.:])live([-_/.:]|$)", computer-use, robotics, learnlm, search, dall-e, sora, codex, babbage, davinci]
+    exclude: [embed, tts, audio, speech, orpheus, playai, image, vision, veo, aqa, guard, moderation, whisper, transcri, realtime, "(^|[-_/.:])live([-_/.:]|$)", computer-use, robotics, learnlm, search, dall-e, sora, codex, babbage, davinci]
     # pre-release names rank after stable ones
     unstable: ["(^|[-_/.:])(preview|exp|experimental|beta|alpha)([-_/.:]|\\d|$)"]
   # A provider's live model list (A-FR-5) and the key test that uses it.
@@ -162,7 +162,8 @@ anveshan:
   fetch:
     min-text-chars: 200       # less readable text than this = paywall stub / empty shell → unavailable
     max-pdf-pages: 60
-    parallel: 4               # pages fetched at once per sub-question
+    parallel: 6               # pages fetched at once per sub-question (D-107: 4 → 6, FETCH was the slowest step)
+    max-chunks: 120           # only the first 120 chunks (~140k chars) of a long document are embedded (D-107)
     robots-ttl: 1d
     extra-ports: []           # tests only (local fake site); production allows 80/443 only
   # Research run engine (TECHSPEC §12.2)

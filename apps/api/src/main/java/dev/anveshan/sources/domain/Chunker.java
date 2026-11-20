@@ -45,6 +45,17 @@ public final class Chunker {
 	/**
 	 * @param pageStarts for PDFs: the offset where each page begins (ascending, first = 0); null for web pages
 	 */
+	/**
+	 * The first {@code maxChunks} chunks of a document, in order (speed cap, D-107): only a source's best few chunks
+	 * ever reach a prompt, so embedding all 475 chunks of one long paper only cost time. Pure.
+	 */
+	public static List<Chunk> firstChunks(List<Chunk> chunks, int maxChunks) {
+		if (maxChunks < 1) {
+			throw new IllegalArgumentException("maxChunks must be >= 1");
+		}
+		return chunks.size() <= maxChunks ? chunks : List.copyOf(chunks.subList(0, maxChunks));
+	}
+
 	public static List<Chunk> chunk(String text, int maxChars, int[] pageStarts) {
 		List<Span> units = units(text, maxChars);
 		List<Chunk> out = new ArrayList<>();

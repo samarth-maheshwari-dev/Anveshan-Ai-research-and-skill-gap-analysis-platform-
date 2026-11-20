@@ -43,6 +43,8 @@ import tools.jackson.databind.json.JsonMapper;
 class AssembleHandler implements StepHandler {
 
 	static final int MAX_CONFLICTS = 20;
+	/** NO_SOURCE claims listed as open questions (by code, no LLM). */
+	static final int MAX_OPEN_QUESTIONS = 15;
 
 	record ReasonsOutput(@NotNull @Size(max = 40) List<@Valid Reason> reasons) {
 	}
@@ -103,8 +105,11 @@ class AssembleHandler implements StepHandler {
 					reasons.get("K" + (i + 1))));
 		}
 
+		List<Reports.OpenQuestionDraft> open = claims.openQuestions(step.runId(), MAX_OPEN_QUESTIONS).stream()
+				.map(q -> new Reports.OpenQuestionDraft(q.claimId(), q.text())).toList();
+
 		Assembled a = reports.assemble(new Reports.AssembleInput(step.runId(), step.ownerId(), run.topic(),
-				config.language().name(), drafts, conflictDrafts));
+				config.language().name(), drafts, conflictDrafts, open));
 
 		Map<String, Object> output = new LinkedHashMap<>();
 		output.put("reportId", a.reportId());
@@ -112,6 +117,7 @@ class AssembleHandler implements StepHandler {
 		output.put("citations", a.citations());
 		output.put("sources", a.sources());
 		output.put("conflicts", conflicts.size());
+		output.put("openQuestions", open.size());
 		List<NewEvent> events = List.of(
 				new NewEvent("log", Map.of("stepId", step.stepId(), "level", "INFO", "message",
 						"Report ready: " + drafts.size() + " sections, " + a.citations() + " citations from "

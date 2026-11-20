@@ -198,7 +198,9 @@ class DefaultSourceSearch implements SourceSearch {
 			if (req.since() != null && c.published() != null && c.published().isBefore(req.since())) {
 				continue;
 			}
-			out.add(new Candidate(c.title().strip(), url, doi, c.snippet(), c.published(), c.type(), c.adapter(), 0));
+			String oa = Urls.canonical(c.openAccessUrl());
+			out.add(new Candidate(c.title().strip(), url, doi, c.snippet(), c.published(), c.type(), c.adapter(), 0,
+					oa == null || oa.equals(url) || oa.equals(doi) ? null : oa));
 		}
 		return out;
 	}

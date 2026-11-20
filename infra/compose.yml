@@ -49,6 +49,7 @@ services:
       ANV_TINK_KEYSET_FILE: /run/secrets/tink_keyset
       ANV_TINK_EPHEMERAL: ${ANV_TINK_EPHEMERAL:-false}   # true only in CI (throwaway key)
       ANV_SEARXNG_URL: http://searxng:8080/          # internal network only
+      ANV_EMBEDDINGS_THREADS: ${ANV_EMBEDDINGS_THREADS:-6}   # D-107: FETCH (embedding) was the slowest step on 2 threads
     secrets: [tink_keyset]
     # loopback only, IPv4 and IPv6: Windows resolves "localhost" to ::1 first. 8081 (actuator) is NOT published
     ports: ["127.0.0.1:8080:8080", "[::1]:8080:8080"]

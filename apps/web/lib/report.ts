@@ -2,6 +2,10 @@
  * Pure helpers for the Report Studio (S-08). No React, no fetch — unit-tested in lib/__tests__/report.test.ts.
  */
 
+import type { components } from "@/lib/api/schema";
+
+type Evidence = Pick<components["schemas"]["EvidenceView"], "own" | "verdict" | "credibilityTier">;
+
 export type TrustCounts = { SUPPORTED: number; WEAK: number; CONFLICTING: number; NO_SOURCE: number };
 
 /** EvidenceBar counts: one per cited claim, by its current label (PRD §5.4.2: shown first). */
@@ -93,4 +97,34 @@ export function refreshStatusText(status: string | undefined, before?: string, a
   if (status === "FAILED" || status === "CANCELLED") return "The search for better sources stopped. Try again later.";
   if (status === "PAUSED") return "Paused: your AI limit was reached. It continues when the limit resets.";
   return "Looking for stronger sources…";
+}
+
+/**
+ * Why a claim has its label, in one sentence, from the verdicts the server stored (the label itself is computed by
+ * code on the server — PRD §14.3 + D-106 independent-source rule). Shown under the label in the citation panel.
+ */
+export function labelExplanation(label: string | undefined, evidence: Evidence[] | undefined): string {
+  const all = evidence ?? [];
+  const others = all.filter((e) => !e.own);
+  const credible = (e: Evidence) => e.credibilityTier === "HIGH" || e.credibilityTier === "MEDIUM";
+  const otherSupports = others.filter((e) => e.verdict === "SUPPORTS");
+  const contradicts = others.filter((e) => e.verdict === "CONTRADICTS" && credible(e)).length;
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  switch (label) {
+    case "SUPPORTED": {
+      const n = otherSupports.filter(credible).length;
+      return `Confirmed by ${plural(n, "other credible source")}, not only the one it came from.`;
+    }
+    case "CONFLICTING":
+      return `Sources disagree: ${plural(contradicts, "credible source")} ${contradicts === 1 ? "says" : "say"} the opposite. Read both sides before you rely on it.`;
+    case "WEAK":
+      if (otherSupports.length > 0) return "Only low-credibility sources confirm it (blogs, forums or unknown authors).";
+      if (all.some((e) => e.verdict === "PARTIAL")) return "The sources only partly match this claim.";
+      return "Only the source it came from says this. No other source in this research confirmed it yet.";
+    case "NO_SOURCE":
+      if (all.length === 0) return "This claim couldn't be checked: the AI didn't give a verdict for it.";
+      return "Not even the source it came from clearly says this. Treat it as unverified.";
+    default:
+      return "";
+  }
 }

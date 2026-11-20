@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/errors";
 import { useFindBetterSources, usePassage } from "@/lib/api/hooks/reports";
 import { useRun } from "@/lib/api/hooks/runs";
-import { refreshStatusText, splitHighlight } from "@/lib/report";
+import { labelExplanation, refreshStatusText, splitHighlight } from "@/lib/report";
 
 const VERDICT: Record<string, string> = {
   SUPPORTS: "Supports",
@@ -82,6 +82,11 @@ export function CitationPanel({ reportId, claimId, refreshes, onRefreshStarted }
         <p className="font-mono text-micro uppercase text-subtle-foreground">Claim</p>
         <p className="mt-1 text-body">{p.claimText}</p>
         {label && <TrustLabel className="mt-2" label={label} />}
+        {label && (
+          <p className="mt-2 text-body-sm text-muted-foreground" data-testid="label-explanation">
+            {labelExplanation(label, p.evidence)}
+          </p>
+        )}
       </div>
 
       <div className="border-t border-border pt-4">
@@ -116,6 +121,13 @@ export function CitationPanel({ reportId, claimId, refreshes, onRefreshStarted }
           {parts.after}
         </blockquote>
       </figure>
+
+      {others.length === 0 && (
+        <div className="border-t border-border pt-4">
+          <p className="font-mono text-micro uppercase text-subtle-foreground">Checked against</p>
+          <p className="mt-2 text-body-sm text-muted-foreground">No other source in this research was checked for this claim.</p>
+        </div>
+      )}
 
       {others.length > 0 && (
         <div className="border-t border-border pt-4">

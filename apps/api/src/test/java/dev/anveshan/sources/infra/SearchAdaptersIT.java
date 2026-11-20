@@ -87,6 +87,8 @@ class SearchAdaptersIT {
 		assertThat(c.get(0).url()).isEqualTo("https://doi.org/10.1000/LOSTFOUND.2023");
 		assertThat(c.get(0).snippet()).isEqualTo("We compare campus lost and found apps.");
 		assertThat(c.get(0).published()).isEqualTo(LocalDate.of(2023, 4, 2));
+		assertThat(c.get(0).openAccessUrl()).as("T-15-28 the free full-text copy is kept for the fetch fallback")
+				.isEqualTo("https://journal.example/lf.pdf");
 		assertThat(c.get(1).url()).as("no DOI → landing page").isEqualTo("https://repo.example/w2");
 		assertThat(c.get(1).type()).isEqualTo(CandidateType.PREPRINT);
 		String query = FAKE.requestsTo("openalex").get(0).uri().getQuery();

@@ -91,4 +91,13 @@ public interface ClaimLibrary {
 	record Conflict(UUID claimId, String text, List<UUID> supportingSources, List<UUID> contradictingSources) {
 	}
 
+	/**
+	 * NO_SOURCE claims of the run (not from skipped sources), at most {@code limit}: statements found in a source that
+	 * the check could not confirm. The report lists them under "open questions" instead of hiding them (PRD §14.2).
+	 */
+	List<OpenQuestion> openQuestions(UUID runId, int limit);
+
+	record OpenQuestion(UUID claimId, String text) {
+	}
+
 }

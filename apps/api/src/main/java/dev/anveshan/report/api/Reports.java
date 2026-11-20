@@ -18,8 +18,17 @@ public interface Reports {
 	record ConflictDraft(UUID claimId, String text, List<UUID> supporting, List<UUID> contradicting, String reason) {
 	}
 
+	/** A NO_SOURCE claim: found in a source, but the check couldn't confirm it. Listed as an open question. */
+	record OpenQuestionDraft(UUID claimId, String text) {
+	}
+
 	record AssembleInput(UUID runId, UUID ownerId, String title, String language, List<SectionDraft> sections,
-			List<ConflictDraft> conflicts) {
+			List<ConflictDraft> conflicts, List<OpenQuestionDraft> openQuestions) {
+
+		public AssembleInput {
+			openQuestions = openQuestions == null ? List.of() : List.copyOf(openQuestions);
+		}
+
 	}
 
 	record Assembled(UUID reportId, int sections, int citations, int sources) {

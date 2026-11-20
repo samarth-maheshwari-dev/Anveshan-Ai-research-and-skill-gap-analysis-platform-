@@ -125,14 +125,15 @@ class DefaultClaimLibrary implements ClaimLibrary {
 		for (VerdictRow v : store.verdicts(runId)) {
 			byClaim.computeIfAbsent(v.claimId(), k -> new ArrayList<>()).add(v);
 		}
+		Map<UUID, UUID> ownSource = store.runClaimSources(runId);
 		int[] counts = new int[4];
 		tx.executeWithoutResult(s -> {
-			for (UUID claimId : store.runClaimIds(runId)) {
-				List<VerdictRow> rows = byClaim.getOrDefault(claimId, List.of());
-				TrustLabel label = TrustLabeler.label(rows.stream()
-						.map(v -> new Judged(Verdict.valueOf(v.verdict()), Tier.valueOf(v.tier()))).toList());
+			for (Map.Entry<UUID, UUID> e : ownSource.entrySet()) {
+				List<VerdictRow> rows = byClaim.getOrDefault(e.getKey(), List.of());
+				List<Judged> judged = judged(rows, e.getValue());
+				TrustLabel label = TrustLabeler.label(judged);
 				counts[label.ordinal()]++;
-				store.setLabel(runId, claimId, label.name(), json.writeValueAsString(reason(rows)));
+				store.setLabel(runId, e.getKey(), label.name(), json.writeValueAsString(reason(rows, judged)));
 			}
 		});
 		return new LabelCounts(counts[TrustLabel.SUPPORTED.ordinal()], counts[TrustLabel.WEAK.ordinal()],
@@ -141,14 +142,27 @@ class DefaultClaimLibrary implements ClaimLibrary {
 
 	@Override
 	public String labelClaim(UUID runId, UUID claimId) {
-		if (!store.runClaimIds(runId).contains(claimId)) {
+		UUID own = store.runClaimSources(runId).get(claimId);
+		if (own == null) {
 			return null;
 		}
 		List<VerdictRow> rows = store.verdicts(runId).stream().filter(v -> v.claimId().equals(claimId)).toList();
-		TrustLabel label = TrustLabeler.label(rows.stream()
-				.map(v -> new Judged(Verdict.valueOf(v.verdict()), Tier.valueOf(v.tier()))).toList());
-		tx.executeWithoutResult(s -> store.setLabel(runId, claimId, label.name(), json.writeValueAsString(reason(rows))));
+		List<Judged> judged = judged(rows, own);
+		TrustLabel label = TrustLabeler.label(judged);
+		tx.executeWithoutResult(s -> store.setLabel(runId, claimId, label.name(),
+				json.writeValueAsString(reason(rows, judged))));
 		return label.name();
+	}
+
+	@Override
+	public List<OpenQuestion> openQuestions(UUID runId, int limit) {
+		return store.openQuestions(runId, limit);
+	}
+
+	/** The verdicts as the labeler sees them: a passage of the claim's own source is not independent (D-106). */
+	private static List<Judged> judged(List<VerdictRow> rows, UUID ownSourceId) {
+		return rows.stream().map(v -> new Judged(Verdict.valueOf(v.verdict()), Tier.valueOf(v.tier()),
+				!v.sourceId().equals(ownSourceId))).toList();
 	}
 
 	@Override
@@ -184,11 +198,18 @@ class DefaultClaimLibrary implements ClaimLibrary {
 	}
 
 	/** Which verdicts produced the label, so the UI can show "supported by 2 sources (1 high)". */
-	private static Map<String, Object> reason(List<VerdictRow> rows) {
+	private static Map<String, Object> reason(List<VerdictRow> rows, List<Judged> judged) {
 		Map<String, Object> r = new LinkedHashMap<>();
-		r.put("rule", "PRD §14.3");
-		r.put("verdicts", rows.stream().map(v -> Map.of("chunkId", v.chunkId(), "sourceId", v.sourceId(), "verdict",
-				v.verdict(), "tier", v.tier())).toList());
+		r.put("rule", "PRD §14.3 + D-106 independent source");
+		r.put("checked", !rows.isEmpty());
+		r.put("independentSupports", TrustLabeler.independentSupports(judged));
+		List<Map<String, Object>> verdicts = new ArrayList<>();
+		for (int i = 0; i < rows.size(); i++) {
+			VerdictRow v = rows.get(i);
+			verdicts.add(Map.of("chunkId", v.chunkId(), "sourceId", v.sourceId(), "verdict", v.verdict(), "tier", v.tier(),
+					"own", !judged.get(i).independent()));
+		}
+		r.put("verdicts", verdicts);
 		return r;
 	}
 

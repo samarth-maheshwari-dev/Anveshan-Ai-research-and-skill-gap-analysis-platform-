@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   countLabels,
   insertableContent,
+  labelExplanation,
   plainText,
   refreshStatusText,
   saveStateText,
@@ -51,5 +52,24 @@ describe("Report Studio helpers (S-08)", () => {
     expect(refreshStatusText("COMPLETED", "WEAK", "WEAK")).toContain("No stronger sources");
     expect(refreshStatusText("FAILED")).toContain("stopped");
     expect(refreshStatusText("PAUSED")).toContain("AI limit");
+  });
+
+  test("T-15-25 labelExplanation: why a label, in words — own source alone is single-source, unchecked claims say so", () => {
+    const own = { own: true, verdict: "SUPPORTS", credibilityTier: "HIGH" };
+    expect(labelExplanation("WEAK", [own, { own: false, verdict: "INSUFFICIENT", credibilityTier: "HIGH" }])).toBe(
+      "Only the source it came from says this. No other source in this research confirmed it yet.",
+    );
+    expect(labelExplanation("WEAK", [own, { own: false, verdict: "SUPPORTS", credibilityTier: "LOW" }])).toContain("low-credibility");
+    expect(labelExplanation("WEAK", [{ own: true, verdict: "PARTIAL", credibilityTier: "HIGH" }])).toContain("partly");
+    expect(labelExplanation("SUPPORTED", [own, { own: false, verdict: "SUPPORTS", credibilityTier: "MEDIUM" }])).toBe(
+      "Confirmed by 1 other credible source, not only the one it came from.",
+    );
+    expect(
+      labelExplanation("CONFLICTING", [own, { own: false, verdict: "CONTRADICTS", credibilityTier: "HIGH" }, { own: false, verdict: "CONTRADICTS", credibilityTier: "MEDIUM" }]),
+    ).toContain("2 credible sources say the opposite");
+    expect(labelExplanation("NO_SOURCE", [])).toContain("couldn't be checked");
+    expect(labelExplanation("NO_SOURCE", undefined)).toContain("couldn't be checked");
+    expect(labelExplanation("NO_SOURCE", [{ own: true, verdict: "INSUFFICIENT", credibilityTier: "HIGH" }])).toContain("unverified");
+    expect(labelExplanation(undefined, [])).toBe("");
   });
 });
