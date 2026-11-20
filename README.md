@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P14 are done: sign in, connect your own AI key, start a research, review and approve the plan, watch it search and read sources, extract, verify and label claims, and get a written report with numbered citations. Editing the report and export come next, in P15–P16. See [Progress](#progress).
+> **Status:** early development. Phases P00–P14 are done and P15 (Report Studio) is built: sign in, connect your own AI key, start a research, review and approve the plan, watch it search and read sources, extract, verify and label claims, get a written report with numbered citations, then edit it with the exact source passage behind every citation. Export comes next, in P16. See [Progress](#progress).
 
 ## What works today
 
@@ -14,10 +14,12 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 - **Review the plan before anything is spent.** The AI splits your question into 1–8 sub-questions. Edit, reorder, delete or add them, or ask for a new plan ("focus on India"). The estimate — AI requests, minutes, and the share of each key's remaining daily quota — updates as you edit.
 - **Search.** After approval each sub-question is searched across up to 8 free sources at once — research papers, preprints, Wikipedia, GitHub, the web — then de-duplicated and ranked on your machine (no AI request). A source that is down is skipped and noted.
 - **Read.** The best results are opened and read: main text only (no menus, ads or scripts), PDFs page by page, sites that opt out via robots.txt are skipped. Each source gets a credibility tier with a reason (peer-reviewed paper, official docs, preprint, blog …), and the passages most relevant to each sub-question are picked — all locally, no AI request.
-- **Check.** Each passage becomes short factual claims, each tied to the exact sentence it came from (located by code, never trusted from the AI). Every claim is checked against other sources and labelled by fixed rules: Supported, Weak evidence, Conflicting or No source.
+- **Check.** Each passage becomes short factual claims, each tied to the exact sentence it came from (located by code, never trusted from the AI). Every claim is checked against other sources and labelled by fixed rules: Supported, Weak evidence, Conflicting or No source. A claim is Supported only when a credible source *other than the one it came from* backs it. A batch too large for the AI model is checked in halves instead of stalling the run.
 - **Write.** Each report section is written only from Supported and Weak-evidence claims; every sentence carries a citation that code checks (unknown ones are removed). Citations are numbered by first appearance, references are formatted in IEEE, and a Conflicts section lists claims the sources disagree on — built by code, with a one-line reason from the AI.
-- **Read the report.** A clean report page with numbered citations, trust labels (icon + word), an evidence summary and references. Your dashboard lists every research with its status.
-- **Live Room.** Watch a research as it happens: steps and progress, sources as they are found (skip any you don't want), conflicts, and a live log. Close the tab and come back later — it kept going and the log is still there.
+- **Read the report.** A clean report page with numbered citations, trust labels (icon + word), an evidence summary, open questions (claims no source could confirm) and references. Your dashboard lists every research with its status.
+- **Report Studio.** Edit any section in a rich-text editor; citations stay attached to their claims and renumber themselves. Click a citation to see the exact passage it came from, highlighted, and which other sources were checked. Ask the AI to simplify, add detail or translate to Hindi a selected passage, regenerate a section from its own claims, or "find better sources" for a weak claim. Every save is a version you can restore.
+- **Live Room.** Watch a research as it happens: steps and progress, sources as they are found, conflicts, and a live log. Close the tab and come back later — it kept going and the log is still there.
+- **Skip a source** you don't trust while the research runs (pause, skip, resume). It is gone for good: never cited, its claims never written, labels recomputed without it, and a section already written from it is written again.
 - **Approve and watch it run.** Runs are durable: pause, resume or stop them, and they continue where they left off after a crash or an AI rate limit. A busy AI provider is retried; if it still fails you get a plain explanation and a "Start again" button.
 
 ## What it does (full plan)
@@ -131,7 +133,8 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P12 | Read sources: robots.txt respected, web pages cleaned to their main text, PDFs read page by page, split into passages and embedded locally, credibility rated with a reason; public pages shared across runs, your own files kept private | ✅ Done |
 | P13 | Claims: atomic facts extracted with an exact quote whose position is found by code (exact / normalized / fuzzy), checked against other sources, trust-labelled by rules (Supported / Weak / Conflicting / No source); claims reused across runs; instructions hidden in web pages are ignored | ✅ Done |
 | P14 | Report: sections written from verified claims only, code-checked citation markers, numbering by first appearance, IEEE/APA references, Conflicts section by code; Live Room (steps, sources with Skip, conflicts, live log that survives closing the tab); read-only report page; research list on the dashboard | ✅ Done |
-| P15–P16 | Report Studio (edit, citation panel, versions), export | Next |
+| P15 | Report Studio: rich-text editing with live citation renumbering, citation panel with the exact passage, versions + restore, AI assist, regenerate, find better sources; independent-source labelling, open questions; skipped sources fully removed from the report | 🟡 Built, PR open |
+| P16 | Export (PDF / DOCX) + golden-set evaluation | Next |
 | P17–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
 
 ## Security
