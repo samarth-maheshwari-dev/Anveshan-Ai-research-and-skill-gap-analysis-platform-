@@ -98,9 +98,14 @@ class ReportFlowIT {
 	/** Milliseconds each EXTRACT call waits — gives the skip test a window to pause the run. */
 	final AtomicLong extractDelay = new AtomicLong();
 
+	/** Milliseconds each section WRITE call waits — lets a test pause after the write steps were planned. */
+	final AtomicLong writeDelay = new AtomicLong();
+
 	@BeforeEach
 	void setUp() {
 		APIS.reset();
+		extractDelay.set(0);
+		writeDelay.set(0);
 		user = newUser();
 		// two preprints (MEDIUM tier) on the fake site; the other academic APIs find nothing
 		APIS.respond("openalex", """
@@ -213,6 +218,42 @@ class ReportFlowIT {
 				.query(Long.class).single()).isEqualTo(2);
 	}
 
+	@Test
+	@DisplayName("T-15-32 (API) skip a source after the section steps were planned → its claims are neither written nor cited")
+	void skipSourceAfterWritePlanned() throws Exception {
+		writeDelay.set(2500);
+		UUID run = approvedRun();
+		await().atMost(WAIT).pollInterval(Duration.ofMillis(100)).untilAsserted(() -> assertThat(
+				jdbc.sql("SELECT count(*) FROM research_step WHERE run_id = :r AND kind = 'WRITE_SECTION'")
+						.param("r", run).query(Long.class).single()).isPositive());
+		assertThat(perform(post("/api/v1/runs/" + run + "/pause")).getResponse().getStatus()).isEqualTo(202);
+		awaitStatus(run, RunStatus.PAUSED);
+		writeDelay.set(0);
+
+		// skip the source the planned sections lean on most, so both the written and the not-yet-written paths are hit
+		String skipped = jdbc.sql("""
+				SELECT cl.source_id::text FROM research_step s
+				  CROSS JOIN LATERAL jsonb_array_elements_text(s.input->'claimIds') AS ids(id)
+				  JOIN claim cl ON cl.id = ids.id::uuid
+				 WHERE s.run_id = :r AND s.kind = 'WRITE_SECTION'
+				 GROUP BY cl.source_id ORDER BY count(*) DESC, cl.source_id LIMIT 1""")
+				.param("r", run).query(String.class).single();
+		assertThat(perform(post("/api/v1/runs/" + run + "/sources/" + skipped + "/skip")).getResponse().getStatus())
+				.isEqualTo(204);
+
+		assertThat(perform(post("/api/v1/runs/" + run + "/resume")).getResponse().getStatus()).isEqualTo(202);
+		awaitStatus(run, RunStatus.COMPLETED);
+		String reportId = json.readTree(body(perform(get("/api/v1/runs/" + run)))).path("reportId").asString();
+		JsonNode report = json.readTree(body(perform(get("/api/v1/reports/" + reportId))));
+		List<String> cited = new ArrayList<>();
+		report.path("citations").forEach(c -> cited.add(c.path("sourceId").asString()));
+		assertThat(cited).as("the other source is still cited").isNotEmpty().doesNotContain(skipped);
+		assertThat(report.path("sources").has(skipped)).isFalse();
+		// no citation node in any section (body, conflicts) points at it
+		report.path("sections").forEach(s -> assertThat(s.path("contentDoc").toString())
+				.doesNotContain("\"sourceId\":\"" + skipped + "\""));
+	}
+
 	// --- the scripted LLM ---
 
 	void script() {
@@ -236,6 +277,7 @@ class ReportFlowIT {
 				value = new ReasonsOutput(List.of(new Reason("K1", "The studies looked at different years.")));
 			}
 			else {
+				Thread.sleep(writeDelay.get());
 				value = write(prompt);
 			}
 			return new LlmResult<>(value, UUID.randomUUID(), "fake", 10, 10, 1);
