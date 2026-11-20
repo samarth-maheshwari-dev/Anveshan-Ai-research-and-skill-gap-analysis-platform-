@@ -692,6 +692,26 @@ class ByokIT {
 	}
 
 	@Test
+	@DisplayName("T-15-31 one route refuses the request as too large (413), the other is rate-limited → RequestTooLargeException, not a pause")
+	void tooLargeIsNotAnAiLimit() throws Exception {
+		String k1 = newKey("gsk_");
+		String k2 = newKey("gsk_");
+		UUID c1 = createConnection(alice, "GROQ", k1);
+		UUID c2 = createConnection(alice, "GROQ", k2);
+		route(alice, TaskSlot.VERIFY, c1, c2);
+		FAKE.script(k1, Reply.json(413, "{\"error\":{\"message\":\"Request too large\"}}"));
+		FAKE.script(k2, Reply.rateLimited(60));
+
+		assertThatThrownBy(() -> gateway.call(alice, TaskSlot.VERIFY, prompt(), Answer.class))
+				.isInstanceOf(dev.anveshan.byok.api.RequestTooLargeException.class)
+				.isNotInstanceOf(AllRoutesExhaustedException.class);
+		assertThat(jdbc.sql("SELECT count(*) FROM llm_call WHERE owner_id = :o AND error_code = 'REQUEST_TOO_LARGE'")
+				.param("o", alice).query(Long.class).single()).isEqualTo(1);
+		assertThat(jdbc.sql("SELECT status FROM ai_connection WHERE id = :c").param("c", c1).query(String.class).single())
+				.as("a too-large request says nothing bad about the key").isNotEqualTo("FAILING");
+	}
+
+	@Test
 	@DisplayName("T-07-06 no route for the slot → NoModelForSlotException; rejected key → connection FAILING")
 	void noRouteAndBadKey() throws Exception {
 		assertThatThrownBy(() -> gateway.call(alice, TaskSlot.ASK, prompt(), Answer.class))

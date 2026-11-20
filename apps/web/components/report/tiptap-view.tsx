@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
-import { TRUST, isTrustLabel } from "@/components/anveshan/trust-label";
-import type { ReportClaim, ReportSource } from "@/lib/api/hooks/reports";
+import { CitationChip } from "./citation-chip";
 
 /** A TipTap JSON node as the API stores it (TECHSPEC §12.9). */
 type TipTapNode = {
@@ -12,28 +11,24 @@ type TipTapNode = {
   content?: TipTapNode[];
 };
 
-type Props = {
-  doc: unknown;
-  claims: Record<string, ReportClaim>;
-  sources: Record<string, ReportSource>;
-};
+type Props = { doc: unknown };
 
 /**
- * Read-only renderer for a report section (P14). Only the node types the assembler writes are rendered — nothing
- * from the document is ever injected as HTML. Citations show [n]; weak and conflicting ones carry their label icon.
- * Clicking a citation to open the exact passage arrives with the Report Studio (P15).
+ * Read-only renderer for a report section (the code-built Conflicts and References, and view-only reports). Only
+ * known node types are rendered — nothing from the document is ever injected as HTML. Citations are clickable chips
+ * (claims, sources and the panel come from ReportContext).
  */
-export function TipTapView({ doc, claims, sources }: Props) {
+export function TipTapView({ doc }: Props) {
   const root = doc as TipTapNode;
-  return <div className="space-y-3 text-body leading-relaxed">{render(root.content ?? [], claims, sources, "n")}</div>;
+  return <div className="space-y-3 text-body leading-relaxed">{render(root.content ?? [], "n")}</div>;
 }
 
-function render(nodes: TipTapNode[], claims: Props["claims"], sources: Props["sources"], prefix: string): ReactNode[] {
-  return nodes.map((n, i) => node(n, claims, sources, `${prefix}-${i}`));
+function render(nodes: TipTapNode[], prefix: string): ReactNode[] {
+  return nodes.map((n, i) => node(n, `${prefix}-${i}`));
 }
 
-function node(n: TipTapNode, claims: Props["claims"], sources: Props["sources"], key: string): ReactNode {
-  const kids = render(n.content ?? [], claims, sources, key);
+function node(n: TipTapNode, key: string): ReactNode {
+  const kids = render(n.content ?? [], key);
   switch (n.type) {
     case "paragraph":
       return <p key={key}>{kids}</p>;
@@ -74,7 +69,9 @@ function node(n: TipTapNode, claims: Props["claims"], sources: Props["sources"],
     case "hardBreak":
       return <br key={key} />;
     case "citation":
-      return <CitationMark key={key} attrs={n.attrs ?? {}} claims={claims} sources={sources} />;
+      return (
+        <CitationChip key={key} claimId={String(n.attrs?.claimId ?? "")} sourceId={n.attrs?.sourceId as string | undefined} n={n.attrs?.n} label={n.attrs?.label} />
+      );
     case "text": {
       let out: ReactNode = n.text ?? "";
       for (const m of n.marks ?? []) {
@@ -87,34 +84,4 @@ function node(n: TipTapNode, claims: Props["claims"], sources: Props["sources"],
     default:
       return null; // unknown node types are never rendered
   }
-}
-
-function CitationMark({
-  attrs,
-  claims,
-  sources,
-}: {
-  attrs: Record<string, unknown>;
-  claims: Props["claims"];
-  sources: Props["sources"];
-}) {
-  const n = Number(attrs.n);
-  const claim = claims[String(attrs.claimId)];
-  const source = sources[String(attrs.sourceId)];
-  const label = isTrustLabel(attrs.label) ? attrs.label : undefined;
-  const flagged = label === "WEAK" || label === "CONFLICTING";
-  const t = label ? TRUST[label] : undefined;
-  const title = [t?.word, claim?.text, source?.title].filter(Boolean).join(" — ");
-  return (
-    <sup className="ml-0.5 whitespace-nowrap">
-      <span
-        title={title}
-        aria-label={`Citation ${n}${t ? `, ${t.word}` : ""}`}
-        className="inline-flex items-center gap-0.5 rounded-xs px-0.5 font-mono text-micro font-medium text-primary"
-      >
-        [{n}]
-        {flagged && t && <t.Icon aria-hidden className={label === "WEAK" ? "size-3 text-trust-weak" : "size-3 text-trust-conflict"} />}
-      </span>
-    </sup>
-  );
 }

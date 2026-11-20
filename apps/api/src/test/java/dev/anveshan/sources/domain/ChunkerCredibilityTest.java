@@ -116,4 +116,17 @@ class ChunkerCredibilityTest {
 		assertThat(Credibility.documentType("REPOSITORY", "https://github.com/a/b", RULES)).isEqualTo("REPO");
 	}
 
+
+	@org.junit.jupiter.api.Test
+	@org.junit.jupiter.api.DisplayName("T-15-27 firstChunks: a long document keeps only its first N chunks, in order; short ones untouched")
+	void firstChunks() {
+		String doc = ("A sentence about campus apps that is long enough to matter. ").repeat(400);
+		List<Chunk> all = Chunker.chunk(doc);
+		assertThat(all.size()).isGreaterThan(10);
+		List<Chunk> first = Chunker.firstChunks(all, 10);
+		assertThat(first).hasSize(10).containsExactlyElementsOf(all.subList(0, 10));
+		assertThat(Chunker.firstChunks(all, 10_000)).isSameAs(all);
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> Chunker.firstChunks(all, 0))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
 }

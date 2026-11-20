@@ -185,6 +185,34 @@
   padding: 0 0.15em;
 }
 
+/* Citation panel (DESIGN §10.2): the quoted passage is highlighted left to right like a real highlighter. */
+.marker-sweep {
+  background-image: linear-gradient(var(--marker), var(--marker));
+  background-repeat: no-repeat;
+  background-position: 0 40%;
+  background-size: 100% 92%;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 0.15em;
+  animation: marker-sweep 560ms var(--ease-enter) both;
+}
+@keyframes marker-sweep { from { background-size: 0% 92%; } }
+
+/* Report Studio editor: the same reading rhythm as the read-only view. Tokens only. */
+.report-editor .ProseMirror { outline: none; min-height: 2.5rem; }
+.report-editor .ProseMirror > * + * { margin-top: 0.75rem; }
+.report-editor .ProseMirror h1,
+.report-editor .ProseMirror h2,
+.report-editor .ProseMirror h3 { font-weight: 600; font-size: var(--text-heading-md); line-height: var(--text-heading-md--line-height); }
+.report-editor .ProseMirror ul { list-style: disc; padding-left: 1.5rem; }
+.report-editor .ProseMirror ol { list-style: decimal; padding-left: 1.5rem; }
+.report-editor .ProseMirror li + li { margin-top: 0.25rem; }
+.report-editor .ProseMirror blockquote { border-left: 2px solid var(--border-strong); padding-left: 1rem; color: var(--muted-foreground); }
+.report-editor .ProseMirror code { font-family: var(--font-mono); font-size: 0.9em; background: var(--surface-2); padding: 0 0.25em; border-radius: 2px; }
+.report-editor .ProseMirror pre { font-family: var(--font-mono); background: var(--surface-2); padding: 0.75rem 1rem; border-radius: 4px; overflow-x: auto; }
+.report-editor .ProseMirror hr { border: 0; border-top: 1px solid var(--border); }
+.report-editor .ProseMirror ::selection { background: var(--marker); }
+
 /* A faint dot grid that fades out — the backdrop of the sign-in illustration and the landing hero. */
 .dot-grid {
   background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);

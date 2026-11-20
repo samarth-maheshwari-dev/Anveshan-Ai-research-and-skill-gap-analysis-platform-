@@ -133,6 +133,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/{id}/assist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["assist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{id}/claims/{claimId}/find-better-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["findBetterSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{id}/claims/{claimId}/passage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["passage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{id}/sections/{sectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateSection"];
+        trace?: never;
+    };
+    "/api/v1/reports/{id}/sections/{sectionId}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["regenerate_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{id}/versions/{version}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -377,6 +489,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AssistRequest: {
+            /** @enum {string} */
+            action: "SIMPLIFY" | "MORE_DETAIL" | "TRANSLATE_HI";
+            /** Format: uuid */
+            sectionId: string;
+            selection: components["schemas"]["Selection"];
+        };
+        AssistResponse: {
+            suggestion?: {
+                [key: string]: unknown;
+            };
+        };
         CitationView: {
             /** Format: uuid */
             claimId?: string;
@@ -505,6 +629,21 @@ export interface components {
             totalRequests?: number;
             unroutedSlots?: string[];
         };
+        EvidenceView: {
+            credibilityTier?: string;
+            own?: boolean;
+            site?: string;
+            /** Format: uuid */
+            sourceId?: string;
+            title?: string;
+            verdict?: string;
+        };
+        Highlight: {
+            /** Format: int32 */
+            end?: number;
+            /** Format: int32 */
+            start?: number;
+        };
         MeView: {
             avatarUrl?: string;
             email?: string;
@@ -528,6 +667,19 @@ export interface components {
         Onboarding: {
             hasRun?: boolean;
             hasVerifiedConnection?: boolean;
+        };
+        PassageView: {
+            chunkText?: string;
+            /** Format: uuid */
+            claimId?: string;
+            claimText?: string;
+            evidence?: components["schemas"]["EvidenceView"][];
+            highlight?: components["schemas"]["Highlight"];
+            quote?: string;
+            source?: components["schemas"]["SourceView"];
+            /** Format: uuid */
+            sourceId?: string;
+            trustLabel?: string;
         };
         PlanCard: {
             /** Format: uuid */
@@ -555,6 +707,10 @@ export interface components {
             title?: string;
             type?: string;
         };
+        RefreshStarted: {
+            /** Format: uuid */
+            runId?: string;
+        };
         RegenerateRequest: {
             instruction?: string;
         };
@@ -576,6 +732,11 @@ export interface components {
                 [key: string]: components["schemas"]["SourceView"];
             };
             title?: string;
+        };
+        Restored: {
+            sections?: components["schemas"]["SectionView"][];
+            /** Format: int32 */
+            version?: number;
         };
         RouteChoice: {
             /** Format: uuid */
@@ -647,6 +808,17 @@ export interface components {
             /** Format: int32 */
             version?: number;
         };
+        SavedSection: {
+            contentDoc?: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            id?: string;
+            key?: string;
+            title?: string;
+            /** Format: int32 */
+            version?: number;
+        };
         SectionView: {
             contentDoc?: {
                 [key: string]: unknown;
@@ -657,6 +829,12 @@ export interface components {
             title?: string;
             /** Format: int32 */
             version?: number;
+        };
+        Selection: {
+            /** Format: int32 */
+            from: number;
+            /** Format: int32 */
+            to: number;
         };
         SlotRoute: {
             /** Format: uuid */
@@ -726,8 +904,24 @@ export interface components {
             /** @enum {string} */
             status?: "UNVERIFIED" | "VERIFIED" | "FAILING" | "DISABLED";
         };
+        UpdateSectionRequest: {
+            contentDoc: {
+                [key: string]: unknown;
+            };
+        };
         Usage: {
             byConnection?: components["schemas"]["ConnectionUsage"][];
+        };
+        VersionPage: {
+            items?: components["schemas"]["VersionView"][];
+            nextCursor?: string;
+        };
+        VersionView: {
+            byYou?: boolean;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            version?: number;
         };
     };
     responses: never;
@@ -1002,6 +1196,245 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportView"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    assist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistResponse"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    findBetterSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                claimId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshStarted"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    passage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                claimId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PassageView"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    updateSection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The section version the editor loaded (ETag) */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+                sectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSectionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectionView"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    regenerate_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The section version the editor loaded (ETag) */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+                sectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedSection"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    versions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionPage"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Restored"];
                 };
             };
             /** @description Problem Details */

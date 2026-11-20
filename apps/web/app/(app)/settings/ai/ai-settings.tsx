@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Overline } from "@/components/ui/card";
 
 import { ConnectionsSection } from "./connections-section";
+import { SearchKeySection } from "./search-key-section";
 import { SlotsSection } from "./slots-section";
 
 const TABS = [
@@ -57,6 +58,7 @@ export function AiSettings() {
         <div className="min-w-0 flex-1 space-y-8">
           <ConnectionsSection />
           <SlotsSection />
+          <SearchKeySection />
         </div>
       </div>
     </div>

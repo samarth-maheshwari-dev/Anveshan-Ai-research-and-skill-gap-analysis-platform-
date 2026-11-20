@@ -67,7 +67,7 @@ public final class FakeSite {
 		paths.add(path);
 		switch (path) {
 			case "/robots.txt" -> send(ex, 200, "text/plain", "User-agent: *\nDisallow: /private/\n".getBytes(StandardCharsets.UTF_8));
-			case "/article.html", "/article-2.html" -> send(ex, 200, "text/html; charset=utf-8", article(path).getBytes(StandardCharsets.UTF_8));
+			case "/article.html", "/article-2.html", "/article-3.html" -> send(ex, 200, "text/html; charset=utf-8", article(path).getBytes(StandardCharsets.UTF_8));
 			case "/paper.pdf" -> send(ex, 200, "application/pdf", pdf());
 			case "/private/secret.html" -> send(ex, 200, "text/html", article(path).getBytes(StandardCharsets.UTF_8));
 			case "/injection.html" -> send(ex, 200, "text/html; charset=utf-8", injection().getBytes(StandardCharsets.UTF_8));

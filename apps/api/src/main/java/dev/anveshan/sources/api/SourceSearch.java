@@ -40,12 +40,19 @@ public interface SourceSearch {
 	 * @param doi     {@code https://doi.org/<lower-case doi>} or null
 	 * @param adapter which API(s) found it, e.g. {@code openalex+crossref}
 	 * @param score   ranking score (higher is better); relative, not a probability
+	 * @param openAccessUrl a free full-text copy (e.g. OpenAlex {@code oa_url}) tried when {@code url} can't be read
+	 *                      (publisher paywall / bot block); null when unknown or the same as {@code url} (D-107)
 	 */
 	record Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
-			String adapter, double score) {
+			String adapter, double score, String openAccessUrl) {
+
+		public Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
+				String adapter, double score) {
+			this(title, url, doi, snippet, published, type, adapter, score, null);
+		}
 
 		public Candidate withScore(double s) {
-			return new Candidate(title, url, doi, snippet, published, type, adapter, s);
+			return new Candidate(title, url, doi, snippet, published, type, adapter, s, openAccessUrl);
 		}
 
 	}

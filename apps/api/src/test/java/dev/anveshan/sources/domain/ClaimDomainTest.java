@@ -76,6 +76,28 @@ class ClaimDomainTest {
 	}
 
 	@Test
+	@DisplayName("T-15-20 labeler, independent-source rule (D-106): the claim's own source alone is never SUPPORTED")
+	void independentSourceRule() {
+		Judged ownHigh = new Judged(Verdict.SUPPORTS, Tier.HIGH, false);
+		assertThat(TrustLabeler.label(List.of(ownHigh))).as("peer-reviewed, but only the passage it came from")
+				.isEqualTo(TrustLabel.WEAK);
+		assertThat(TrustLabeler.label(List.of(ownHigh, new Judged(Verdict.INSUFFICIENT, Tier.HIGH))))
+				.as("other sources don't say it").isEqualTo(TrustLabel.WEAK);
+		assertThat(TrustLabeler.label(List.of(ownHigh, new Judged(Verdict.SUPPORTS, Tier.LOW))))
+				.as("a low-tier second source isn't enough").isEqualTo(TrustLabel.WEAK);
+		assertThat(TrustLabeler.label(List.of(new Judged(Verdict.SUPPORTS, Tier.LOW, false), new Judged(Verdict.SUPPORTS, Tier.MEDIUM))))
+				.as("a credible second source confirms it").isEqualTo(TrustLabel.SUPPORTED);
+		assertThat(TrustLabeler.label(List.of(ownHigh, new Judged(Verdict.CONTRADICTS, Tier.MEDIUM))))
+				.as("its own source says it, a credible other source says the opposite").isEqualTo(TrustLabel.CONFLICTING);
+		assertThat(TrustLabeler.label(List.of(ownHigh, new Judged(Verdict.CONTRADICTS, Tier.HIGH, false))))
+				.as("a contradiction from the claim's own source isn't a conflict between sources").isEqualTo(TrustLabel.WEAK);
+		assertThat(TrustLabeler.label(List.of(new Judged(Verdict.INSUFFICIENT, Tier.HIGH, false))))
+				.as("even its own passage doesn't say it").isEqualTo(TrustLabel.NO_SOURCE);
+		assertThat(TrustLabeler.independentSupports(List.of(ownHigh, new Judged(Verdict.SUPPORTS, Tier.LOW),
+				new Judged(Verdict.PARTIAL, Tier.HIGH)))).isEqualTo(1);
+	}
+
+	@Test
 	@DisplayName("T-13-07 grounding: invented numbers or a topic the quote doesn't mention are rejected")
 	void grounding() {
 		String quote = "The office keeps items for 30 days — after that they are donated.";

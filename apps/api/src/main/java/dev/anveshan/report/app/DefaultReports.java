@@ -41,8 +41,11 @@ class DefaultReports implements Reports {
 	private final ClaimLibrary claims;
 	private final SourceLibrary sources;
 	private final TransactionTemplate tx;
+	private final ReportEditor editor;
 
-	DefaultReports(ReportStore store, ClaimLibrary claims, SourceLibrary sources, PlatformTransactionManager tm) {
+	DefaultReports(ReportStore store, ClaimLibrary claims, SourceLibrary sources, PlatformTransactionManager tm,
+			ReportEditor editor) {
+		this.editor = editor;
 		this.store = store;
 		this.claims = claims;
 		this.sources = sources;
@@ -55,6 +58,7 @@ class DefaultReports implements Reports {
 		Set<UUID> cited = new LinkedHashSet<>();
 		in.sections().forEach(s -> cited.addAll(Markers.citedClaims(s.markdown())));
 		in.conflicts().forEach(c -> cited.add(c.claimId()));
+		in.openQuestions().forEach(q -> cited.add(q.claimId()));
 		Map<UUID, ReportClaim> claimById = new HashMap<>();
 		claims.reportClaims(in.runId(), List.copyOf(cited)).forEach(c -> claimById.put(c.id(), c));
 
@@ -72,6 +76,9 @@ class DefaultReports implements Reports {
 			reading.addAll(c.supporting());
 			reading.addAll(c.contradicting());
 		}
+		List<OpenQuestionDraft> open = in.openQuestions().stream().filter(q -> claimById.containsKey(q.claimId()))
+				.toList();
+		open.forEach(q -> reading.add(claimById.get(q.claimId()).sourceId()));
 		Map<UUID, Integer> numbers = CitationNumbering.number(reading);
 		Map<UUID, SourceInfo> info = new LinkedHashMap<>();
 		sources.describe(List.copyOf(numbers.keySet())).forEach(s -> info.put(s.id(), s));
@@ -97,18 +104,11 @@ class DefaultReports implements Reports {
 			out.add(new NewSection(s.key(), s.title(), TipTapDoc.from(s.markdown(), cite),
 					TipTapDoc.markdownWithNumbers(s.markdown(), numberOfClaim, (c, src) -> numbers.get(src))));
 		}
-		String conflictsMd = conflicts(in.conflicts(), info, hindi);
+		String conflictsMd = conflicts(in.conflicts(), open, info, hindi);
 		out.add(new NewSection(CONFLICTS_KEY, hindi ? "विरोधाभास और खुले प्रश्न" : "Conflicts & open questions",
 				TipTapDoc.from(conflictsMd, cite),
 				TipTapDoc.markdownWithNumbers(conflictsMd, numberOfClaim, (c, src) -> numbers.get(src))));
-		List<String> refs = new ArrayList<>();
-		numbers.forEach((src, n) -> {
-			SourceInfo s = info.get(src);
-			if (s != null) {
-				refs.add(References.ieee(n, new References.Ref(s.title(), s.authors(), s.site(), s.publishedAt(), s.url(),
-						s.doi())));
-			}
-		});
+		List<String> refs = referenceLines(numbers, info);
 		out.add(new NewSection(REFERENCES_KEY, hindi ? "संदर्भ" : "References", TipTapDoc.paragraphs(refs),
 				String.join("\n\n", refs)));
 
@@ -132,8 +132,88 @@ class DefaultReports implements Reports {
 		return new MarkerCheck(r.markdown(), r.removed(), r.unmarked());
 	}
 
-	/** F-FR-11: both sides of every conflict with their sources, plus the one-line possible reason. */
-	static String conflicts(List<ConflictDraft> conflicts, Map<UUID, SourceInfo> info, boolean hindi) {
+	@Override
+	public Optional<ReportRef> owned(UUID ownerId, UUID reportId) {
+		return store.findOwned(ownerId, reportId).map(r -> new ReportRef(r.id(), r.runId(), r.ownerId(), r.language()));
+	}
+
+	@Override
+	public Optional<SectionRef> section(UUID reportId, UUID sectionId) {
+		return store.section(reportId, sectionId).map(s -> new SectionRef(s.id(), s.key(), s.title(), s.version(),
+				!ReportEditor.GENERATED.contains(s.key())));
+	}
+
+	@Override
+	public SelectedText select(UUID reportId, UUID sectionId, int from, int to) {
+		var s = store.section(reportId, sectionId).orElseThrow(dev.anveshan.shared.web.ApiException::notFound);
+		var sel = dev.anveshan.report.domain.ReportDocs.select(s.contentDoc(), from, to);
+		return new SelectedText(sel.text(), sel.claimIds());
+	}
+
+	@Override
+	public SavedSection replaceSection(UUID ownerId, UUID reportId, UUID sectionId, Integer expectedVersion,
+			String markdown) {
+		var v = editor.replaceWithMarkdown(ownerId, reportId, sectionId, expectedVersion, markdown);
+		return new SavedSection(v.id(), v.key(), v.title(), v.contentDoc(), v.version());
+	}
+
+	@Override
+	public Map<String, Object> fragment(UUID reportId, String markdown) {
+		var report = store.findById(reportId).orElseThrow(dev.anveshan.shared.web.ApiException::notFound);
+		Map<UUID, Integer> numbers = new LinkedHashMap<>(editor.numbers(reportId));
+		Map<UUID, ReportClaim> byId = new HashMap<>();
+		claims.reportClaims(report.runId(), Markers.citedClaims(markdown)).forEach(c -> byId.put(c.id(), c));
+		return TipTapDoc.from(markdown, (claimId, sourceId) -> {
+			ReportClaim c = byId.get(claimId);
+			if (c == null) {
+				return null;
+			}
+			int n = numbers.computeIfAbsent(c.sourceId(), k -> numbers.size() + 1);
+			return new Citation(claimId, c.sourceId(), n, c.label());
+		});
+	}
+
+	@Override
+	public void refreshLabels(UUID reportId) {
+		editor.refreshLabels(reportId);
+	}
+
+	/** The References list: one IEEE line per numbered source, in number order. */
+	static List<String> referenceLines(Map<UUID, Integer> numbers, Map<UUID, SourceInfo> info) {
+		List<String> refs = new ArrayList<>();
+		numbers.entrySet().stream().sorted(Map.Entry.comparingByValue()).forEach(e -> {
+			SourceInfo s = info.get(e.getKey());
+			if (s != null) {
+				refs.add(References.ieee(e.getValue(), new References.Ref(s.title(), s.authors(), s.site(),
+						s.publishedAt(), s.url(), s.doi())));
+			}
+		});
+		return refs;
+	}
+
+	/**
+	 * F-FR-11: both sides of every conflict with their sources, plus the one-line possible reason. Then the open
+	 * questions: NO_SOURCE claims, each cited to the source it came from, so they are visible instead of dropped.
+	 */
+	static String conflicts(List<ConflictDraft> conflicts, List<OpenQuestionDraft> open, Map<UUID, SourceInfo> info,
+			boolean hindi) {
+		String body = conflictLines(conflicts, info, hindi);
+		if (open.isEmpty()) {
+			return body;
+		}
+		StringBuilder md = new StringBuilder(body).append("\n\n");
+		md.append("**").append(hindi ? "खुले प्रश्न" : "Open questions").append("**\n\n");
+		md.append(hindi
+				? "ये बातें किसी स्रोत में मिलीं, लेकिन जाँच में इनकी पुष्टि नहीं हुई। इन्हें अपुष्ट मानें:"
+				: "These statements appear in a source, but the check could not confirm them. Treat them as unverified:")
+				.append("\n\n");
+		for (OpenQuestionDraft q : open) {
+			md.append("- ").append(escape(q.text())).append(" [c:").append(q.claimId()).append("]\n");
+		}
+		return md.toString().strip();
+	}
+
+	private static String conflictLines(List<ConflictDraft> conflicts, Map<UUID, SourceInfo> info, boolean hindi) {
 		if (conflicts.isEmpty()) {
 			return hindi ? "स्रोतों के बीच कोई विरोधाभास नहीं मिला।" : "No conflicting evidence was found between the sources.";
 		}

@@ -51,6 +51,8 @@ export type FakeState = {
   actions: string[];
   /** Instruction of every POST …/plan/regenerate. */
   regenerateInstructions: string[];
+  /** Section saves: the section and the If-Match each PATCH carried. */
+  sectionSaves: { sectionId: string; ifMatch: string | null; contentDoc: unknown }[];
 };
 
 export type FakeRun = {
@@ -71,7 +73,11 @@ export type FakeRun = {
   /** Resuming this run finishes it with a report (lets E2E reach "Report ready"). */
   completeOnResume?: boolean;
   reportId?: string;
+  /** S-08: the report as the fake API keeps it (created on first read, changed by PATCH). */
+  report?: FakeReport;
 };
+
+type FakeReport = ReturnType<typeof fakeReport>;
 
 export type FakeSource = {
   sourceId: string;
@@ -158,6 +164,7 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
     skipped: [],
     actions: [],
     regenerateInstructions: [],
+    sectionSaves: [],
     ...init,
   };
   let seq = 0;
@@ -350,10 +357,39 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
     if (path === "/runs" && method === "GET") {
       return json(route, 200, { items: [...state.runs].reverse().map(runSummary), nextCursor: null });
     }
-    const reportPath = path.match(/^\/reports\/([^/]+)$/);
-    if (reportPath && method === "GET") {
+    const reportPath = path.match(/^\/reports\/([^/]+)(?:\/(claims)\/([^/]+)\/passage|\/(sections)\/([^/]+)|\/(versions))?$/);
+    if (reportPath) {
       const run = state.runs.find((r) => r.reportId === reportPath[1]);
-      return run ? json(route, 200, fakeReport(run)) : problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
+      if (!run) return problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
+      const report = (run.report ??= fakeReport(run));
+      if (reportPath[2] && method === "GET") {
+        const p = PASSAGES[reportPath[3]];
+        return p ? json(route, 200, p) : problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
+      }
+      if (reportPath[4] && method === "PATCH") {
+        const section = report.sections.find((x) => x.id === reportPath[5]);
+        if (!section) return problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
+        const ifMatch = (await req.headerValue("if-match")) ?? null;
+        const body = req.postDataJSON() as { contentDoc: (typeof section)["contentDoc"] };
+        state.sectionSaves.push({ sectionId: section.id, ifMatch, contentDoc: body.contentDoc });
+        if (ifMatch !== `"${section.version}"`) {
+          return route.fulfill({
+            status: 409,
+            headers: { ...cors, "content-type": "application/problem+json" },
+            body: JSON.stringify({ status: 409, code: "VERSION_CONFLICT", title: "Changed meanwhile", detail: "Reload", currentVersion: String(section.version) }),
+          });
+        }
+        section.contentDoc = body.contentDoc;
+        section.version += 1;
+        report.versions.unshift({ version: report.versions.length + 1, createdAt: "2026-11-17T06:00:00Z", byYou: true });
+        return route.fulfill({
+          status: 200,
+          headers: { ...cors, "content-type": "application/json", etag: `"${section.version}"` },
+          body: JSON.stringify(section),
+        });
+      }
+      if (reportPath[6] && method === "GET") return json(route, 200, { items: report.versions, nextCursor: null });
+      if (method === "GET") return json(route, 200, report);
     }
     const runExtra = path.match(/^\/runs\/([^/]+)\/(events|sources)(?:\/([^/]+)\/skip)?$/);
     if (runExtra) {
@@ -512,12 +548,36 @@ function fakeReport(run: FakeRun) {
       cl1: { text: "Students report lost items from their phones.", trustLabel: "SUPPORTED", labelReason: {}, quote: "q", sourceId: "src1", chunkId: "c1", quoteStart: 0, quoteEnd: 1 },
       cl2: { text: "About 40 percent of items are returned.", trustLabel: "WEAK", labelReason: {}, quote: "q", sourceId: "src2", chunkId: "c2", quoteStart: 0, quoteEnd: 1 },
     },
+    versions: [{ version: 1, createdAt: "2026-11-12T06:00:00Z", byYou: false }],
     sources: {
       src1: { title: "Lost and found apps compared", site: "campus.example", type: "OTHER", credibilityTier: "LOW", credibilityReason: "Personal blog / unknown author", url: "https://campus.example/a" },
       src2: { title: "Item recovery study", site: "study.example", type: "PREPRINT", credibilityTier: "MEDIUM", credibilityReason: "Preprint (not peer-reviewed), 2024", url: "https://study.example/b" },
     },
   };
 }
+
+const CHUNK_2 =
+  "We surveyed 300 students on four campuses. Some apps return about 40 percent of items to their owners within a week. " +
+  "Paper notice boards returned far fewer.";
+const QUOTE_2 = "Some apps return about 40 percent of items to their owners within a week.";
+
+/** F-FR-1: the passage behind each fake claim, with the server's quote span. */
+const PASSAGES: Record<string, unknown> = {
+  cl2: {
+    claimId: "cl2",
+    claimText: "About 40 percent of items are returned.",
+    trustLabel: "WEAK",
+    quote: QUOTE_2,
+    chunkText: CHUNK_2,
+    highlight: { start: CHUNK_2.indexOf(QUOTE_2), end: CHUNK_2.indexOf(QUOTE_2) + QUOTE_2.length },
+    sourceId: "src2",
+    source: { title: "Item recovery study", site: "study.example", type: "PREPRINT", credibilityTier: "MEDIUM", credibilityReason: "Preprint (not peer-reviewed), 2024", url: "https://study.example/b", publishedAt: "2024-03-01" },
+    evidence: [
+      { sourceId: "src2", title: "Item recovery study", site: "study.example", credibilityTier: "MEDIUM", verdict: "PARTIAL", own: true },
+      { sourceId: "src1", title: "Lost and found apps compared", site: "campus.example", credibilityTier: "LOW", verdict: "INSUFFICIENT", own: false },
+    ],
+  },
+};
 
 function runView(run: FakeRun) {
   const sections =

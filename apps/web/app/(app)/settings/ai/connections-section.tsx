@@ -15,6 +15,8 @@ import { describeTestError, providerName } from "@/lib/providers";
 /** Settings → AI: the user's connections — test, delete (with confirm), add via the wizard. */
 export function ConnectionsSection() {
   const connections = useConnections();
+  // the web-search key has its own card (SearchKeySection); this list is the AI (LLM) keys
+  const llm = (connections.data ?? []).filter((c) => c.kind !== "SEARCH");
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -34,11 +36,11 @@ export function ConnectionsSection() {
         </div>
       ) : connections.isError ? (
         <ErrorLine message="Couldn't load your connections." onRetry={() => void connections.refetch()} />
-      ) : connections.data.length === 0 ? (
+      ) : llm.length === 0 ? (
         <p className="mt-6 text-body-sm text-muted-foreground">No connections yet. Add one to start researching.</p>
       ) : (
         <ul className="mt-6 border-t border-border">
-          {connections.data.map((c) => (
+          {llm.map((c) => (
             <ConnectionRow key={c.id} connection={c} />
           ))}
         </ul>
@@ -49,7 +51,7 @@ export function ConnectionsSection() {
 
 type ConnectionRowProps = { connection: Connection };
 
-function ConnectionRow({ connection: c }: ConnectionRowProps) {
+export function ConnectionRow({ connection: c }: ConnectionRowProps) {
   const test = useTestConnection();
   const remove = useDeleteConnection();
   const [confirming, setConfirming] = useState(false);

@@ -15,6 +15,7 @@ import dev.anveshan.byok.app.ProviderModels.ProviderCallException;
 import dev.anveshan.byok.app.ProviderModels.ProviderException;
 import dev.anveshan.byok.app.ProviderModels.ProviderModelNotFoundException;
 import dev.anveshan.byok.app.ProviderModels.ProviderRateLimitException;
+import dev.anveshan.byok.app.ProviderModels.ProviderRequestTooLargeException;
 
 /** How provider HTTP errors are classified (P08 key-test rework). Bodies are read, never repeated. */
 class ProviderHttpErrorTest {
@@ -82,4 +83,18 @@ class ProviderHttpErrorTest {
 		assertThat(error(429, "")).isInstanceOf(ProviderRateLimitException.class);
 	}
 
+
+	@Test
+	@DisplayName("T-15-29 too-large answers (413, context_length_exceeded, 'Request too large … TPM') → REQUEST_TOO_LARGE; other 400s stay PROVIDER_ERROR")
+	void tooLarge() {
+		assertThat(error(413, "")).isInstanceOf(ProviderRequestTooLargeException.class);
+		assertThat(error(400, "{\"error\":{\"code\":\"context_length_exceeded\"}}"))
+				.isInstanceOf(ProviderRequestTooLargeException.class);
+		assertThat(error(400, "{\"error\":{\"message\":\"Request too large for model `openai/gpt-oss-120b` on tokens per minute (TPM)\"}}"))
+				.isInstanceOf(ProviderRequestTooLargeException.class).extracting(ProviderException::code).isEqualTo("REQUEST_TOO_LARGE");
+		ProviderException other = error(400, "{\"error\":{\"message\":\"max_tokens is not supported with this model\"}}");
+		assertThat(other).isInstanceOf(ProviderCallException.class);
+		assertThat(other.code()).isEqualTo("PROVIDER_ERROR");
+		assertThat(other.getMessage()).isEqualTo("The provider returned an error (HTTP 400)").doesNotContain("max_tokens");
+	}
 }

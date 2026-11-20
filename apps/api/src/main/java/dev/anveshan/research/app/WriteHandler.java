@@ -43,7 +43,7 @@ import tools.jackson.databind.json.JsonMapper;
 class WriteHandler implements StepHandler {
 
 	static final String PROMPT = "writer";
-	static final int PROMPT_VERSION = 1;
+	static final int PROMPT_VERSION = 2;
 
 	record WriteOutput(@NotBlank @Size(max = 30_000) String markdown) {
 	}
@@ -80,29 +80,78 @@ class WriteHandler implements StepHandler {
 		return StepKind.WRITE_SECTION;
 	}
 
+	/** One written section: Markdown with {@code [c:<claimId>]} markers (null when there was nothing to write from). */
+	record Written(String markdown, int claims, int removedMarkers, int unmarkedSentences) {
+	}
+
 	@Override
 	public StepResult handle(StepContext step) {
 		RunStore.RunRow run = runs.find(step.runId())
 				.orElseThrow(() -> new StepFailedException("This research no longer exists."));
-		RunConfig config = json.readValue(run.configJson(), RunConfig.class).resolved();
-		boolean hindi = config.language() == Language.hi;
+		boolean hindi = json.readValue(run.configJson(), RunConfig.class).resolved().language() == Language.hi;
 		JsonNode in = json.readTree(step.inputJson());
 		String key = in.path("key").asString("section");
 		String title = in.path("title").asString("Section");
-		List<UUID> ids = new ArrayList<>();
-		in.path("claimIds").forEach(id -> ids.add(UUID.fromString(id.asString())));
-
-		List<ReportClaim> usable = claims.reportClaims(step.runId(), ids).stream()
-				.filter(c -> "SUPPORTED".equals(c.label()) || "WEAK".equals(c.label())).toList();
 		Map<String, Object> output = new LinkedHashMap<>();
 		output.put("position", in.path("position").asInt(0));
 		output.put("key", key);
 		output.put("title", title);
-		if (usable.isEmpty()) {
+		List<NewEvent> events = new ArrayList<>();
+		Written w;
+		try {
+			w = write(step.ownerId(), run, in, CallContext.step(step.runId(), step.stepId()));
+		}
+		catch (NoModelForSlotException e) {
+			throw new StepFailedException("No AI model is set for writing. Choose one for \"Write\" in Settings → AI, "
+					+ "then retry this step.");
+		}
+		catch (ProviderUnavailableException e) {
+			throw new StepFailedException("Your AI provider didn't answer — it was busy or down. Anveshan will try again.",
+					true);
+		}
+		catch (InvalidLlmOutputException e) {
+			events.add(log("WARN", step, "\"" + title + "\" couldn't be written: the AI's answer wasn't usable."));
+			w = new Written(hindi ? "यह हिस्सा लिखा नहीं जा सका। रिपोर्ट स्टूडियो में इसे दोबारा लिखवाएँ।"
+					: "This section couldn't be written. You can regenerate it in the Report Studio.", 0, 0, 0);
+		}
+		if (w.markdown() == null) {
 			output.put("markdown", hindi ? "इस हिस्से के लिए पर्याप्त सत्यापित प्रमाण नहीं मिला।"
 					: "Not enough verified evidence was found for this section.");
 			output.put("claims", 0);
 			return new StepResult(output, List.of(log("WARN", step, "\"" + title + "\": no verified claims to write from.")));
+		}
+		output.put("markdown", w.markdown());
+		output.put("claims", w.claims());
+		output.put("removedMarkers", w.removedMarkers());
+		output.put("unmarkedSentences", w.unmarkedSentences());
+		if (w.claims() > 0) {
+			events.add(log("INFO", step, "Wrote \"" + title + "\" from " + w.claims() + " claims."));
+		}
+		if (w.removedMarkers() > 0) {
+			events.add(log("WARN", step, "Removed " + w.removedMarkers() + " citation markers that pointed at unknown claims."));
+		}
+		return new StepResult(output, events);
+	}
+
+	/**
+	 * One WRITE call over the section's verified claims (the step input: key, title, instructions, allSections,
+	 * claimIds). Also used to regenerate a section from the same claims (F-FR-7) — never searches or extracts.
+	 *
+	 * @throws NoModelForSlotException      no model for WRITE
+	 * @throws ProviderUnavailableException the provider didn't answer
+	 * @throws InvalidLlmOutputException    the answer wasn't usable after the retries
+	 */
+	Written write(UUID ownerId, RunStore.RunRow run, JsonNode in, CallContext context) {
+		RunConfig config = json.readValue(run.configJson(), RunConfig.class).resolved();
+		boolean hindi = config.language() == Language.hi;
+		String title = in.path("title").asString("Section");
+		List<UUID> ids = new ArrayList<>();
+		in.path("claimIds").forEach(id -> ids.add(UUID.fromString(id.asString())));
+
+		List<ReportClaim> usable = claims.reportClaims(run.id(), ids).stream()
+				.filter(c -> "SUPPORTED".equals(c.label()) || "WEAK".equals(c.label())).toList();
+		if (usable.isEmpty()) {
+			return new Written(null, 0, 0, 0);
 		}
 
 		Map<String, UUID> aliases = new LinkedHashMap<>();
@@ -138,39 +187,13 @@ class WriteHandler implements StepHandler {
 		values.put("sectionPurpose", Planner.data(in.path("instructions").asString("")));
 		values.put("otherSections", Planner.data(others.isEmpty() ? "none" : String.join(", ", others)));
 		values.put("claims", claimList.toString().strip());
-		Prompt prompt = prompts.load(PROMPT, PROMPT_VERSION, values, 0.4, 2500);
+		Prompt prompt = prompts.load(PROMPT, PROMPT_VERSION, values, 0.4, 4000);
 
-		String markdown;
-		List<NewEvent> events = new ArrayList<>();
-		try {
-			markdown = gateway.call(step.ownerId(), TaskSlot.WRITE, prompt, WriteOutput.class,
-					CallContext.step(step.runId(), step.stepId())).value().markdown();
-		}
-		catch (NoModelForSlotException e) {
-			throw new StepFailedException("No AI model is set for writing. Choose one for \"Write\" in Settings → AI, "
-					+ "then retry this step.");
-		}
-		catch (ProviderUnavailableException e) {
-			throw new StepFailedException("Your AI provider didn't answer — it was busy or down. Anveshan will try again.",
-					true);
-		}
-		catch (InvalidLlmOutputException e) {
-			markdown = hindi ? "यह हिस्सा लिखा नहीं जा सका। रिपोर्ट स्टूडियो में इसे दोबारा लिखवाएँ।"
-					: "This section couldn't be written. You can regenerate it in the Report Studio.";
-			events.add(log("WARN", step, "\"" + title + "\" couldn't be written: the AI's answer wasn't usable."));
-		}
+		String markdown = gateway.call(ownerId, TaskSlot.WRITE, prompt, WriteOutput.class, context).value().markdown();
 		Reports.MarkerCheck r = reports.checkMarkers(markdown.replaceAll("(?m)^#\\s+.*$", "").strip(), aliases);
 		removed.increment(r.removed());
 		unmarked.increment(r.unmarked());
-		output.put("markdown", r.markdown());
-		output.put("claims", usable.size());
-		output.put("removedMarkers", r.removed());
-		output.put("unmarkedSentences", r.unmarked());
-		events.add(log("INFO", step, "Wrote \"" + title + "\" from " + usable.size() + " claims."));
-		if (r.removed() > 0) {
-			events.add(log("WARN", step, "Removed " + r.removed() + " citation markers that pointed at unknown claims."));
-		}
-		return new StepResult(output, events);
+		return new Written(r.markdown(), usable.size(), r.removed(), r.unmarked());
 	}
 
 	private static NewEvent log(String level, StepContext step, String message) {

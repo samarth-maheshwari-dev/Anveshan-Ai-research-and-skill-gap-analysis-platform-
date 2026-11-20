@@ -114,6 +114,31 @@ public class ClaimStore {
 		return jdbc.sql("SELECT claim_id FROM run_claim WHERE run_id = :r").param("r", runId).query(UUID.class).list();
 	}
 
+	/** Each claim of the run with the source it was extracted from (the independent-source rule needs it). */
+	public java.util.Map<UUID, UUID> runClaimSources(UUID runId) {
+		java.util.Map<UUID, UUID> out = new java.util.LinkedHashMap<>();
+		jdbc.sql("SELECT rc.claim_id, cl.source_id FROM run_claim rc JOIN claim cl ON cl.id = rc.claim_id WHERE rc.run_id = :r")
+				.param("r", runId)
+				.query((rs, n) -> new UUID[] { rs.getObject(1, UUID.class), rs.getObject(2, UUID.class) })
+				.list().forEach(p -> out.put(p[0], p[1]));
+		return out;
+	}
+
+	/** NO_SOURCE claims whose source the run still USES, oldest first (the report's open questions). */
+	public List<dev.anveshan.sources.api.ClaimLibrary.OpenQuestion> openQuestions(UUID runId, int limit) {
+		return jdbc.sql("""
+				SELECT cl.id, cl.text
+				  FROM run_claim rc JOIN claim cl ON cl.id = rc.claim_id
+				  JOIN run_source rs ON rs.run_id = rc.run_id AND rs.source_id = cl.source_id AND rs.status = 'USED'
+				 WHERE rc.run_id = :r AND rc.trust_label = 'NO_SOURCE'
+				 ORDER BY cl.created_at, cl.id
+				 LIMIT :n""")
+				.param("r", runId).param("n", limit)
+				.query((rs, n) -> new dev.anveshan.sources.api.ClaimLibrary.OpenQuestion(rs.getObject(1, UUID.class),
+						rs.getString(2)))
+				.list();
+	}
+
 	public void setLabel(UUID runId, UUID claimId, String label, String reasonJson) {
 		jdbc.sql("UPDATE run_claim SET trust_label = :l, label_reason = CAST(:why AS jsonb) WHERE run_id = :r AND claim_id = :c")
 				.param("l", label).param("why", reasonJson).param("r", runId).param("c", claimId).update();

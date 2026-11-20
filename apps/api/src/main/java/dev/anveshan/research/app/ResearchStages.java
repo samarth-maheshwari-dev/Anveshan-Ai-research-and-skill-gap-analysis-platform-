@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.domain.ResearchSize;
+import dev.anveshan.research.domain.SectionClaims;
 import dev.anveshan.research.infra.StepStore;
 import dev.anveshan.research.infra.SubQuestionStore;
 import dev.anveshan.sources.api.ClaimLibrary;
@@ -32,8 +33,9 @@ class ResearchStages implements StageMaterializer {
 
 	static final int SOURCES_PER_EXTRACT = 3;
 	static final int CLAIMS_PER_VERIFY = 9;
-	/** Claims a section gets: its closest ones (TD token diet), plus leftovers so every usable claim is used once. */
-	static final int CLAIMS_PER_SECTION = 15;
+	/** A thin section borrows its closest claims up to this many (the only overlap between sections). */
+	static final int MIN_CLAIMS_PER_SECTION = 3;
+	/** TD token diet: never more claims than this in one WRITE call. */
 	static final int MAX_CLAIMS_PER_SECTION = 25;
 
 	private final SubQuestionStore subQuestions;
@@ -53,8 +55,15 @@ class ResearchStages implements StageMaterializer {
 		this.embeddings = embeddings;
 	}
 
+	/** {@code config.mode} of a Find-better-sources child run (SCHEMA §13 S-9). */
+	static final String CLAIM_REFRESH = "CLAIM_REFRESH";
+
 	@Override
 	public List<NewStep> next(RunSnapshot run, int closedStage) {
+		JsonNode config = json.readTree(run.configJson());
+		if (CLAIM_REFRESH.equals(config.path("mode").asString(""))) {
+			return refresh(run, config, closedStage);
+		}
 		return switch (closedStage) {
 			case 0 -> perSubQuestion(run, StepKind.SEARCH);
 			case 1 -> perSubQuestion(run, StepKind.FETCH);
@@ -64,6 +73,27 @@ class ResearchStages implements StageMaterializer {
 			case 5 -> List.of(new NewStep(StepKind.LABEL, null, Map.of()));
 			case 6 -> writeSteps(run);
 			case 7 -> List.of(new NewStep(StepKind.ASSEMBLE, null, Map.of()));
+			default -> List.of();
+		};
+	}
+
+	/**
+	 * F-FR-5 / TECHSPEC §12.10: a child run looks for stronger sources for ONE claim of its parent run. Stages 1–3
+	 * as usual (its one sub-question is the claim), nothing to extract (the claim exists), VERIFY judges that claim
+	 * against the new passages and saves the verdicts on the PARENT run, LABEL relabels it there. No report.
+	 */
+	private List<NewStep> refresh(RunSnapshot run, JsonNode config, int closedStage) {
+		String claimId = config.path("claimId").asString();
+		String parent = config.path("parentRunId").asString();
+		return switch (closedStage) {
+			case 0 -> perSubQuestion(run, StepKind.SEARCH);
+			case 1 -> perSubQuestion(run, StepKind.FETCH);
+			case 2 -> perSubQuestion(run, StepKind.RELEVANCE);
+			case 3 -> List.of(new NewStep(StepKind.EXTRACT, null, Map.of("items", List.of())));
+			case 4 -> List.of(new NewStep(StepKind.VERIFY, null,
+					Map.of("claimIds", List.of(claimId), "verdictRunId", parent)));
+			case 5 -> List.of(new NewStep(StepKind.LABEL, null,
+					Map.of("refreshRunId", parent, "claimId", claimId, "reportId", config.path("reportId").asString())));
 			default -> List.of();
 		};
 	}
@@ -118,41 +148,20 @@ class ResearchStages implements StageMaterializer {
 	}
 
 	/**
-	 * One WRITE step per section. Each section gets the usable claims (SUPPORTED / WEAK, sources still used) closest
-	 * in meaning to it — local embeddings, no LLM — and every usable claim goes to at least one section.
+	 * One WRITE step per section. Each usable claim (SUPPORTED / WEAK, source still used) goes to the section closest
+	 * to it in meaning — local embeddings, no LLM — so sections don't repeat each other (SectionClaims).
 	 */
 	private List<NewStep> writeSteps(RunSnapshot run) {
 		RunConfig config = json.readValue(run.configJson(), RunConfig.class).resolved();
 		List<ReportSections.Spec> specs = sections.specs(config);
-		List<List<ClaimLibrary.Match>> matches = new ArrayList<>();
+		List<List<SectionClaims.Scored>> scores = new ArrayList<>();
 		for (ReportSections.Spec s : specs) {
 			float[] v = embeddings.query(run.topic() + " — " + s.title() + ". " + s.instructions());
-			matches.add(claims.usableMatches(run.id(), v));
+			scores.add(claims.usableMatches(run.id(), v).stream()
+					.map(m -> new SectionClaims.Scored(m.claimId().toString(), m.similarity())).toList());
 		}
-		List<java.util.LinkedHashSet<String>> assigned = new ArrayList<>();
-		Set<String> used = new HashSet<>();
-		for (List<ClaimLibrary.Match> m : matches) {
-			java.util.LinkedHashSet<String> mine = new java.util.LinkedHashSet<>();
-			m.stream().limit(CLAIMS_PER_SECTION).forEach(x -> mine.add(x.claimId().toString()));
-			used.addAll(mine);
-			assigned.add(mine);
-		}
-		// leftovers: each to the section it is closest to (while that section has room)
-		Map<String, double[]> best = new HashMap<>();
-		for (int i = 0; i < matches.size(); i++) {
-			for (ClaimLibrary.Match x : matches.get(i)) {
-				String id = x.claimId().toString();
-				if (!used.contains(id) && (!best.containsKey(id) || x.similarity() > best.get(id)[1])) {
-					best.put(id, new double[] { i, x.similarity() });
-				}
-			}
-		}
-		best.forEach((id, b) -> {
-			var target = assigned.get((int) b[0]);
-			if (target.size() < MAX_CLAIMS_PER_SECTION) {
-				target.add(id);
-			}
-		});
+		List<java.util.LinkedHashSet<String>> assigned = SectionClaims.assign(scores, MIN_CLAIMS_PER_SECTION,
+				MAX_CLAIMS_PER_SECTION);
 		List<String> titles = specs.stream().map(ReportSections.Spec::title).toList();
 		List<NewStep> out = new ArrayList<>();
 		for (int i = 0; i < specs.size(); i++) {

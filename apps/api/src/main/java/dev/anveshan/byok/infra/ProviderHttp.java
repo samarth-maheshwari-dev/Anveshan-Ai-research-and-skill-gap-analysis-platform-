@@ -20,6 +20,7 @@ import dev.anveshan.byok.app.ProviderModels.ProviderCallException;
 import dev.anveshan.byok.app.ProviderModels.ProviderException;
 import dev.anveshan.byok.app.ProviderModels.ProviderModelNotFoundException;
 import dev.anveshan.byok.app.ProviderModels.ProviderRateLimitException;
+import dev.anveshan.byok.app.ProviderModels.ProviderRequestTooLargeException;
 import dev.anveshan.byok.app.ProviderModels.ResolvedConnection;
 import dev.anveshan.byok.domain.RateLimitHeaders;
 import dev.anveshan.shared.security.OutboundUrlGuard;
@@ -92,6 +93,10 @@ class ProviderHttp {
 	static final Pattern INVALID_KEY = Pattern
 			.compile("api_key_invalid|api key not valid|invalid api key|invalid_api_key|incorrect api key");
 
+	/** "Too big" answers in a 400 body (OpenAI context_length_exceeded, Groq/others "request too large"). */
+	static final Pattern TOO_LARGE = Pattern.compile("context_length_exceeded|maximum context length|request too large"
+			+ "|reduce your message size|reduce the length|too many tokens|exceeds the context window|request_too_large");
+
 	/**
 	 * Explicit "this model can't be used" signals in a 400 body. Deliberately narrow: a 400 that only
 	 * mentions a model ("max_tokens is not supported with this model") is a request problem, not a missing model.
@@ -124,6 +129,9 @@ class ProviderHttp {
 		}
 		if (INVALID_KEY.matcher(body).find()) {
 			return new ProviderAuthException("AUTH_ERROR", "Key invalid", r.latencyMs());
+		}
+		if (s == 413 || TOO_LARGE.matcher(body).find()) {
+			return new ProviderRequestTooLargeException(r.latencyMs());
 		}
 		if (s == 404 || MODEL_NOT_FOUND.matcher(body).find()) {
 			return new ProviderModelNotFoundException(r.latencyMs());

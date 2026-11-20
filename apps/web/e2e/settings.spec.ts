@@ -49,3 +49,29 @@ test("Settings → AI: task routing saves primary + fallback per slot", async ({
     { connectionId: "q1", model: "llama-3.3-70b-versatile" },
   ]);
 });
+
+test("T-15-26 Settings → AI: optional web-search key — save + test, shown as ••••last4, never in the AI list or routing", async ({ page, context }) => {
+  const api = await installFakeApi(page, context, {
+    signedIn: true,
+    connections: [verifiedConnection({ id: "g1", label: "My Gemini", provider: "GEMINI" })],
+  });
+  await page.goto("/settings/ai");
+
+  const card = page.getByTestId("search-key-section");
+  await expect(card).toContainText("Web search key (optional)");
+  await card.getByRole("button", { name: "Save and test" }).click();
+  await expect(card.getByRole("alert")).toHaveText("Paste your Tavily key first.");
+
+  await card.getByLabel("Tavily API key").fill("tvly-secretsecret77Ab");
+  await card.getByRole("button", { name: "Save and test" }).click();
+  await expect(page.getByText("Tavily web search works.")).toBeVisible();
+  await expect(card.getByTestId("connection-row")).toContainText("••••77Ab");
+  await expect(page.locator("body")).not.toContainText("tvly-secretsecret");
+
+  const created = api.connections.find((c) => c.provider === "TAVILY");
+  expect(created?.kind).toBe("SEARCH");
+  // the AI connections list shows only the LLM key
+  const aiRows = page.getByTestId("connection-row").filter({ hasNotText: "Tavily" });
+  await expect(aiRows).toHaveCount(1);
+  expect(api.writesWithoutCsrf).toEqual([]);
+});

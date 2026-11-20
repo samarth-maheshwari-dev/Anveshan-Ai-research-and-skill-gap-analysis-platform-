@@ -96,6 +96,17 @@ public class RunStore {
 				.param("bid", beforeId).param("limit", limit + 1).query(RunStore::row).list();
 	}
 
+	/** A Find-better-sources child run still working on this claim of this report (one at a time per claim). */
+	public Optional<UUID> activeRefresh(UUID owner, UUID reportId, UUID claimId) {
+		return jdbc.sql("""
+				SELECT id FROM research_run
+				 WHERE owner_id = :owner AND mode = 'CLAIM_REFRESH' AND config->>'reportId' = :report
+				   AND config->>'claimId' = :claim AND status IN ('PLANNING','AWAITING_APPROVAL','RUNNING','PAUSED')
+				 ORDER BY created_at DESC LIMIT 1""")
+				.param("owner", owner).param("report", reportId.toString()).param("claim", claimId.toString())
+				.query(UUID.class).optional();
+	}
+
 	public Optional<RunRow> findOwned(UUID owner, UUID id) {
 		return jdbc.sql("SELECT " + COLUMNS + " FROM research_run WHERE id = :id AND owner_id = :owner")
 				.param("id", id).param("owner", owner).query(RunStore::row).optional();

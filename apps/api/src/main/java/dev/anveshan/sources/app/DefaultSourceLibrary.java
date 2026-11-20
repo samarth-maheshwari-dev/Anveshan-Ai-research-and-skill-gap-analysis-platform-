@@ -87,6 +87,16 @@ class DefaultSourceLibrary implements SourceLibrary {
 			return IngestResult.unavailable(url, c.title(), "The site doesn't allow automated reading (robots.txt).");
 		}
 		PageReader.Result read = reader.read(url);
+		String readFrom = null;
+		if (read instanceof Unreadable && c.openAccessUrl() != null && !c.openAccessUrl().equals(url)
+				&& robots.allowed(c.openAccessUrl())) {
+			// publisher page blocked / paywalled: try the free full-text copy the search API reported (D-107)
+			PageReader.Result alt = reader.read(c.openAccessUrl());
+			if (alt instanceof Page) {
+				read = alt;
+				readFrom = c.openAccessUrl();
+			}
+		}
 		if (read instanceof Unreadable u) {
 			return IngestResult.unavailable(url, c.title(), u.reason());
 		}
@@ -96,6 +106,9 @@ class DefaultSourceLibrary implements SourceLibrary {
 				c.type().name().equals("REPOSITORY") ? c.published() : null), rules, today);
 		Map<String, Object> metadata = new LinkedHashMap<>(page.metadata());
 		metadata.put("foundBy", c.adapter());
+		if (readFrom != null) {
+			metadata.put("readFrom", readFrom);
+		}
 		if (page.finalUrl() != null && !page.finalUrl().toString().equals(url)) {
 			metadata.put("finalUrl", page.finalUrl().toString());
 		}
@@ -225,7 +238,7 @@ class DefaultSourceLibrary implements SourceLibrary {
 
 	/** Chunks + their "passage:" embeddings, in batches, through the bounded lane. */
 	private List<NewChunk> embed(String text, int[] pageStarts) {
-		List<Chunk> chunks = Chunker.chunk(text, Chunker.MAX_CHARS, pageStarts);
+		List<Chunk> chunks = Chunker.firstChunks(Chunker.chunk(text, Chunker.MAX_CHARS, pageStarts), fetch.maxChunks());
 		List<String> texts = chunks.stream().map(ch -> ch.text(text)).toList();
 		List<float[]> vectors;
 		try {

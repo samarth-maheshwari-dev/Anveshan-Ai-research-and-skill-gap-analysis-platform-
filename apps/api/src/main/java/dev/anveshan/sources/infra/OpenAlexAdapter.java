@@ -73,8 +73,10 @@ class OpenAlexAdapter implements SearchAdapter {
 			}
 			CandidateType type = "preprint".equals(AdapterSupport.str(w, "type")) ? CandidateType.PREPRINT
 					: CandidateType.PAPER;
+			String oa = AdapterSupport.str(w.path("open_access"), "oa_url");
 			out.add(new Candidate(title, url, doi, AdapterSupport.text(abstractText(w.path("abstract_inverted_index"))),
-					AdapterSupport.date(AdapterSupport.str(w, "publication_date")), type, NAME, 0));
+					AdapterSupport.date(AdapterSupport.str(w, "publication_date")), type, NAME, 0,
+					oa != null && !oa.equals(url) ? oa : null));
 		}
 		return out;
 	}

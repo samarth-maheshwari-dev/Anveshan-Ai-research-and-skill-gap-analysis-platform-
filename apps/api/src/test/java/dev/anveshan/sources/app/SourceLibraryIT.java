@@ -83,6 +83,28 @@ class SourceLibraryIT {
 	}
 
 	@Test
+	@DisplayName("T-15-28 publisher page blocked → the free open-access copy is read instead; the source keeps its own URL and DOI")
+	void openAccessFallback() {
+		String blocked = SITE.url("/paywalled-" + UUID.randomUUID() + ".html");
+		String doi = "https://doi.org/10.5555/oa." + UUID.randomUUID();
+		Candidate c = new Candidate("QR code recovery (open access)", blocked, doi, null, LocalDate.of(2024, 3, 1),
+				CandidateType.PAPER, "openalex", 0.7, SITE.url("/paper.pdf"));
+		IngestResult r = library.ingest(c);
+		assertThat(r.outcome()).as(r.reason()).isEqualTo(Outcome.NEW);
+		assertThat(r.url()).isEqualTo(blocked);
+		assertThat(r.tier()).isEqualTo("HIGH");
+		assertThat(text(r.sourceId())).contains("Page 1 line 1");
+		assertThat(jdbc.sql("SELECT doi FROM source_document WHERE id = :id").param("id", r.sourceId()).query(String.class)
+				.single()).isEqualTo(doi);
+		assertThat(jdbc.sql("SELECT metadata->>'readFrom' FROM source_document WHERE id = :id").param("id", r.sourceId())
+				.query(String.class).single()).isEqualTo(SITE.url("/paper.pdf"));
+
+		Candidate noCopy = new Candidate("Paywalled", SITE.url("/paywalled-" + UUID.randomUUID() + ".html"), null, null,
+				null, CandidateType.PAPER, "openalex", 0.5);
+		assertThat(library.ingest(noCopy).outcome()).isEqualTo(Outcome.UNAVAILABLE);
+	}
+
+	@Test
 	@DisplayName("T-12-02 3-page PDF: text from every page, page numbers on the chunks")
 	void pdf() {
 		Candidate c = new Candidate("QR code recovery", SITE.url("/paper.pdf"), "https://doi.org/10.5555/qr.2024",
