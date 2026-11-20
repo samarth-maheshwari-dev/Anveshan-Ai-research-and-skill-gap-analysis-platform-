@@ -101,11 +101,15 @@ class ReportFlowIT {
 	/** Milliseconds each section WRITE call waits — lets a test pause after the write steps were planned. */
 	final AtomicLong writeDelay = new AtomicLong();
 
+	/** The user part of every section WRITE prompt, in order. */
+	final List<String> writePrompts = java.util.Collections.synchronizedList(new ArrayList<>());
+
 	@BeforeEach
 	void setUp() {
 		APIS.reset();
 		extractDelay.set(0);
 		writeDelay.set(0);
+		writePrompts.clear();
 		user = newUser();
 		// two preprints (MEDIUM tier) on the fake site; the other academic APIs find nothing
 		APIS.respond("openalex", """
@@ -253,6 +257,47 @@ class ReportFlowIT {
 		assertThat(labelReasons(run)).noneMatch(r -> r.contains(skipped));
 	}
 
+	@Test
+	@DisplayName("T-15-34 (API) a section already written from a source skipped later is written again without it")
+	void skipSourceRewritesWrittenSection() throws Exception {
+		writeDelay.set(2500);
+		UUID run = approvedRun();
+		await().atMost(WAIT).pollInterval(Duration.ofMillis(50)).untilAsserted(() -> assertThat(
+				jdbc.sql("SELECT count(*) FROM research_step WHERE run_id = :r AND kind = 'WRITE_SECTION' AND status = 'RUNNING'")
+						.param("r", run).query(Long.class).single()).isPositive());
+		assertThat(perform(post("/api/v1/runs/" + run + "/pause")).getResponse().getStatus()).isEqualTo(202);
+		awaitStatus(run, RunStatus.PAUSED);
+		writeDelay.set(0);
+		// the running section still finishes (pause takes effect after it): wait for it, then skip a source it used
+		await().atMost(WAIT).pollInterval(Duration.ofMillis(100)).untilAsserted(() -> assertThat(jdbc.sql(
+				"SELECT count(*) FROM research_step WHERE run_id = :r AND kind = 'WRITE_SECTION' AND status = 'DONE'")
+				.param("r", run).query(Long.class).single()).isPositive());
+		String skipped = jdbc.sql("""
+				SELECT cl.source_id::text FROM research_step s
+				  CROSS JOIN LATERAL jsonb_array_elements_text(s.input->'claimIds') AS ids(id)
+				  JOIN claim cl ON cl.id = ids.id::uuid
+				 WHERE s.run_id = :r AND s.kind = 'WRITE_SECTION' AND s.status = 'DONE'
+				 GROUP BY cl.source_id ORDER BY count(*) DESC, cl.source_id LIMIT 1""")
+				.param("r", run).query(String.class).single();
+		skip(run, skipped);
+		int promptsBeforeSkip = writePrompts.size();
+
+		assertThat(perform(post("/api/v1/runs/" + run + "/resume")).getResponse().getStatus()).isEqualTo(202);
+		awaitStatus(run, RunStatus.COMPLETED);
+		assertThat(logs(run)).anyMatch(m -> m.endsWith("again without the skipped source."));
+		// the DONE step kept its checkpoint (L4); the report's text comes from the new writing
+		assertThat(jdbc.sql("SELECT count(*) FROM research_step WHERE run_id = :r AND kind = 'WRITE_SECTION' AND status <> 'DONE'")
+				.param("r", run).query(Long.class).single()).isZero();
+		String reportId = json.readTree(body(perform(get("/api/v1/runs/" + run)))).path("reportId").asString();
+		JsonNode report = json.readTree(body(perform(get("/api/v1/reports/" + reportId))));
+		report.path("citations").forEach(c -> assertThat(c.path("sourceId").asString()).isNotEqualTo(skipped));
+		// every section written after the skip was given no claim of the skipped source
+		String title = jdbc.sql("SELECT title FROM source_document WHERE id = CAST(:s AS uuid)").param("s", skipped)
+				.query(String.class).single();
+		List<String> after = writePrompts.subList(promptsBeforeSkip, writePrompts.size());
+		assertThat(after).as("sections written after the skip").isNotEmpty().noneMatch(p -> p.contains(title));
+	}
+
 	/** Approves a run and pauses it once its section steps exist (each WRITE call is slow meanwhile). */
 	UUID pausedWhileWriting() throws Exception {
 		writeDelay.set(2500);
@@ -317,6 +362,7 @@ class ReportFlowIT {
 			}
 			else {
 				Thread.sleep(writeDelay.get());
+				writePrompts.add(prompt.user());
 				value = write(prompt);
 			}
 			return new LlmResult<>(value, UUID.randomUUID(), "fake", 10, 10, 1);
