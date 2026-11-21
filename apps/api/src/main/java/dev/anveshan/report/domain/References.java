@@ -12,6 +12,53 @@ import java.util.List;
 public final class References {
 
 	public record Ref(String title, List<String> authors, String site, LocalDate published, String url, String doi) {
+
+		/** Cleaned for print (T-16-14): only real person names, a readable title, never "doi.org" as the site. */
+		public Ref {
+			authors = personNames(authors);
+			title = titleCase(title);
+			site = site == null || site.isBlank() || site.strip().matches("(?i)(dx\\.)?doi\\.org") ? null : site.strip();
+		}
+	}
+
+	/** Words that mark an organisation, journal or scraped page text, not a person. */
+	private static final java.util.regex.Pattern NOT_A_PERSON = java.util.regex.Pattern.compile(
+			"(?i)\\b(journal|international|invention|university|research|review|institute|institution|college|"
+					+ "society|association|department|academy|publisher|publishing|press|editor|editorial|centre|center|"
+					+ "council|ministry|foundation|organi[sz]ation|school|faculty|board|inc|ltd|llc)\\b");
+
+	/** Keeps author strings that look like a person's name: no '@', no digits, no institution or journal words. */
+	public static List<String> personNames(List<String> authors) {
+		List<String> out = new ArrayList<>();
+		for (String a : authors == null ? List.<String>of() : authors) {
+			String n = clean(a).replaceFirst("(?i)^(dr|prof|mr|mrs|ms)\\.?\\s+", "");
+			if (n.isEmpty() || n.indexOf('@') >= 0 || n.matches(".*\\d.*") || NOT_A_PERSON.matcher(n).find()
+					|| n.split(" ").length > 6) {
+				continue;
+			}
+			out.add(n);
+		}
+		return List.copyOf(out);
+	}
+
+	private static final java.util.Set<String> SMALL = java.util.Set.of("a", "an", "and", "as", "at", "but", "by",
+			"for", "from", "in", "into", "nor", "of", "on", "or", "the", "to", "vs", "via", "with");
+
+	/** An ALL-CAPS title in title case ("THE ROLE OF AI IN EDUCATION" → "The Role of Ai in Education"); others unchanged. */
+	public static String titleCase(String title) {
+		String t = clean(title);
+		boolean hasLower = t.chars().anyMatch(Character::isLowerCase);
+		if (t.isEmpty() || hasLower || t.chars().noneMatch(Character::isUpperCase)) {
+			return t;
+		}
+		String[] words = t.toLowerCase(java.util.Locale.ROOT).split(" ");
+		StringBuilder b = new StringBuilder();
+		for (int i = 0; i < words.length; i++) {
+			String w = words[i];
+			boolean small = i > 0 && i < words.length - 1 && SMALL.contains(w) && !words[i - 1].endsWith(":");
+			b.append(i > 0 ? " " : "").append(small || w.isEmpty() ? w : Character.toUpperCase(w.charAt(0)) + w.substring(1));
+		}
+		return b.toString();
 	}
 
 	private References() {

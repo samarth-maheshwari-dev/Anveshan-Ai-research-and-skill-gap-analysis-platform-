@@ -11,7 +11,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Overline } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/errors";
 import { useCreateRun, useTemplates } from "@/lib/api/hooks/runs";
-import { useSlots } from "@/lib/api/hooks/slots";
 import { estimate } from "@/lib/estimate";
 
 import { formSize, initialForm, stepErrors, toBody, withTemplate, type FieldErrors, type Form } from "./form-state";
@@ -27,7 +26,6 @@ const DEFAULT_SECTIONS = 5;
 export function NewResearchForm() {
   const router = useRouter();
   const templates = useTemplates();
-  const slots = useSlots();
   const create = useCreateRun();
   const [thisYear] = useState(() => new Date().getFullYear());
   const [step, setStep] = useState(0);
@@ -36,8 +34,6 @@ export function NewResearchForm() {
   // C-FR-6: the same submission keeps the same key (double click, retry after a network error)
   const [submission, setSubmission] = useState<{ key: string; body: string } | null>(null);
 
-  const missing = slots.data ? (["PLAN", "WRITE"] as const).filter((s) => (slots.data[s]?.length ?? 0) === 0) : [];
-  const blocked = missing.length > 0;
   const template = templates.data?.find((t) => t.code === form.templateCode) ?? null;
   const sections = form.ownSections ? form.sections.length : template?.sections?.length || DEFAULT_SECTIONS;
   const size = formSize(form);
@@ -69,7 +65,6 @@ export function NewResearchForm() {
     for (let s = 0; s < STEPS.length - 1; s++) {
       if (!check(s)) return setStep(s);
     }
-    if (blocked) return;
     const body = toBody(form);
     const json = JSON.stringify(body);
     const key = submission?.body === json ? submission.key : crypto.randomUUID();
@@ -87,21 +82,6 @@ export function NewResearchForm() {
         Ask once. You will see the plan and what it costs before anything runs.
       </p>
       <Stepper steps={STEPS} current={step} />
-
-      {blocked && (
-        <Alert
-          tone="neutral"
-          className="mt-8"
-          action={
-            <Link href="/onboarding/connect-ai" className={buttonVariants({ variant: "primary", size: "sm" })}>
-              Connect AI
-            </Link>
-          }
-        >
-          Research needs an AI model for {missing.map((s) => (s === "PLAN" ? "planning" : "writing")).join(" and ")}.
-          Connect a free key first — it takes about 2 minutes.
-        </Alert>
-      )}
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-6 md:p-8">
         {step === 0 && (
@@ -135,7 +115,7 @@ export function NewResearchForm() {
             Next <ArrowRight aria-hidden />
           </Button>
         ) : (
-          <Button type="submit" variant="primary" loading={create.isPending} disabled={blocked || create.isSuccess}>
+          <Button type="submit" variant="primary" loading={create.isPending} disabled={create.isSuccess}>
             <Sparkles aria-hidden /> Start research
           </Button>
         )}
@@ -146,7 +126,7 @@ export function NewResearchForm() {
 
 function createErrorText(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.code === "NO_MODEL_FOR_SLOT") return "Set an AI model for planning and writing in Settings → AI, then start again.";
+    if (error.code === "LLM_DAILY_LIMIT") return "You've used today's research limit. Try again tomorrow.";
     if (error.status === 429 || error.status === 400) return error.message;
   }
   return "Couldn't start the research. Check your connection and try again.";

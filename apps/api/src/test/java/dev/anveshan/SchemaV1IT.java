@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,14 +16,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import dev.anveshan.byok.api.TaskSlot;
-import dev.anveshan.byok.domain.AiConnection;
-import dev.anveshan.byok.domain.ByokEnums.AiProvider;
-import dev.anveshan.byok.domain.ByokEnums.ConnectionKind;
-import dev.anveshan.byok.domain.ByokEnums.LlmCallStatus;
-import dev.anveshan.byok.domain.LlmCall;
-import dev.anveshan.byok.domain.RouteQuota;
-import dev.anveshan.byok.domain.SlotRoute;
+import dev.anveshan.llm.api.TaskSlot;
+import dev.anveshan.llm.domain.LlmEnums.LlmCallStatus;
+import dev.anveshan.llm.domain.LlmCall;
 import dev.anveshan.identity.domain.AppUser;
 import dev.anveshan.identity.domain.AuthProvider;
 import dev.anveshan.identity.domain.PersonalToken;
@@ -73,8 +67,9 @@ class SchemaV1IT {
 				SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'
 				""").query(String.class).list())
 				.contains("app_user", "user_identity", "personal_token", "spring_session",
-						"spring_session_attributes", "event_publication", "ai_connection", "slot_route",
-						"route_quota", "llm_call");
+						"spring_session_attributes", "event_publication", "llm_call", "llm_daily_usage")
+				.doesNotContain("ai_connection", "slot_route", "route_quota"); // dropped in P16 (no user keys)
+		assertThat(versions).contains("202611211000");
 	}
 
 	@Test
@@ -85,26 +80,16 @@ class SchemaV1IT {
 			em.persist(user);
 			em.persist(new UserIdentity(user.getId(), AuthProvider.GITHUB, "12345", "octocat"));
 			em.persist(new PersonalToken(user.getId(), "laptop", "anv_abcd", new byte[32], List.of("mcp.read"), null));
-			var conn = new AiConnection(UUID.randomUUID(), user.getId(), ConnectionKind.LLM, AiProvider.GROQ, "My Groq",
-					"https://api.groq.com/openai/v1", new byte[] { 1, 2, 3 }, "x9Q2");
-			em.persist(conn);
-			em.persist(new SlotRoute(new SlotRoute.Key(user.getId(), TaskSlot.PLAN, (short) 0), conn.getId(), "llama"));
-			em.persist(new RouteQuota(new RouteQuota.Key(conn.getId(), "llama", LocalDate.of(2026, 11, 9))));
-			em.persist(new LlmCall(user.getId(), TaskSlot.PLAN, conn.getId(), "llama", 420, LlmCallStatus.OK)
+			em.persist(new LlmCall(user.getId(), TaskSlot.PLAN, "gemini", "llama", 420, LlmCallStatus.OK)
 					.withTokens(100, 50));
-			return new UUID[] { user.getId(), conn.getId() };
+			return new UUID[] { user.getId() };
 		});
 		em.clear();
 
-		var conn = em.find(AiConnection.class, ids[1]);
-		assertThat(conn.getProvider()).isEqualTo(AiProvider.GROQ);
-		assertThat(conn.getKeyLast4()).isEqualTo("x9Q2");
-		assertThat(conn.getCreatedAt()).isNotNull();
-		assertThat(conn.toString()).doesNotContain("[1, 2, 3]");
 		assertThat(jdbc.sql("SELECT scopes FROM personal_token WHERE owner_id = :id").param("id", ids[0])
 				.query(String.class).single()).isEqualTo("{mcp.read}");
-		assertThat(jdbc.sql("SELECT slot FROM slot_route WHERE owner_id = :id").param("id", ids[0])
-				.query(String.class).single()).isEqualTo("PLAN");
+		assertThat(jdbc.sql("SELECT endpoint FROM llm_call WHERE owner_id = :id").param("id", ids[0])
+				.query(String.class).single()).isEqualTo("gemini");
 	}
 
 	@Test
@@ -132,21 +117,15 @@ class SchemaV1IT {
 	}
 
 	@Test
-	@DisplayName("T-04-05 deleting an app_user cascades to identities, tokens, connections, routes, quotas, calls")
+	@DisplayName("T-04-05 deleting an app_user cascades to identities, tokens, calls, daily usage")
 	void deleteCascades() {
 		UUID user = insertUser(uniqueEmail("riya"));
 		jdbc.sql("INSERT INTO user_identity (user_id, provider, provider_subject) VALUES (:u, 'GOOGLE', :s)")
 				.param("u", user).param("s", UUID.randomUUID().toString()).update();
 		jdbc.sql("INSERT INTO personal_token (owner_id, name, token_prefix, token_hash) VALUES (:u, 't', 'anv_1234', :h)")
 				.param("u", user).param("h", UUID.randomUUID().toString().getBytes()).update();
-		UUID conn = jdbc.sql("""
-				INSERT INTO ai_connection (owner_id, kind, provider, label, base_url, key_ciphertext, key_last4)
-				VALUES (:u, 'LLM', 'GEMINI', 'g', 'https://example.test', '\\x00'::bytea, 'abcd') RETURNING id
-				""").param("u", user).query(UUID.class).single();
-		jdbc.sql("INSERT INTO slot_route (owner_id, slot, position, connection_id, model) VALUES (:u, 'ASK', 0, :c, 'm')")
-				.param("u", user).param("c", conn).update();
-		jdbc.sql("INSERT INTO route_quota (connection_id, model, day) VALUES (:c, 'm', current_date)")
-				.param("c", conn).update();
+		jdbc.sql("INSERT INTO llm_daily_usage (owner_id, day, runs) VALUES (:u, current_date, 1)").param("u", user)
+				.update();
 		jdbc.sql("INSERT INTO llm_call (owner_id, slot, model, latency_ms, status) VALUES (:u, 'ASK', 'm', 1, 'OK')")
 				.param("u", user).update();
 
@@ -155,13 +134,10 @@ class SchemaV1IT {
 		for (String sql : List.of(
 				"SELECT count(*) FROM user_identity WHERE user_id = :u",
 				"SELECT count(*) FROM personal_token WHERE owner_id = :u",
-				"SELECT count(*) FROM ai_connection WHERE owner_id = :u",
-				"SELECT count(*) FROM slot_route WHERE owner_id = :u",
+				"SELECT count(*) FROM llm_daily_usage WHERE owner_id = :u",
 				"SELECT count(*) FROM llm_call WHERE owner_id = :u")) {
 			assertThat(jdbc.sql(sql).param("u", user).query(Long.class).single()).as(sql).isZero();
 		}
-		assertThat(jdbc.sql("SELECT count(*) FROM route_quota WHERE connection_id = :c").param("c", conn)
-				.query(Long.class).single()).isZero();
 	}
 
 	@Test
@@ -169,10 +145,6 @@ class SchemaV1IT {
 	void checkConstraints() {
 		UUID user = insertUser(uniqueEmail("ananya"));
 
-		assertThatThrownBy(() -> jdbc.sql("""
-				INSERT INTO ai_connection (owner_id, kind, provider, label, base_url, key_ciphertext, key_last4)
-				VALUES (:u, 'LLM', 'NOT_A_PROVIDER', 'x', 'https://x.test', '\\x00'::bytea, 'abcd')
-				""").param("u", user).update()).isInstanceOf(DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> jdbc.sql("""
 				INSERT INTO llm_call (owner_id, slot, model, latency_ms, status) VALUES (:u, 'CHAT', 'm', 1, 'OK')
 				""").param("u", user).update()).isInstanceOf(DataIntegrityViolationException.class);

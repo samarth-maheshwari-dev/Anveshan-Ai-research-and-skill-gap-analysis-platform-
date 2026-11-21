@@ -22,7 +22,7 @@ public interface SearchAdapter {
 
 	Set<SourceKind> kinds();
 
-	/** Configured and, for BYOK APIs, the user has a key. */
+	/** Configured (for keyed APIs, the platform key is set). */
 	boolean isAvailableFor(UUID ownerId);
 
 	List<Candidate> search(AdapterQuery query);

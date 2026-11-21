@@ -215,16 +215,9 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
                   </div>
                 ))}
               </dl>
-              <PerConnection run={run} requests={est.requests} />
             </>
           ) : (
             <p className="mt-3 text-body-sm text-muted-foreground">Keep 1–8 sub-questions to see the estimate.</p>
-          )}
-          {(run.estimate?.unroutedSlots?.length ?? 0) > 0 && (
-            <Alert tone="neutral" className="mt-4">
-              No AI model for {run.estimate!.unroutedSlots!.join(", ").toLowerCase()} yet. Set one in Settings → AI before
-              the research reaches that step.
-            </Alert>
           )}
           {error && (
             <Alert className="mt-4">
@@ -402,36 +395,3 @@ function QuestionCard({ index, count, card, showError, onText, onSources, onMove
   );
 }
 
-/** D-FR-2: which of the user's keys pays for what, against what is left of today's limit. */
-function PerConnection({ run, requests }: { run: Run; requests: Record<string, number> }) {
-  const view = run.estimate;
-  if (!view?.routes?.length) return null;
-  const byConnection = new Map<string, number>();
-  for (const r of view.routes) {
-    if (r.slot && r.connectionId) byConnection.set(r.connectionId, (byConnection.get(r.connectionId) ?? 0) + (requests[r.slot] ?? 0));
-  }
-  return (
-    <ul className="mt-5 space-y-2 border-t border-border pt-4">
-      {(view.perConnection ?? []).map((c) => {
-        const n = byConnection.get(c.connectionId!) ?? 0;
-        const pct = c.remainingToday ? Math.round((1000 * n) / c.remainingToday) / 10 : null;
-        return (
-          <li key={c.connectionId} className="text-body-sm">
-            <p className="font-medium">{c.label}</p>
-            <p className="text-caption text-muted-foreground">
-              <span className="tabular">{n}</span> requests
-              {pct !== null ? (
-                <>
-                  {" "}
-                  · <span className="tabular">{pct}%</span> of today&apos;s remaining
-                </>
-              ) : (
-                " · daily limit not known yet"
-              )}
-            </p>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}

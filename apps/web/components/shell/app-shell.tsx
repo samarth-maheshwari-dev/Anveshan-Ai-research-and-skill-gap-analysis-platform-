@@ -17,12 +17,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-import { Banner, pickBanner } from "@/components/anveshan/banner";
 import { Logo } from "@/components/anveshan/logo";
 import { Button } from "@/components/ui/button";
 import { Card, Skeleton } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/errors";
-import { useConnections } from "@/lib/api/hooks/connections";
 import { useMe, type Me } from "@/lib/api/hooks/me";
 
 import { AppProviders } from "./app-providers";
@@ -86,9 +84,6 @@ function Shell({ me, children }: ShellProps) {
   const [navOpenOn, setNavOpenOn] = useState<string | null>(null);
   const navOpen = navOpenOn === pathname;
   const setNavOpen = (open: boolean) => setNavOpenOn(open ? pathname : null);
-  const connections = useConnections();
-  const onboarding = pathname.startsWith("/onboarding");
-  const banner = onboarding ? null : pickBanner(me.onboarding?.hasVerifiedConnection, connections.data);
 
   return (
     <div className="flex min-h-screen">
@@ -125,7 +120,7 @@ function Shell({ me, children }: ShellProps) {
         <ul className="border-t border-border pt-3">
           <li>
             <NavLink
-              item={{ href: "/settings/ai", label: "Settings", Icon: Settings }}
+              item={{ href: "/settings", label: "Settings", Icon: Settings }}
               active={pathname.startsWith("/settings")}
             />
           </li>
@@ -150,7 +145,6 @@ function Shell({ me, children }: ShellProps) {
           <SearchField />
           <UserMenu me={me} />
         </header>
-        {banner && <Banner banner={banner} />}
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-8 md:px-8 lg:px-10 lg:py-10">
           <div className="mx-auto max-w-6xl">{children}</div>
         </main>

@@ -8,7 +8,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(ResearchProperties.class)
+@EnableConfigurationProperties({ ResearchProperties.class, ReportQualityProperties.class })
 @EnableScheduling // stale-step / auto-resume sweep and SSE keep-alive
 class ResearchConfig {
 

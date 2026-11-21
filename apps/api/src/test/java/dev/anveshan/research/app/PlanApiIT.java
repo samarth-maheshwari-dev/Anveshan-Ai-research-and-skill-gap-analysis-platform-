@@ -42,11 +42,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import dev.anveshan.TestcontainersConfig;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.LlmResult;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.ProviderUnavailableException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.LlmResult;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.ProviderUnavailableException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.identity.infra.security.SessionUser;
 import dev.anveshan.research.api.PlanExpired;
 import dev.anveshan.research.api.PlanReady;
@@ -121,8 +121,6 @@ class PlanApiIT {
 	void setUp() {
 		alice = newUser("alice");
 		bob = newUser("bob");
-		routeSlots(alice, "PLAN", "WRITE");
-		routeSlots(bob, "PLAN", "WRITE");
 		answerPlan(5);
 	}
 
@@ -133,7 +131,7 @@ class PlanApiIT {
 						List.of("campus lost and found " + i)))
 				.toList());
 		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any()))
-				.thenAnswer(inv -> new LlmResult<>(new PlanOutput(items), UUID.randomUUID(), "fake-model", 100, 50, 1));
+				.thenAnswer(inv -> new LlmResult<>(new PlanOutput(items), "test", "fake-model", 100, 50, 1));
 	}
 
 	@Test
@@ -246,27 +244,6 @@ class PlanApiIT {
 	}
 
 	@Test
-	@DisplayName("T-10-06 POST /runs without a PLAN or WRITE model → 422 NO_MODEL_FOR_SLOT, no run created")
-	void noModelForSlot() throws Exception {
-		UUID carol = newUser("carol");
-		var none = perform(carol, post("/api/v1/runs").contentType(MediaType.APPLICATION_JSON).content(TOPIC));
-		assertThat(none.getResponse().getStatus()).as(body(none)).isEqualTo(422);
-		assertThat(jsonOf(none).path("code").asString()).isEqualTo("NO_MODEL_FOR_SLOT");
-		assertThat(jsonOf(none).path("slot").asString()).isEqualTo("PLAN");
-
-		routeSlots(carol, "PLAN");
-		var noWrite = perform(carol, post("/api/v1/runs").contentType(MediaType.APPLICATION_JSON).content(TOPIC));
-		assertThat(noWrite.getResponse().getStatus()).isEqualTo(422);
-		assertThat(jsonOf(noWrite).path("slot").asString()).isEqualTo("WRITE");
-		assertThat(jdbc.sql("SELECT count(*) FROM research_run WHERE owner_id = :o").param("o", carol)
-				.query(Long.class).single()).isZero();
-
-		routeSlots(carol, "WRITE");
-		assertThat(perform(carol, post("/api/v1/runs").contentType(MediaType.APPLICATION_JSON).content(TOPIC))
-				.getResponse().getStatus()).isEqualTo(202);
-	}
-
-	@Test
 	@DisplayName("T-10-02 GET /templates is public and lists the four seeded templates")
 	void templates() throws Exception {
 		var res = mvc.perform(get("/api/v1/templates")).andReturn();
@@ -318,7 +295,6 @@ class PlanApiIT {
 	@DisplayName("T-10-12 bad custom options → 400 with a plain message, no run created")
 	void badCustomOptions() throws Exception {
 		UUID carol = newUser("carol");
-		routeSlots(carol, "PLAN", "WRITE");
 		for (String extra : List.of("\"objective\":\"OTHER\"", "\"outputStyle\":\"CUSTOM\",\"outputStyleText\":\" \"",
 				"\"depth\":\"CUSTOM\",\"subQuestions\":9", "\"depth\":\"CUSTOM\",\"sourcesPerQuestion\":1",
 				"\"timeRange\":\"SINCE_YEAR\",\"sinceYear\":1980", "\"includeSites\":[\"127.0.0.1\"]",
@@ -342,7 +318,7 @@ class PlanApiIT {
 		var step = jdbc.sql("SELECT attempts, last_error FROM research_step WHERE run_id = :r AND kind = 'PLAN'")
 				.param("r", run).query((rs, n) -> new Object[] { rs.getInt(1), rs.getString(2) }).single();
 		assertThat((int) step[0]).as("retried before giving up").isEqualTo(3);
-		assertThat((String) step[1]).contains("didn't answer", "Settings → AI").doesNotContain("Exception", "503");
+		assertThat((String) step[1]).contains("didn't answer", "Start again in a few minutes").doesNotContain("Exception", "503");
 		verify(gateway, org.mockito.Mockito.times(3)).call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any());
 	}
 
@@ -426,16 +402,6 @@ class PlanApiIT {
 				.param("e", name + "-" + UUID.randomUUID() + "@example.com").query(UUID.class).single();
 	}
 
-	void routeSlots(UUID user, String... slots) {
-		UUID conn = jdbc.sql("""
-				INSERT INTO ai_connection (owner_id, kind, provider, label, base_url, key_ciphertext, key_last4, status)
-				VALUES (:o, 'LLM', 'GROQ', 'Test Groq', 'https://api.groq.com/openai/v1/', :k, 'abcd', 'VERIFIED')
-				RETURNING id""").param("o", user).param("k", new byte[] { 1, 2, 3 }).query(UUID.class).single();
-		for (String slot : slots) {
-			jdbc.sql("INSERT INTO slot_route (owner_id, slot, position, connection_id, model) VALUES (:o, :s, 0, :c, 'm')")
-					.param("o", user).param("s", slot).param("c", conn).update();
-		}
-	}
 
 	MockHttpServletRequestBuilder as(UUID user, MockHttpServletRequestBuilder req) {
 		var token = new OAuth2AuthenticationToken(new SessionUser(user), List.of(new SimpleGrantedAuthority("ROLE_USER")),

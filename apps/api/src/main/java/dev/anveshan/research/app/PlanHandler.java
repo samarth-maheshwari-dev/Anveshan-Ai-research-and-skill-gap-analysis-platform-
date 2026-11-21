@@ -6,10 +6,10 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.InvalidLlmOutputException;
-import dev.anveshan.byok.api.NoModelForSlotException;
-import dev.anveshan.byok.api.ProviderUnavailableException;
+import dev.anveshan.llm.api.CallContext;
+import dev.anveshan.llm.api.InvalidLlmOutputException;
+import dev.anveshan.llm.api.NoModelForSlotException;
+import dev.anveshan.llm.api.ProviderUnavailableException;
 import dev.anveshan.research.app.Planner.Proposal;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.infra.RunStore;
@@ -49,13 +49,12 @@ class PlanHandler implements StepHandler {
 			proposal = planner.propose(run, null, CallContext.step(step.runId(), step.stepId()));
 		}
 		catch (NoModelForSlotException e) {
-			throw new StepFailedException("No AI model is set for planning. Choose one in Settings → AI, then start again.");
+			throw new StepFailedException("The AI service is not set up on this server yet. Start again once it is online.");
 		}
 		catch (ProviderUnavailableException e) {
 			// e.g. Gemini 503 "model overloaded": usually gone in a minute or two → retried with backoff first
 			throw new StepFailedException("Your AI provider didn't answer — it was busy or down (this happens with free "
-					+ "models at peak times). Anveshan tried several times. Start again in a few minutes, or add a second "
-					+ "model for planning in Settings → AI so Anveshan can switch to it.", true);
+					+ "models at peak times). Anveshan tried several times. Start again in a few minutes.", true);
 		}
 		catch (InvalidLlmOutputException e) {
 			throw new StepFailedException(

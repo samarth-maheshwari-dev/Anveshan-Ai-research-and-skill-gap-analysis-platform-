@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 /** App areas that need a session (APPFLOW §1.1). */
 export const PROTECTED_PREFIXES = [
   "/dashboard",
-  "/onboarding",
   "/settings",
   "/research",
   "/reports",

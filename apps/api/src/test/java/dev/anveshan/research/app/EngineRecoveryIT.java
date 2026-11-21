@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import dev.anveshan.byok.api.AllRoutesExhaustedException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.AllRoutesExhaustedException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.infra.RunEventStore;

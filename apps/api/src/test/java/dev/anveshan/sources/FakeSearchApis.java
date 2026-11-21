@@ -57,7 +57,7 @@ public final class FakeSearchApis {
 				r.add("anveshan.search.apis." + api + ".base-url", () -> baseUrl(api));
 			}
 		}
-		r.add("anveshan.providers.TAVILY.base-url", () -> baseUrl("tavily"));
+		r.add("anveshan.llm.tavily.base-url", () -> baseUrl("tavily"));
 		r.add("anveshan.search.retry-wait", () -> "50ms");
 		r.add("anveshan.search.cache-ttl", () -> "1ms"); // every test sees the API's current behaviour
 	}

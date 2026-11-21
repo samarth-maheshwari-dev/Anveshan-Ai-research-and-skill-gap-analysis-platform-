@@ -1,6 +1,7 @@
 package dev.anveshan.research.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -20,11 +21,11 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.LlmResult;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.RequestTooLargeException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.LlmResult;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.RequestTooLargeException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.research.app.StepHandler.StepContext;
 import dev.anveshan.research.app.StepHandler.StepResult;
 import dev.anveshan.research.app.VerifyHandler.VerdictItem;
@@ -44,7 +45,11 @@ class VerifyHandlerTest {
 	final LlmGateway gateway = mock(LlmGateway.class);
 	final ClaimLibrary claims = mock(ClaimLibrary.class);
 	final JsonMapper json = JsonMapper.builder().build();
-	final VerifyHandler handler = new VerifyHandler(gateway, new PromptFiles(), claims, json);
+	final dev.anveshan.research.infra.ResearchProperties props = new dev.anveshan.research.infra.ResearchProperties(3,
+			java.time.Duration.ofSeconds(15), java.time.Duration.ofMinutes(10), java.time.Duration.ofSeconds(30),
+			java.time.Duration.ofMinutes(30), java.time.Duration.ofSeconds(15), java.time.Duration.ofSeconds(60),
+			java.time.Duration.ofMinutes(5), java.time.Duration.ofDays(7));
+	final VerifyHandler handler = new VerifyHandler(gateway, new PromptFiles(), claims, json, props);
 	final List<Prompt> prompts = new ArrayList<>();
 
 	final UUID run = UUID.randomUUID();
@@ -52,7 +57,7 @@ class VerifyHandlerTest {
 			claim("Most items are phones."));
 
 	@Test
-	@DisplayName("T-15-21 VERIFY: claims the model skipped are asked once more (only those); still missing → counted and logged")
+	@DisplayName("T-15-21 VERIFY: claims the model skipped are asked once more (only those); on the last attempt, still missing → counted and logged")
 	void asksAgainForSkippedClaims() {
 		setUp();
 		// 1st call: only C1 is answered. 2nd call (C2, C3 re-numbered C1, C2): only the first is answered.
@@ -62,7 +67,7 @@ class VerifyHandlerTest {
 			return result(answerFirstOnly(p));
 		});
 
-		StepResult r = handler.handle(step());
+		StepResult r = handler.handle(step(3));
 
 		assertThat(prompts).hasSize(2);
 		assertThat(prompts.get(0).version()).isEqualTo(2);
@@ -79,6 +84,20 @@ class VerifyHandlerTest {
 				.containsEntry("verdicts", 4);
 		assertThat(messages(r)).anyMatch(m -> m.startsWith("The AI skipped 2 of 3 claims"))
 				.anyMatch(m -> m.startsWith("1 claims couldn't be checked"));
+	}
+
+	@Test
+	@DisplayName("T-16-12 VERIFY: claims still unchecked before the last attempt → retryable failure, not \"No source found\"")
+	void retriesStepInsteadOfLeavingClaimsUnchecked() {
+		setUp();
+		when(gateway.call(any(), eq(TaskSlot.VERIFY), any(), eq(VerifyOutput.class), any()))
+				.thenAnswer(inv -> result(answerFirstOnly(inv.getArgument(2))));
+		assertThatThrownBy(() -> handler.handle(step(1))).isInstanceOfSatisfying(StepFailedException.class,
+				e -> assertThat(e.retryable()).isTrue());
+		when(gateway.call(any(), eq(TaskSlot.VERIFY), any(), eq(VerifyOutput.class), any()))
+				.thenThrow(new dev.anveshan.llm.api.InvalidLlmOutputException(TaskSlot.VERIFY, "not JSON"));
+		assertThatThrownBy(() -> handler.handle(step(2))).isInstanceOf(StepFailedException.class);
+		assertThat(messages(handler.handle(step(3)))).anyMatch(m -> m.contains("stay unverified"));
 	}
 
 	@Test
@@ -160,8 +179,12 @@ class VerifyHandlerTest {
 	}
 
 	StepContext step() {
+		return step(1);
+	}
+
+	StepContext step(int attempt) {
 		String input = json.writeValueAsString(java.util.Map.of("claimIds", batch.stream().map(c -> c.id().toString()).toList()));
-		return new StepContext(run, UUID.randomUUID(), UUID.randomUUID(), StepKind.VERIFY, 5, 0, null, input, 1);
+		return new StepContext(run, UUID.randomUUID(), UUID.randomUUID(), StepKind.VERIFY, 5, 0, null, input, attempt);
 	}
 
 	static Claim claim(String text) {
@@ -169,7 +192,7 @@ class VerifyHandlerTest {
 	}
 
 	static LlmResult<VerifyOutput> result(VerifyOutput out) {
-		return new LlmResult<>(out, UUID.randomUUID(), "fake", 10, 10, 1);
+		return new LlmResult<>(out, "test", "fake", 10, 10, 1);
 	}
 
 	static List<String> messages(StepResult r) {

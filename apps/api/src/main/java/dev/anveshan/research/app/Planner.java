@@ -9,11 +9,11 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.LlmResult;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.CallContext;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.LlmResult;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.research.domain.PlanRules;
 import dev.anveshan.research.domain.PlanRules.PlannedQuestion;
 import dev.anveshan.research.domain.RunOptions.Language;
@@ -70,10 +70,10 @@ class Planner {
 
 	/**
 	 * @param extraInstruction "Regenerate plan" guidance from the user (null for the first plan)
-	 * @throws dev.anveshan.byok.api.NoModelForSlotException     no PLAN model
-	 * @throws dev.anveshan.byok.api.ProviderUnavailableException the provider was busy or down
-	 * @throws dev.anveshan.byok.api.AllRoutesExhaustedException  every route is rate-limited
-	 * @throws dev.anveshan.byok.api.InvalidLlmOutputException    3 answers didn't match the schema
+	 * @throws dev.anveshan.llm.api.NoModelForSlotException     no PLAN model
+	 * @throws dev.anveshan.llm.api.ProviderUnavailableException the provider was busy or down
+	 * @throws dev.anveshan.llm.api.AllRoutesExhaustedException  every route is rate-limited
+	 * @throws dev.anveshan.llm.api.InvalidLlmOutputException    3 answers didn't match the schema
 	 * @throws IllegalArgumentException                           the answer broke {@link PlanRules} (message for the user)
 	 */
 	Proposal propose(RunRow run, String extraInstruction, CallContext context) {

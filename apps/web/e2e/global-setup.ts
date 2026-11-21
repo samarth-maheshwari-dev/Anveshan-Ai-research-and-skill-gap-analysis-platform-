@@ -4,7 +4,7 @@
  */
 export default async function globalSetup() {
   const base = "http://localhost:3100";
-  const routes = ["/", "/login", "/dashboard", "/onboarding/connect-ai", "/settings/ai"];
+  const routes = ["/", "/login", "/dashboard", "/settings", "/research/new"];
   for (const path of routes) {
     await fetch(base + path, { headers: { cookie: "ANV_SESSION=warmup" }, redirect: "manual" }).catch(() => undefined);
   }

@@ -11,13 +11,13 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.InvalidLlmOutputException;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.NoModelForSlotException;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.ProviderUnavailableException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.CallContext;
+import dev.anveshan.llm.api.InvalidLlmOutputException;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.NoModelForSlotException;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.ProviderUnavailableException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.infra.PromptFiles;
 import dev.anveshan.research.infra.SubQuestionStore;
@@ -190,8 +190,7 @@ class ExtractHandler implements StepHandler {
 					CallContext.step(step.runId(), step.stepId())).value();
 		}
 		catch (NoModelForSlotException e) {
-			throw new StepFailedException("No AI model is set for extracting claims. Choose one for \"Extract\" in "
-					+ "Settings → AI, then retry this step.");
+			throw new StepFailedException("The AI service is not set up on this server yet. Retry this step once it is online.");
 		}
 		catch (ProviderUnavailableException e) {
 			throw new StepFailedException("Your AI provider didn't answer — it was busy or down. Anveshan will try again.",

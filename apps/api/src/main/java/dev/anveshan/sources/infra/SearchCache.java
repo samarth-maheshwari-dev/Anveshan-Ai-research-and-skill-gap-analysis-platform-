@@ -12,7 +12,7 @@ import dev.anveshan.sources.api.SourceSearch.Candidate;
 
 /**
  * Search responses cached by (API, normalized query, filters) for {@code cache-ttl} (TECHSPEC §11.3): a re-run or a
- * similar plan doesn't spend the free APIs' limits again. In memory, bounded. BYOK web search is keyed per user.
+ * similar plan doesn't spend the free APIs' limits again. In memory, bounded. Web search is keyed per user.
  */
 @Component
 public class SearchCache {

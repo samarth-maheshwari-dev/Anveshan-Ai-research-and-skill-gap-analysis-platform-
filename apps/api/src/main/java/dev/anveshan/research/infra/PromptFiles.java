@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.Prompt;
+import dev.anveshan.llm.api.Prompt;
 
 /**
  * Loads versioned prompt files {@code prompts/<name>/v<N>.st} (TECHSPEC §10.5). A file has a {@code === system ===}

@@ -20,7 +20,7 @@ class ModularityTest {
 
 		List<String> names = MODULES.stream().map(ApplicationModule::getIdentifier).map(Object::toString).toList();
 		assertThat(names).containsExactlyInAnyOrder(
-				"identity", "byok", "research", "sources", "report", "knowledge", "skills",
+				"identity", "llm", "research", "sources", "report", "knowledge", "skills",
 				"team", "notify", "search", "export", "mcp", "shared");
 	}
 

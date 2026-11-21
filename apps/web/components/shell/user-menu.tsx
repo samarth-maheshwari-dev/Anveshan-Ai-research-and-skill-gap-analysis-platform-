@@ -92,7 +92,7 @@ export function UserMenu({ me }: UserMenuProps) {
           </div>
           <Link
             role="menuitem"
-            href="/settings/ai"
+            href="/settings"
             onClick={() => setOpen(false)}
             className="flex h-10 items-center gap-2 rounded-md px-2 text-body-sm hover:bg-surface-2 max-sm:h-11"
           >

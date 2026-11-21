@@ -1,13 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { fakeRun, installFakeApi, verifiedConnection } from "./fake-api";
+import { fakeRun, installFakeApi } from "./fake-api";
 
 const QUOTE = "Some apps return about 40 percent of items to their owners within a week.";
 
 async function openReport(page: Page, context: Parameters<typeof installFakeApi>[1]) {
   const state = await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
     runs: [fakeRun({ id: "r-done", status: "COMPLETED", reportId: "rep-1", topic: "Campus lost-and-found apps" })],
   });
   await page.goto("/research/r-done/report");

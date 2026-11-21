@@ -33,9 +33,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import dev.anveshan.TestcontainersConfig;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.LlmResult;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.LlmResult;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.identity.infra.security.SessionUser;
 import dev.anveshan.research.app.Planner.PlanItem;
 import dev.anveshan.research.app.Planner.PlanOutput;
@@ -83,18 +83,10 @@ class FetchFlowIT {
 	void searchFetchRelevance() throws Exception {
 		user = jdbc.sql("INSERT INTO app_user (email, email_verified) VALUES (:e, true) RETURNING id")
 				.param("e", "reena-" + UUID.randomUUID() + "@example.com").query(UUID.class).single();
-		UUID llm = jdbc.sql("""
-				INSERT INTO ai_connection (owner_id, kind, provider, label, base_url, key_ciphertext, key_last4, status)
-				VALUES (:o, 'LLM', 'GROQ', 'Test', 'https://example.test/', :c, 'abcd', 'VERIFIED') RETURNING id""")
-				.param("o", user).param("c", new byte[] { 1 }).query(UUID.class).single();
-		for (String slot : List.of("PLAN", "WRITE")) {
-			jdbc.sql("INSERT INTO slot_route (owner_id, slot, position, connection_id, model) VALUES (:o, :s, 0, :c, 'm')")
-					.param("o", user).param("s", slot).param("c", llm).update();
-		}
 		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any()))
 				.thenAnswer(inv -> new LlmResult<>(new PlanOutput(List.of(new PlanItem(
 						"How do students report a lost item on campus apps?", List.of("WEB"),
-						List.of("campus lost and found app")))), UUID.randomUUID(), "fake", 10, 10, 1));
+						List.of("campus lost and found app")))), "test", "fake", 10, 10, 1));
 		// the web search finds three pages of the fake site: an article, a PDF and a robots-blocked one
 		APIS.respond("searxng", """
 				{"results":[

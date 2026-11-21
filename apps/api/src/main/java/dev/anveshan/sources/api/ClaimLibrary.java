@@ -94,10 +94,12 @@ public interface ClaimLibrary {
 	/**
 	 * NO_SOURCE claims of the run (not from skipped sources), at most {@code limit}: statements found in a source that
 	 * the check could not confirm. The report lists them under "open questions" instead of hiding them (PRD §14.2).
+	 * Each carries its highest cosine similarity to any of {@code questions} (the run question and sub-questions),
+	 * so the caller can leave out off-topic ones (T-16-16). Every NO_SOURCE claim is returned; the caller caps.
 	 */
-	List<OpenQuestion> openQuestions(UUID runId, int limit);
+	List<OpenQuestion> openQuestions(UUID runId, List<float[]> questions);
 
-	record OpenQuestion(UUID claimId, String text) {
+	record OpenQuestion(UUID claimId, String text, double similarity) {
 	}
 
 }

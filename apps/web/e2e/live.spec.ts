@@ -1,11 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { fakeRun, installFakeApi, verifiedConnection, type FakeRun } from "./fake-api";
-
-const ROUTED = {
-  PLAN: [{ connectionId: "c-existing", model: "m" }],
-  WRITE: [{ connectionId: "c-existing", model: "m" }],
-};
+import { fakeRun, installFakeApi, type FakeRun } from "./fake-api";
 
 function liveRun(overrides: Partial<FakeRun> = {}): FakeRun {
   return fakeRun({
@@ -30,8 +25,6 @@ function liveRun(overrides: Partial<FakeRun> = {}): FakeRun {
 test("T-14-06 Live Room: sources appear, [Skip] one, [Pause], [Resume] → report ready → report page", async ({ page, context }) => {
   const api = await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [liveRun({ completeOnResume: true })],
   });
   await page.goto("/research/r-live/live");
@@ -59,8 +52,6 @@ test("T-14-06 Live Room: sources appear, [Skip] one, [Pause], [Resume] → repor
 test("T-14-07 close the tab mid-run and reopen: the run kept going, the earlier log is replayed", async ({ page, context }) => {
   const api = await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [liveRun()],
   });
   await page.goto("/research/r-live/live");
@@ -84,8 +75,6 @@ test("T-14-07 close the tab mid-run and reopen: the run kept going, the earlier 
 test("Stop asks first; a stopped run is read-only", async ({ page, context }) => {
   const api = await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [liveRun()],
   });
   await page.goto("/research/r-live/live");
@@ -102,8 +91,6 @@ test("Stop asks first; a stopped run is read-only", async ({ page, context }) =>
 test("Dashboard lists the user's researches and opens the right screen", async ({ page, context }) => {
   await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [liveRun(), fakeRun({ id: "r-done", status: "COMPLETED", reportId: "rep-r-done", topic: "Java full stack roadmap for 2027" })],
   });
   await page.goto("/dashboard");

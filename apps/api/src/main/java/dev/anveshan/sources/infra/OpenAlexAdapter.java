@@ -77,7 +77,8 @@ class OpenAlexAdapter implements SearchAdapter {
 			String oa = AdapterSupport.str(w.path("open_access"), "oa_url");
 			out.add(new Candidate(title, url, doi, AdapterSupport.text(abstractText(w.path("abstract_inverted_index"))),
 					AdapterSupport.date(AdapterSupport.str(w, "publication_date")), type, NAME, 0,
-					oa != null && !oa.equals(url) ? oa : null, w.path("is_retracted").asBoolean(false)));
+					oa != null && !oa.equals(url) ? oa : null, w.path("is_retracted").asBoolean(false),
+					AdapterSupport.str(w.path("primary_location").path("source"), "display_name")));
 		}
 		return out;
 	}
