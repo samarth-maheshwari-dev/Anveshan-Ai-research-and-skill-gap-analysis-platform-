@@ -121,6 +121,32 @@ class SearchStepIT {
 	}
 
 	@Test
+	@DisplayName("T-15-38 a retracted paper is left out of SEARCH and the Live Room log says which one")
+	void retractedPaperLeftOut() throws Exception {
+		String query = "campus lost and found app " + UUID.randomUUID(); // unique: the search cache outlives a test
+		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any()))
+				.thenAnswer(inv -> new LlmResult<>(new PlanOutput(List.of(
+						new PlanItem("Which lost and found apps work best on college campuses?", List.of("ACADEMIC"),
+								List.of(query)),
+						new PlanItem("Which open-source lost and found projects exist?", List.of("GITHUB"),
+								List.of("lost and found app")))), // awaitSearch expects two SEARCH steps
+						UUID.randomUUID(), "fake", 10, 10, 1));
+		FAKE.respond("openalex", """
+				{"results":[{"id":"W9","doi":"https://doi.org/10.1000/LOSTFOUND.2023",
+				 "display_name":"Lost and found management systems for university campuses","type":"article","is_retracted":true}]}""");
+
+		UUID run = approvedRun();
+		JsonNode out = awaitSearch(run, "DONE").stream().filter(o -> o.path("adapters").toString().contains("openalex"))
+				.findFirst().orElseThrow();
+
+		assertThat(out.path("candidates").toString()).doesNotContain("10.1000/lostfound.2023").contains("\"retracted\":false");
+		assertThat(out.path("retracted").get(0).asString())
+				.isEqualTo("Lost and found management systems for university campuses");
+		assertThat(logMessages(run)).contains("Left out 1 retracted paper (taken back by the journal): "
+				+ "\"Lost and found management systems for university campuses\".");
+	}
+
+	@Test
 	@DisplayName("T-11-06 every API fails → SEARCH retried, then FAILED with a plain, retryable message")
 	void allApisDown() throws Exception {
 		for (String api : FakeSearchApis.APIS) {

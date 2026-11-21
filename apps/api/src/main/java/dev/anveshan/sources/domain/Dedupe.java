@@ -82,7 +82,7 @@ public final class Dedupe {
 		return new Candidate(a.title() != null ? a.title() : b.title(), a.url() != null ? a.url() : b.url(),
 				a.doi() != null ? a.doi() : b.doi(), longer(a.snippet(), b.snippet()),
 				a.published() != null ? a.published() : b.published(), a.type(), adapters, Math.max(a.score(), b.score()),
-				a.openAccessUrl() != null ? a.openAccessUrl() : b.openAccessUrl());
+				a.openAccessUrl() != null ? a.openAccessUrl() : b.openAccessUrl(), a.retracted() || b.retracted());
 	}
 
 	private static String longer(String a, String b) {
