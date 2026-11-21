@@ -45,6 +45,11 @@ class GatewayChainTest {
 	static final CompletionOptions OPTIONS = new CompletionOptions(0.2, 100, true);
 
 	final FakeGateway fake = new FakeGateway();
+
+	@org.junit.jupiter.api.AfterEach
+	void closeFake() {
+		fake.close();
+	}
 	final MutableClock clock = new MutableClock(Instant.parse("2026-11-21T10:00:00Z"));
 	final LlmCallLog callLog = mock(LlmCallLog.class);
 

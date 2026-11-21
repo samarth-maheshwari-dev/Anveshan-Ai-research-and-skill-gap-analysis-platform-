@@ -26,6 +26,11 @@ class TavilyWebSearchTest {
 
 	final FakeGateway fake = new FakeGateway();
 
+	@org.junit.jupiter.api.AfterEach
+	void closeFake() {
+		fake.close();
+	}
+
 	@AfterEach
 	void stop() {
 		fake.close();

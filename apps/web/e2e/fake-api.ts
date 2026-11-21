@@ -171,6 +171,7 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
     const req = route.request();
     const method = req.method();
     const path = new URL(req.url()).pathname.replace("/api/v1", "");
+    if (path === "/ai/status") return route.fallback(); // handled by the dedicated route above
     if (method === "OPTIONS") {
       return route.fulfill({
         status: 204,
