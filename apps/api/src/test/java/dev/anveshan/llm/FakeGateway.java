@@ -56,7 +56,11 @@ public final class FakeGateway implements AutoCloseable {
 		catch (IOException e) {
 			throw new IllegalStateException(e);
 		}
-		server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
+		server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool(r -> {
+			var t = new Thread(r, "fake-gateway");
+			t.setDaemon(true); // a leaked fake must never keep the test JVM alive
+			return t;
+		}));
 		server.createContext("/", this::handle);
 		server.start();
 	}
