@@ -56,7 +56,8 @@ class OpenAlexAdapter implements SearchAdapter {
 		Map<String, String> p = new LinkedHashMap<>();
 		p.put("search", q.text());
 		p.put("per_page", Integer.toString(q.maxResults()));
-		p.put("select", "id,doi,display_name,publication_date,type,primary_location,open_access,abstract_inverted_index");
+		p.put("select",
+				"id,doi,display_name,publication_date,type,primary_location,open_access,abstract_inverted_index,is_retracted");
 		p.put("filter", q.since() == null ? null : "from_publication_date:" + q.since());
 		p.put("api_key", api.hasKey() ? api.apiKey() : null);
 		p.put("mailto", props.contactEmail());
@@ -76,7 +77,7 @@ class OpenAlexAdapter implements SearchAdapter {
 			String oa = AdapterSupport.str(w.path("open_access"), "oa_url");
 			out.add(new Candidate(title, url, doi, AdapterSupport.text(abstractText(w.path("abstract_inverted_index"))),
 					AdapterSupport.date(AdapterSupport.str(w, "publication_date")), type, NAME, 0,
-					oa != null && !oa.equals(url) ? oa : null));
+					oa != null && !oa.equals(url) ? oa : null, w.path("is_retracted").asBoolean(false)));
 		}
 		return out;
 	}

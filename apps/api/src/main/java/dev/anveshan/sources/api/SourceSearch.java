@@ -42,17 +42,23 @@ public interface SourceSearch {
 	 * @param score   ranking score (higher is better); relative, not a probability
 	 * @param openAccessUrl a free full-text copy (e.g. OpenAlex {@code oa_url}) tried when {@code url} can't be read
 	 *                      (publisher paywall / bot block); null when unknown or the same as {@code url} (D-107)
+	 * @param retracted     an API or the title says the journal took the paper back; search never returns one (D-111)
 	 */
 	record Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
-			String adapter, double score, String openAccessUrl) {
+			String adapter, double score, String openAccessUrl, boolean retracted) {
+
+		public Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
+				String adapter, double score, String openAccessUrl) {
+			this(title, url, doi, snippet, published, type, adapter, score, openAccessUrl, false);
+		}
 
 		public Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
 				String adapter, double score) {
-			this(title, url, doi, snippet, published, type, adapter, score, null);
+			this(title, url, doi, snippet, published, type, adapter, score, null, false);
 		}
 
 		public Candidate withScore(double s) {
-			return new Candidate(title, url, doi, snippet, published, type, adapter, s, openAccessUrl);
+			return new Candidate(title, url, doi, snippet, published, type, adapter, s, openAccessUrl, retracted);
 		}
 
 	}
@@ -65,7 +71,12 @@ public interface SourceSearch {
 	record AdapterReport(String adapter, String label, AdapterStatus status, int results) {
 	}
 
-	record SearchOutcome(List<Candidate> candidates, List<AdapterReport> adapters) {
+	/** @param retracted titles of retracted papers left out of {@code candidates}, so the run can say why (D-111) */
+	record SearchOutcome(List<Candidate> candidates, List<AdapterReport> adapters, List<String> retracted) {
+
+		public SearchOutcome(List<Candidate> candidates, List<AdapterReport> adapters) {
+			this(candidates, adapters, List.of());
+		}
 
 		/** At least one API was asked and none answered: worth retrying later (T-11-06). */
 		public boolean allFailed() {

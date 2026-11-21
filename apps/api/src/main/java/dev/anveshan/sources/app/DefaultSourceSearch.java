@@ -25,6 +25,7 @@ import dev.anveshan.sources.app.SearchAdapter.AdapterQuery;
 import dev.anveshan.sources.domain.Dedupe;
 import dev.anveshan.sources.domain.Doi;
 import dev.anveshan.sources.domain.Ranking;
+import dev.anveshan.sources.domain.Retraction;
 import dev.anveshan.sources.domain.Urls;
 import dev.anveshan.sources.domain.Vectors;
 import dev.anveshan.sources.infra.ExternalBudget;
@@ -105,9 +106,20 @@ class DefaultSourceSearch implements SourceSearch {
 
 		List<Candidate> all = new ArrayList<>();
 		results.forEach(r -> all.addAll(r.candidates()));
-		List<Candidate> ranked = rank(req, Dedupe.merge(clean(all, req)));
+		// retracted after merging: one API's flag covers the copies the others found unflagged (D-111)
+		List<Candidate> kept = new ArrayList<>();
+		LinkedHashSet<String> retracted = new LinkedHashSet<>();
+		for (Candidate c : Dedupe.merge(clean(all, req))) {
+			if (c.retracted()) {
+				retracted.add(c.title());
+			}
+			else {
+				kept.add(c);
+			}
+		}
+		List<Candidate> ranked = rank(req, kept);
 		return new SearchOutcome(ranked.subList(0, Math.min(req.keep(), ranked.size())),
-				results.stream().map(AdapterResult::report).toList());
+				results.stream().map(AdapterResult::report).toList(), List.copyOf(retracted));
 	}
 
 	/** The plan's queries (de-duplicated, best first); the sub-question itself when there are none. */
@@ -188,7 +200,7 @@ class DefaultSourceSearch implements SourceSearch {
 			if (url == null && doi != null) {
 				url = doi;
 			}
-			if (url == null || c.title() == null || c.title().isBlank()) {
+			if (url == null || c.title() == null || c.title().isBlank() || Retraction.isNotice(c.title())) {
 				continue;
 			}
 			String u = url;
@@ -200,7 +212,8 @@ class DefaultSourceSearch implements SourceSearch {
 			}
 			String oa = Urls.canonical(c.openAccessUrl());
 			out.add(new Candidate(c.title().strip(), url, doi, c.snippet(), c.published(), c.type(), c.adapter(), 0,
-					oa == null || oa.equals(url) || oa.equals(doi) ? null : oa));
+					oa == null || oa.equals(url) || oa.equals(doi) ? null : oa,
+					c.retracted() || Retraction.titleSaysRetracted(c.title())));
 		}
 		return out;
 	}

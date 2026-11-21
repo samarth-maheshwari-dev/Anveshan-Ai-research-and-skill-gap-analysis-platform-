@@ -169,6 +169,57 @@ class SearchAdaptersIT {
 	}
 
 	@Test
+	@DisplayName("T-15-36 OpenAlex is_retracted and Crossref updated-by mark a paper retracted; a retraction notice is skipped")
+	void retractionFlags() {
+		// adapters are called directly here, so the search cache isn't involved
+		FAKE.respond("openalex", """
+				{"results":[
+				 {"id":"W9","doi":"https://doi.org/10.9/gone","display_name":"Campus apps reconsidered","type":"article","is_retracted":true},
+				 {"id":"W1","doi":"https://doi.org/10.9/fine","display_name":"Campus apps compared","type":"article","is_retracted":false}]}""");
+		FAKE.respond("crossref", """
+				{"message":{"items":[
+				 {"DOI":"10.9/gone","title":["Campus apps reconsidered"],"type":"journal-article",
+				  "updated-by":[{"DOI":"10.9/c","type":"correction"},{"DOI":"10.9/r","type":"retraction","source":"retraction-watch"}]},
+				 {"DOI":"10.9/r","title":["Retraction notice: Campus apps reconsidered"],"type":"journal-article",
+				  "update-to":[{"DOI":"10.9/gone","type":"retraction"}]},
+				 {"DOI":"10.9/fixed","title":["Campus apps, corrected"],"type":"journal-article",
+				  "updated-by":[{"DOI":"10.9/c2","type":"correction"}]}]}}""");
+
+		assertThat(openAlex.search(q(null))).extracting(Candidate::retracted).containsExactly(true, false);
+		assertThat(FAKE.requestsTo("openalex").get(0).uri().getQuery()).contains("is_retracted");
+
+		List<Candidate> c = crossref.search(q(null));
+		assertThat(c).extracting(Candidate::title).containsExactly("Campus apps reconsidered", "Campus apps, corrected");
+		assertThat(c).extracting(Candidate::retracted).containsExactly(true, false);
+		assertThat(FAKE.requestsTo("crossref").get(0).uri().getQuery()).contains("updated-by", "update-to");
+	}
+
+	@Test
+	@DisplayName("T-15-37 whole search: a retracted paper never reaches the run, even when another API listed it unflagged; its title is reported")
+	void retractedDropped() {
+		FAKE.respond("openalex", """
+				{"results":[
+				 {"id":"W9","doi":"https://doi.org/10.1000/LOSTFOUND.2023","display_name":"Lost and found management systems for university campuses",
+				  "type":"article","is_retracted":true}]}""");
+		FAKE.respond("arxiv", """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<feed xmlns="http://www.w3.org/2005/Atom">
+				  <entry><id>http://arxiv.org/abs/2401.00009v1</id><published>2024-01-01T10:00:00Z</published>
+				    <title>RETRACTED: Lost item detection with drones</title><summary>Withdrawn by the authors.</summary></entry>
+				</feed>""");
+
+		SearchOutcome out = search.search(new SearchRequest(owner, "Which lost and found apps work best on campuses?",
+				List.of("campus lost and found app " + UUID.randomUUID()), // unique: the search cache outlives a test
+				Set.of(SourceKind.ACADEMIC), null, List.of(), List.of(), 20));
+
+		assertThat(out.candidates()).as("S2 + Crossref found the same DOI without a flag; OpenAlex's flag wins")
+				.noneMatch(c -> "https://doi.org/10.1000/lostfound.2023".equals(c.doi()))
+				.noneMatch(c -> c.title().startsWith("RETRACTED")).noneMatch(Candidate::retracted).isNotEmpty();
+		assertThat(out.retracted()).containsExactlyInAnyOrder(
+				"Lost and found management systems for university campuses", "RETRACTED: Lost item detection with drones");
+	}
+
+	@Test
 	@DisplayName("T-11-03 time range: undated candidates stay, ones published before the start are dropped")
 	void timeRange() {
 		SearchOutcome out = search.search(new SearchRequest(owner, "lost and found apps", List.of("lost and found"),

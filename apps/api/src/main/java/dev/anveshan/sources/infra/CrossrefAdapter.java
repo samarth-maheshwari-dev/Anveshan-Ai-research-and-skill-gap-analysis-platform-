@@ -14,6 +14,7 @@ import dev.anveshan.sources.api.SourceSearch.Candidate;
 import dev.anveshan.sources.api.SourceSearch.CandidateType;
 import dev.anveshan.sources.api.SourceSearch.SourceKind;
 import dev.anveshan.sources.app.SearchAdapter;
+import dev.anveshan.sources.domain.Retraction;
 import tools.jackson.databind.JsonNode;
 
 /** Crossref works (TECHSPEC §11.1): DOI metadata, venues, dates. Polite pool ≤ 3 requests/second. */
@@ -55,7 +56,7 @@ class CrossrefAdapter implements SearchAdapter {
 		Map<String, String> p = new LinkedHashMap<>();
 		p.put("query.bibliographic", q.text());
 		p.put("rows", Integer.toString(q.maxResults()));
-		p.put("select", "DOI,title,URL,abstract,issued,type");
+		p.put("select", "DOI,title,URL,abstract,issued,type,updated-by,update-to");
 		p.put("filter", q.since() == null ? null : "from-pub-date:" + q.since());
 		p.put("mailto", props.contactEmail());
 		JsonNode root = http.getJson(AdapterSupport.uri(props.api(NAME).baseUrl(), "works", p), Map.of());
@@ -64,16 +65,29 @@ class CrossrefAdapter implements SearchAdapter {
 			JsonNode titles = item.path("title");
 			String title = titles.isArray() && !titles.isEmpty() ? AdapterSupport.text(titles.get(0).asString("")) : null;
 			String doiId = AdapterSupport.str(item, "DOI");
-			if (title == null || doiId == null) {
-				continue;
+			if (title == null || doiId == null || takesBack(item.path("update-to"))) {
+				continue; // a retraction notice is about another paper, not evidence (D-111)
 			}
 			String doi = "https://doi.org/" + doiId;
 			out.add(new Candidate(title, doi, doi, AdapterSupport.text(AdapterSupport.str(item, "abstract")),
 					issued(item.path("issued").path("date-parts")),
 					"posted-content".equals(AdapterSupport.str(item, "type")) ? CandidateType.PREPRINT : CandidateType.PAPER,
-					NAME, 0));
+					NAME, 0, null, takesBack(item.path("updated-by"))));
 		}
 		return out;
+	}
+
+	/** Any update in the list that retracts, withdraws or removes ({@code updated-by} on the paper, Retraction Watch). */
+	static boolean takesBack(JsonNode updates) {
+		if (!updates.isArray()) {
+			return false;
+		}
+		for (JsonNode u : updates) {
+			if (Retraction.takesBack(AdapterSupport.str(u, "type"))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** {@code [[2023, 5, 17]]} (month and day optional) → a date. */

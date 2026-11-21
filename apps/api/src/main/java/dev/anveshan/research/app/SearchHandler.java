@@ -92,6 +92,13 @@ class SearchHandler implements StepHandler {
 				events.add(log("WARN", step, msg));
 			}
 		}
+		if (!outcome.retracted().isEmpty()) {
+			int n = outcome.retracted().size();
+			events.add(log("WARN", step, "Left out " + n + (n == 1 ? " retracted paper" : " retracted papers")
+					+ " (taken back by the journal): " + String.join("; ", outcome.retracted().stream()
+							.limit(3).map(t -> "\"" + abbreviate(t) + "\"").toList())
+					+ (n > 3 ? " and " + (n - 3) + " more." : ".")));
+		}
 		events.add(log("INFO", step, "Found " + outcome.candidates().size() + " candidate sources for \""
 				+ abbreviate(question.text()) + "\"."));
 
@@ -99,6 +106,7 @@ class SearchHandler implements StepHandler {
 		output.put("subQuestionId", question.id());
 		output.put("candidates", outcome.candidates());
 		output.put("adapters", outcome.adapters());
+		output.put("retracted", outcome.retracted());
 		return new StepResult(output, events);
 	}
 
