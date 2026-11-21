@@ -11,13 +11,13 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.InvalidLlmOutputException;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.NoModelForSlotException;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.ProviderUnavailableException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.CallContext;
+import dev.anveshan.llm.api.InvalidLlmOutputException;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.NoModelForSlotException;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.ProviderUnavailableException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.report.api.Reports;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.domain.RunOptions.Language;
@@ -45,7 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
 class WriteHandler implements StepHandler {
 
 	static final String PROMPT = "writer";
-	static final int PROMPT_VERSION = 2;
+	static final int PROMPT_VERSION = 3;
 
 	record WriteOutput(@NotBlank @Size(max = 30_000) String markdown) {
 	}
@@ -100,12 +100,12 @@ class WriteHandler implements StepHandler {
 		output.put("title", title);
 		List<NewEvent> events = new ArrayList<>();
 		Written w;
+		boolean failed = false;
 		try {
 			w = write(step.ownerId(), run, in, CallContext.step(step.runId(), step.stepId()));
 		}
 		catch (NoModelForSlotException e) {
-			throw new StepFailedException("No AI model is set for writing. Choose one for \"Write\" in Settings → AI, "
-					+ "then retry this step.");
+			throw new StepFailedException("The AI service is not set up on this server yet. Retry this step once it is online.");
 		}
 		catch (ProviderUnavailableException e) {
 			throw new StepFailedException("Your AI provider didn't answer — it was busy or down. Anveshan will try again.",
@@ -115,6 +115,10 @@ class WriteHandler implements StepHandler {
 			events.add(log("WARN", step, "\"" + title + "\" couldn't be written: the AI's answer wasn't usable."));
 			w = new Written(hindi ? "यह हिस्सा लिखा नहीं जा सका। रिपोर्ट स्टूडियो में इसे दोबारा लिखवाएँ।"
 					: "This section couldn't be written. You can regenerate it in the Report Studio.", 0, 0, 0);
+			failed = true;
+		}
+		if (failed) {
+			output.put("failed", true); // AssembleHandler writes it once more (T-16-13)
 		}
 		if (w.markdown() == null) {
 			output.put("markdown", hindi ? "इस हिस्से के लिए पर्याप्त सत्यापित प्रमाण नहीं मिला।"

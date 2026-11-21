@@ -235,7 +235,7 @@ public class RunEngine {
 			else if (run.status() == RunStatus.PLANNING) {
 				// planning has no PAUSED state (PRD §8.7): tell the user and try the PLAN step again at the reset
 				events.emit(run.id(), "log", Map.of("level", "WARN", "code", "AI_LIMIT_REACHED", "resumeAt", at.toString(),
-						"message", "Your AI keys are rate-limited. Planning continues automatically when they reset."));
+						"message", "The AI service is busy. Planning continues automatically when it frees up."));
 				runs.waitUntil(run.id(), at); // the periodic re-queue leaves the PLAN step alone until then
 				queue.enqueueAt(step.id(), at);
 			}

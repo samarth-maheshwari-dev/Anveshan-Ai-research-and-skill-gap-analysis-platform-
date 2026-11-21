@@ -15,12 +15,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import dev.anveshan.byok.api.NoModelForSlotException;
-import dev.anveshan.byok.api.RouteQuery;
+import dev.anveshan.llm.api.NoModelForSlotException;
+import dev.anveshan.llm.api.AiAccess;
 import dev.anveshan.report.api.Reports;
 import dev.anveshan.sources.api.ClaimLibrary;
 import dev.anveshan.sources.api.SourceLibrary;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.PauseReason;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
@@ -96,20 +96,20 @@ public class RunService {
 	private final JsonMapper json;
 	private final Clock clock;
 	private final TemplateStore templates;
-	private final RouteQuery routes;
+	private final AiAccess ai;
 	private final PlanService plans;
 	private final Reports reports;
 	private final SourceLibrary sources;
 	private final ClaimLibrary claims;
 
 	RunService(RunStore runs, StepStore steps, RunEngine engine, RunEvents events, SseHub hub,
-			TransactionTemplate researchTx, JsonMapper json, Clock clock, TemplateStore templates, RouteQuery routes,
+			TransactionTemplate researchTx, JsonMapper json, Clock clock, TemplateStore templates, AiAccess ai,
 			PlanService plans, Reports reports, SourceLibrary sources, ClaimLibrary claims) {
 		this.claims = claims;
 		this.reports = reports;
 		this.sources = sources;
 		this.templates = templates;
-		this.routes = routes;
+		this.ai = ai;
 		this.plans = plans;
 		this.runs = runs;
 		this.steps = steps;
@@ -144,12 +144,9 @@ public class RunService {
 				return new Created(get(owner, existing.get()), true);
 			}
 		}
-		// C-FR-3: planning and writing need an AI model before anything starts
-		Set<TaskSlot> ready = routes.readySlots(owner);
-		for (TaskSlot needed : List.of(TaskSlot.PLAN, TaskSlot.WRITE)) {
-			if (!ready.contains(needed)) {
-				throw new NoModelForSlotException(needed);
-			}
+		// C-FR-3: nothing starts without a configured AI gateway (a busy one only pauses the run later)
+		if (!ai.configured()) {
+			throw new NoModelForSlotException(TaskSlot.PLAN);
 		}
 		RunConfig options = cmd.options() == null ? RunConfig.empty() : cmd.options();
 		Optional<TemplateRow> template = Optional.empty();
@@ -169,6 +166,7 @@ public class RunService {
 		}
 		String config = json.writeValueAsString(checked.toMap());
 		UUID templateId = template.map(TemplateRow::id).orElse(null);
+		ai.consumeRun(owner); // after validation, so a rejected form doesn't use up one of today's runs
 		UUID id = UUID.randomUUID();
 		String finalKey = key;
 		try {

@@ -43,7 +43,6 @@ jobs:
             echo "API_TAG=ci"
             echo "WEB_TAG=ci"
             echo "BACKUP_DIR=./backups"
-            echo "ANV_TINK_EPHEMERAL=true"
           } > .env
           mkdir -p backups
 

@@ -43,22 +43,29 @@ public interface SourceSearch {
 	 * @param openAccessUrl a free full-text copy (e.g. OpenAlex {@code oa_url}) tried when {@code url} can't be read
 	 *                      (publisher paywall / bot block); null when unknown or the same as {@code url} (D-107)
 	 * @param retracted     an API or the title says the journal took the paper back; search never returns one (D-111)
+	 * @param venue         the journal / conference / repository name from the API metadata (OpenAlex source,
+	 *                      Crossref container-title), or null; the reference list shows it instead of the URL's host
 	 */
 	record Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
-			String adapter, double score, String openAccessUrl, boolean retracted) {
+			String adapter, double score, String openAccessUrl, boolean retracted, String venue) {
+
+		public Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
+				String adapter, double score, String openAccessUrl, boolean retracted) {
+			this(title, url, doi, snippet, published, type, adapter, score, openAccessUrl, retracted, null);
+		}
 
 		public Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
 				String adapter, double score, String openAccessUrl) {
-			this(title, url, doi, snippet, published, type, adapter, score, openAccessUrl, false);
+			this(title, url, doi, snippet, published, type, adapter, score, openAccessUrl, false, null);
 		}
 
 		public Candidate(String title, String url, String doi, String snippet, LocalDate published, CandidateType type,
 				String adapter, double score) {
-			this(title, url, doi, snippet, published, type, adapter, score, null, false);
+			this(title, url, doi, snippet, published, type, adapter, score, null, false, null);
 		}
 
 		public Candidate withScore(double s) {
-			return new Candidate(title, url, doi, snippet, published, type, adapter, s, openAccessUrl, retracted);
+			return new Candidate(title, url, doi, snippet, published, type, adapter, s, openAccessUrl, retracted, venue);
 		}
 
 	}

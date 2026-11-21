@@ -12,9 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.RouteQuery;
-import dev.anveshan.byok.api.RouteQuery.FirstRoute;
+import dev.anveshan.llm.api.CallContext;
 import dev.anveshan.research.domain.CustomRules;
 import dev.anveshan.research.domain.Estimate;
 import dev.anveshan.research.domain.PlanExceptions.PlanLockedException;
@@ -54,28 +52,17 @@ public class PlanService {
 			List<String> queries) {
 	}
 
-	/** One AI connection's share of the estimate; {@code pctOfTodayRemaining} is null when the limit is unknown. */
-	public record ConnectionShare(UUID connectionId, String label, String provider, int requests, int usedToday,
-			Integer remainingToday, Double pctOfTodayRemaining) {
-	}
-
-	/** Which connection would do a slot's work (its first verified route). */
-	public record SlotRoute(String slot, UUID connectionId) {
-	}
-
 	/**
-	 * D-FR-2. {@code sections}, the size per sub-question and {@code routes} let the browser recompute the estimate on every edit without a
-	 * request (D-FR-4); {@code unroutedSlots} names work that has no AI model yet.
+	 * D-FR-2. {@code sections} and the size per sub-question let the browser recompute the estimate on every edit
+	 * without a request (D-FR-4).
 	 */
 	public record EstimateView(Map<String, Integer> requests, int totalRequests, int minutes, int sections,
-			int sourcesPerQuestion, double minutesPerQuestion,
-			List<ConnectionShare> perConnection, List<SlotRoute> routes, List<String> unroutedSlots) {
+			int sourcesPerQuestion, double minutesPerQuestion) {
 	}
 
 	private final RunStore runs;
 	private final SubQuestionStore subQuestions;
 	private final ReportSections reportSections;
-	private final RouteQuery routes;
 	private final RunEngine engine;
 	private final RunEvents events;
 	private final TransactionTemplate tx;
@@ -83,12 +70,11 @@ public class PlanService {
 	private final Planner planner;
 	private final Clock clock;
 
-	PlanService(RunStore runs, SubQuestionStore subQuestions, ReportSections reportSections, RouteQuery routes,
+	PlanService(RunStore runs, SubQuestionStore subQuestions, ReportSections reportSections,
 			RunEngine engine, RunEvents events, TransactionTemplate researchTx, JsonMapper json, Planner planner, Clock clock) {
 		this.runs = runs;
 		this.subQuestions = subQuestions;
 		this.reportSections = reportSections;
-		this.routes = routes;
 		this.engine = engine;
 		this.events = events;
 		this.tx = researchTx;
@@ -113,35 +99,8 @@ public class PlanService {
 		ResearchSize size = config.size();
 		Estimate e = Estimate.of(size, count, sections, 0.0);
 
-		Map<String, FirstRoute> bySlot = new LinkedHashMap<>();
-		for (FirstRoute r : routes.firstRoutes(run.ownerId())) {
-			bySlot.put(r.slot().name(), r);
-		}
-		Map<UUID, int[]> perConnection = new LinkedHashMap<>();
-		Map<UUID, FirstRoute> sample = new LinkedHashMap<>();
-		List<String> unrouted = new ArrayList<>();
-		List<SlotRoute> slotRoutes = new ArrayList<>();
-		e.requests().forEach((slot, n) -> {
-			FirstRoute r = bySlot.get(slot);
-			if (r == null) {
-				unrouted.add(slot);
-				return;
-			}
-			slotRoutes.add(new SlotRoute(slot, r.connectionId()));
-			perConnection.computeIfAbsent(r.connectionId(), k -> new int[1])[0] += n;
-			sample.putIfAbsent(r.connectionId(), r);
-		});
-		List<ConnectionShare> shares = new ArrayList<>();
-		perConnection.forEach((id, n) -> {
-			FirstRoute r = sample.get(id);
-			Integer remaining = r.remainingToday();
-			Double pct = remaining == null || remaining <= 0 ? null
-					: Math.round(1000.0 * n[0] / remaining) / 10.0; // one decimal, e.g. 4.2 (%)
-			shares.add(new ConnectionShare(id, r.connectionLabel(), r.provider(), n[0], r.usedToday(), remaining, pct));
-		});
 		return new EstimateView(e.requests(), e.totalRequests(), e.minutes(), sections, size.sourcesPerQuestion(),
-				size.minutesPerQuestion(), List.copyOf(shares),
-				List.copyOf(slotRoutes), List.copyOf(unrouted));
+				size.minutesPerQuestion());
 	}
 
 	/**

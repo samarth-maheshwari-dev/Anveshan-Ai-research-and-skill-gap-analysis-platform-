@@ -25,8 +25,8 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import dev.anveshan.byok.api.AllRoutesExhaustedException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.AllRoutesExhaustedException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.research.app.FakeSteps.Execution;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;

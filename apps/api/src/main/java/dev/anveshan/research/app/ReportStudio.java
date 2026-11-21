@@ -9,12 +9,12 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.NoModelForSlotException;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.RouteQuery;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.CallContext;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.NoModelForSlotException;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.AiAccess;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.report.api.Reports;
 import dev.anveshan.report.api.Reports.ReportRef;
 import dev.anveshan.report.api.Reports.SavedSection;
@@ -72,14 +72,14 @@ public class ReportStudio {
 	private final WriteHandler writer;
 	private final LlmGateway gateway;
 	private final PromptFiles prompts;
-	private final RouteQuery routes;
+	private final AiAccess ai;
 	private final TransactionTemplate tx;
 	private final JsonMapper json;
 	private final Clock clock;
 
 	ReportStudio(Reports reports, ClaimLibrary claims, RunStore runs, StepStore steps, SubQuestionStore subQuestions,
 			RunEngine engine, RunEvents events, WriteHandler writer, LlmGateway gateway, PromptFiles prompts,
-			RouteQuery routes, TransactionTemplate researchTx, JsonMapper json, Clock clock) {
+			AiAccess ai, TransactionTemplate researchTx, JsonMapper json, Clock clock) {
 		this.reports = reports;
 		this.claims = claims;
 		this.runs = runs;
@@ -90,7 +90,7 @@ public class ReportStudio {
 		this.writer = writer;
 		this.gateway = gateway;
 		this.prompts = prompts;
-		this.routes = routes;
+		this.ai = ai;
 		this.tx = researchTx;
 		this.json = json;
 		this.clock = clock;
@@ -175,7 +175,7 @@ public class ReportStudio {
 		ReportRef report = reports.owned(ownerId, reportId).orElseThrow(ApiException::notFound);
 		ReportClaim claim = claims.reportClaims(report.runId(), List.of(claimId)).stream().findFirst()
 				.orElseThrow(ApiException::notFound);
-		if (!routes.readySlots(ownerId).contains(TaskSlot.VERIFY)) {
+		if (!ai.configured()) {
 			throw new NoModelForSlotException(TaskSlot.VERIFY);
 		}
 		RunRow parent = runs.find(report.runId()).orElseThrow(ApiException::notFound);

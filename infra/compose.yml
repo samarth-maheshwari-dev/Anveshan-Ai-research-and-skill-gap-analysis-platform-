@@ -46,11 +46,11 @@ services:
       ANV_DB_URL: jdbc:postgresql://postgres:5432/anveshan
       ANV_DB_USER: anveshan
       ANV_DB_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in infra/.env}
-      ANV_TINK_KEYSET_FILE: /run/secrets/tink_keyset
-      ANV_TINK_EPHEMERAL: ${ANV_TINK_EPHEMERAL:-false}   # true only in CI (throwaway key)
+      # AI keys (FREELLMAPI_KEY, GEMINI_API_KEY, TAVILY_API_KEY) come ONLY from the OAUTH_ENV_FILE above.
+      FREELLMAPI_URL: ${FREELLMAPI_URL:-http://host.docker.internal:3001/v1}
       ANV_SEARXNG_URL: http://searxng:8080/          # internal network only
       ANV_EMBEDDINGS_THREADS: ${ANV_EMBEDDINGS_THREADS:-6}   # D-107: FETCH (embedding) was the slowest step on 2 threads
-    secrets: [tink_keyset]
+    extra_hosts: ["host.docker.internal:host-gateway"]
     # loopback only, IPv4 and IPv6: Windows resolves "localhost" to ::1 first. 8081 (actuator) is NOT published
     ports: ["127.0.0.1:8080:8080", "[::1]:8080:8080"]
     depends_on:
@@ -118,9 +118,3 @@ services:
 volumes:
   pg_data: {}
 
-secrets:
-  # Tink AES-256-GCM keyset that encrypts users' AI keys. Keep it OUTSIDE the repo and point
-  # TINK_KEYSET_FILE at it in infra/.env. The committed placeholder is empty on purpose:
-  # the API refuses to start with it unless ANV_TINK_EPHEMERAL=true (CI only).
-  tink_keyset:
-    file: ${TINK_KEYSET_FILE:-./tink-keyset.placeholder}

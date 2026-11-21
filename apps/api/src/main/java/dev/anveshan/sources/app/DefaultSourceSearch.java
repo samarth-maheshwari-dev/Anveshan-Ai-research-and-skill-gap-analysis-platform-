@@ -183,7 +183,7 @@ class DefaultSourceSearch implements SourceSearch {
 		return new AdapterResult(new AdapterReport(a.name(), a.label(), AdapterStatus.FAILED, 0), List.of());
 	}
 
-	/** Per-user key for BYOK web search; shared for the free APIs (same query → same public results). */
+	/** Per-user key for web search; shared for the free APIs (same query → same public results). */
 	private static String cacheKey(SearchAdapter a, AdapterQuery q) {
 		String owner = a.name().equals("tavily") ? q.ownerId().toString() : "*";
 		return String.join("|", a.name(), owner, q.text().strip().toLowerCase(Locale.ROOT),
@@ -213,7 +213,7 @@ class DefaultSourceSearch implements SourceSearch {
 			String oa = Urls.canonical(c.openAccessUrl());
 			out.add(new Candidate(c.title().strip(), url, doi, c.snippet(), c.published(), c.type(), c.adapter(), 0,
 					oa == null || oa.equals(url) || oa.equals(doi) ? null : oa,
-					c.retracted() || Retraction.titleSaysRetracted(c.title())));
+					c.retracted() || Retraction.titleSaysRetracted(c.title()), c.venue()));
 		}
 		return out;
 	}

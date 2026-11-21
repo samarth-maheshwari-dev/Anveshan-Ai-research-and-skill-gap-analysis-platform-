@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.AllRoutesExhaustedException;
+import dev.anveshan.llm.api.AllRoutesExhaustedException;
 import dev.anveshan.research.app.RunEngine.Claimed;
 import dev.anveshan.research.app.StepHandler.StepContext;
 import dev.anveshan.research.app.StepHandler.StepResult;

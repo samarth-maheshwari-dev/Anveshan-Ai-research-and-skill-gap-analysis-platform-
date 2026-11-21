@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import dev.anveshan.byok.api.ConnectionQuery;
 import dev.anveshan.identity.domain.AppUser;
 import dev.anveshan.identity.domain.UserIdentity;
 import dev.anveshan.identity.infra.AppUserRepository;
@@ -30,12 +29,10 @@ public class AccountService {
 
 	private final AppUserRepository users;
 	private final UserIdentityRepository identities;
-	private final ConnectionQuery connections;
 
-	AccountService(AppUserRepository users, UserIdentityRepository identities, ConnectionQuery connections) {
+	AccountService(AppUserRepository users, UserIdentityRepository identities) {
 		this.users = users;
 		this.identities = identities;
-		this.connections = connections;
 	}
 
 	@Transactional
@@ -60,7 +57,7 @@ public class AccountService {
 		return users.findLive(userId).map(u -> new MeView(u.getId(), u.getEmail(), u.getName(), u.getAvatarUrl(),
 				u.getLocale(), u.getTimezone(),
 				identities.findByUserIdOrderByCreatedAt(u.getId()).stream().map(i -> i.getProvider().name()).toList(),
-				new MeView.Onboarding(connections.hasVerifiedConnection(u.getId()), false)));
+				new MeView.Onboarding(false)));
 	}
 
 	/** Verified email as-is; otherwise a unique placeholder that can never match a real address. */

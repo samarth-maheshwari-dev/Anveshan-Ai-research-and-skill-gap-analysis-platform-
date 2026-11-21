@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { installFakeApi, verifiedConnection } from "./fake-api";
+import { installFakeApi } from "./fake-api";
 
 /**
  * T-08-08 support: every P08 screen in light + dark at 1440 px and 390 px. Saves screenshots to
@@ -10,9 +10,8 @@ import { installFakeApi, verifiedConnection } from "./fake-api";
 const SCREENS = [
   { name: "landing", path: "/", signedIn: false },
   { name: "login", path: "/login", signedIn: false },
-  { name: "wizard", path: "/onboarding/connect-ai", signedIn: true },
   { name: "dashboard", path: "/dashboard", signedIn: true },
-  { name: "settings-ai", path: "/settings/ai", signedIn: true },
+  { name: "settings", path: "/settings", signedIn: true },
 ] as const;
 
 const BG = { light: "rgb(250, 250, 250)", dark: "rgb(10, 10, 10)" };
@@ -26,8 +25,6 @@ for (const theme of ["light", "dark"] as const) {
         await page.addInitScript((t) => window.localStorage.setItem("theme", t), theme);
         await installFakeApi(page, context, {
           signedIn: screen.signedIn,
-          connections: screen.signedIn ? [verifiedConnection({ label: "My Gemini", provider: "GEMINI" })] : [],
-          slots: screen.signedIn ? { PLAN: [{ connectionId: "c-existing", model: "gemini-2.5-flash" }] } : {},
         });
         await page.goto(screen.path);
         await page.waitForLoadState("networkidle");

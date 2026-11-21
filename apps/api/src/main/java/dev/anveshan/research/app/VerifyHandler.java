@@ -10,16 +10,17 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.InvalidLlmOutputException;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.NoModelForSlotException;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.ProviderUnavailableException;
-import dev.anveshan.byok.api.RequestTooLargeException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.CallContext;
+import dev.anveshan.llm.api.InvalidLlmOutputException;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.NoModelForSlotException;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.ProviderUnavailableException;
+import dev.anveshan.llm.api.RequestTooLargeException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.infra.PromptFiles;
+import dev.anveshan.research.infra.ResearchProperties;
 import dev.anveshan.sources.api.ClaimLibrary;
 import dev.anveshan.sources.api.ClaimLibrary.Claim;
 import dev.anveshan.sources.api.ClaimLibrary.Passage;
@@ -60,12 +61,15 @@ class VerifyHandler implements StepHandler {
 	private final PromptFiles prompts;
 	private final ClaimLibrary claims;
 	private final JsonMapper json;
+	private final ResearchProperties props;
 
-	VerifyHandler(LlmGateway gateway, PromptFiles prompts, ClaimLibrary claims, JsonMapper json) {
+	VerifyHandler(LlmGateway gateway, PromptFiles prompts, ClaimLibrary claims, JsonMapper json,
+			ResearchProperties props) {
 		this.gateway = gateway;
 		this.prompts = prompts;
 		this.claims = claims;
 		this.json = json;
+		this.props = props;
 	}
 
 	@Override
@@ -111,6 +115,11 @@ class VerifyHandler implements StepHandler {
 			skipped = skipped.stream().filter(c -> !second.judged().contains(c.id())).toList();
 		}
 
+		if ((unusable || !skipped.isEmpty()) && step.attempt() < props.maxAttempts()) {
+			// T-16-12: an unchecked claim would read "No source found" — try the step again later instead
+			throw new StepFailedException("The AI didn't check every claim. Anveshan will try again so they aren't "
+					+ "marked \"No source found\".", true);
+		}
 		int passages = (int) passagesOf.values().stream().flatMap(List::stream).map(Passage::chunkId).distinct().count();
 		events.add(0, log("INFO", step, "Checked " + batch.size() + " claims against " + passages + " passages ("
 				+ saved + " verdicts)."));
@@ -227,8 +236,7 @@ class VerifyHandler implements StepHandler {
 					CallContext.step(step.runId(), step.stepId())).value();
 		}
 		catch (NoModelForSlotException e) {
-			throw new StepFailedException("No AI model is set for verifying claims. Choose one for \"Verify\" in "
-					+ "Settings → AI, then retry this step.");
+			throw new StepFailedException("The AI service is not set up on this server yet. Retry this step once it is online.");
 		}
 		catch (RequestTooLargeException e) {
 			throw e; // judgeFitting splits the batch

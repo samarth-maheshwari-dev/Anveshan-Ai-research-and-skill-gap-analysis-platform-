@@ -4,42 +4,18 @@ import { estimate, sizeOf, type Depth } from "../lib/estimate";
 
 /**
  * An in-memory stand-in for the Anveshan API (http://localhost:8080), installed per test with
- * page.route. It behaves like the real backend where the UI depends on it (ByokIT proves the real
- * one): session cookie, CSRF header on writes, 401 without a session, and the connection test —
- * the backend picks the model (routed → preset hint → ranked list, max 5 (anveshan.models.test-candidates), skipping retired ones), a
- * skipped routed model comes back as a `note`, a missing model never marks the key FAILING, errors
- * carry a machine-readable `reason`, first success fills slots.
+ * page.route. It behaves like the real backend where the UI depends on it: session cookie, CSRF header on
+ * writes, 401 without a session, the AI status card and the daily research limit.
  */
 export const API = "http://localhost:8080";
 export const APP = "http://localhost:3100";
-export const GOOD_KEY = "AIzaGoodKeyForTests1234567890abcdWXYZ";
-export const BAD_KEY = "AIzaBadKeyForTests12345678901234567890";
-
-type Conn = {
-  id: string;
-  kind: "LLM" | "SEARCH";
-  provider: string;
-  label: string;
-  baseUrl: string;
-  keyLast4: string;
-  status: "UNVERIFIED" | "VERIFIED" | "FAILING";
-  statusDetail?: string;
-  key: string;
-};
+export type AiStatusView = { state: "ONLINE" | "BUSY" | "OFFLINE"; runsUsedToday: number; runsLimit: number };
 
 export type FakeState = {
   signedIn: boolean;
-  connections: Conn[];
-  slots: Record<string, { connectionId: string; model: string }[]>;
-  /** Chat models the provider lists, best first (what the backend's ranking would produce). */
-  listedModels: string[];
-  /** Listed but answering "model not found" for this key (e.g. retired for new projects). */
-  retiredModels: string[];
+  aiStatus: AiStatusView;
   writesWithoutCsrf: string[];
-  deleted: string[];
   calls: string[];
-  /** The `model` each POST …/test request carried (undefined = "backend, you choose"). */
-  testModelsAsked: (string | undefined)[];
   runs: FakeRun[];
   /** Idempotency-Key of every POST /runs. */
   runKeys: string[];
@@ -137,26 +113,12 @@ export function fakeRun(overrides: Partial<FakeRun> = {}): FakeRun {
   };
 }
 
-const SLOTS = ["PLAN", "EXTRACT", "VERIFY", "WRITE", "ASK", "INTERVIEW"];
-
-/** The presets' known-good `test-model` (application.yml); OpenRouter, Anthropic and Custom have none. */
-const HINTS: Record<string, string> = {
-  GEMINI: "gemini-2.5-flash",
-  GROQ: "llama-3.3-70b-versatile",
-  OPENAI: "gpt-4.1-mini",
-};
-
 export async function installFakeApi(page: Page, context: BrowserContext, init: Partial<FakeState> = {}) {
   const state: FakeState = {
     signedIn: false,
-    connections: [],
-    slots: {},
-    listedModels: ["gemini-2.5-flash", "gemini-2.0-flash"],
-    retiredModels: [],
+    aiStatus: { state: "ONLINE", runsUsedToday: 0, runsLimit: 5 },
     writesWithoutCsrf: [],
-    deleted: [],
     calls: [],
-    testModelsAsked: [],
     runs: [],
     runKeys: [],
     runBodies: [],
@@ -191,29 +153,18 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
       headers: { ...cors, "content-type": "application/problem+json" },
       body: JSON.stringify({ status, code, title: "Error", detail, ...(reason ? { reason } : {}) }),
     });
-  const keyInvalid = (route: Route) => problem(route, 422, "CONNECTION_TEST_FAILED", "Key invalid", "KEY_INVALID");
-  /** What the API returns: everything except the key. */
-  const view = (c: Conn) => Object.fromEntries(Object.entries(c).filter(([k]) => k !== "key"));
-  const routedTo = (c: Conn) =>
-    Object.values(state.slots)
-      .flat()
-      .filter((r) => r.connectionId === c.id)
-      .map((r) => r.model);
-  /**
-   * Like ConnectionService.candidates: routed models → the preset hint (only if the provider lists it,
-   * or lists nothing) → the ranked list; at most 5.
-   */
-  const candidatesFor = (c: Conn, routed: string[]) => {
-    const hint = HINTS[c.provider];
-    const useHint = hint && (state.listedModels.length === 0 || state.listedModels.includes(hint));
-    return [...new Set([...routed, ...(useHint ? [hint] : []), ...state.listedModels])].slice(0, 5);
-  };
-
   // OAuth start: the real API redirects to Google; here "Google" approves at once and comes back.
   await context.route(`${API}/oauth2/authorization/**`, async (route) => {
     state.calls.push("oauth");
     await signIn();
     await route.fulfill({ status: 302, headers: { location: `${APP}/dashboard` } });
+  });
+
+  await context.route(`${API}/api/v1/ai/status`, async (route) => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    state.calls.push("GET /ai/status");
+    if (!state.signedIn) return problem(route, 401, "NOT_AUTHENTICATED", "Please sign in");
+    return json(route, 200, state.aiStatus);
   });
 
   await context.route(`${API}/api/v1/**`, async (route) => {
@@ -242,85 +193,13 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
         locale: "en",
         timezone: "Asia/Kolkata",
         identities: ["GOOGLE"],
-        onboarding: { hasVerifiedConnection: state.connections.some((c) => c.status === "VERIFIED"), hasRun: false },
+        onboarding: { hasRun: false },
       });
     }
     if (path === "/auth/logout" && method === "POST") {
       state.signedIn = false;
       await context.clearCookies();
       return route.fulfill({ status: 204, headers: cors });
-    }
-    if (path === "/connections" && method === "GET") {
-      return json(route, 200, { items: state.connections.map(view) });
-    }
-    if (path === "/connections" && method === "POST") {
-      const body = req.postDataJSON() as { provider: string; label: string; apiKey: string; kind: "LLM" };
-      const c: Conn = {
-        id: `c${++seq}`,
-        kind: body.kind,
-        provider: body.provider,
-        label: body.label,
-        baseUrl: "https://example.test/",
-        keyLast4: body.apiKey.slice(-4),
-        status: "UNVERIFIED",
-        key: body.apiKey,
-      };
-      state.connections.push(c);
-      return json(route, 201, view(c));
-    }
-    const byId = path.match(/^\/connections\/([^/]+)(\/test|\/models)?$/);
-    if (byId) {
-      const c = state.connections.find((x) => x.id === byId[1]);
-      if (!c) return problem(route, 404, "NOT_FOUND", "This item doesn't exist.");
-      if (method === "DELETE") {
-        state.connections = state.connections.filter((x) => x !== c);
-        state.deleted.push(c.id);
-        return route.fulfill({ status: 204, headers: cors });
-      }
-      if (byId[2] === "/models") {
-        if (c.key === BAD_KEY) return keyInvalid(route);
-        // Chat models first (ranked), non-chat ones last and flagged — like the real endpoint.
-        return json(route, 200, {
-          items: [
-            ...state.listedModels.map((id) => ({ id, displayName: id, free: true, chat: true })),
-            { id: "text-embedding-004", displayName: "Embedding", free: true, chat: false },
-          ],
-        });
-      }
-      if (byId[2] === "/test") {
-        const asked = (req.postDataJSON() as { model?: string } | null)?.model;
-        state.testModelsAsked.push(asked);
-        if (c.key === BAD_KEY) {
-          c.status = "FAILING";
-          c.statusDetail = "Key invalid";
-          return keyInvalid(route);
-        }
-        const routed = asked ? [] : routedTo(c);
-        const working = (asked ? [asked] : candidatesFor(c, routed)).find((m) => !state.retiredModels.includes(m));
-        if (!working) {
-          // a missing model is not a broken key: status stays as it was
-          return asked
-            ? problem(route, 422, "CONNECTION_TEST_FAILED", "Model not found", "MODEL_NOT_FOUND")
-            : problem(route, 422, "CONNECTION_TEST_FAILED", "No usable chat model found for this key", "NO_CHAT_MODEL");
-        }
-        // like ConnectionService.skippedNote: a routed model that's gone is reported, research still uses it
-        const skipped = routed.find((m) => state.retiredModels.includes(m));
-        const note = skipped
-          ? `${skipped} didn't answer, ${working} did. Research still uses ${skipped} — change it in Task routing`
-          : undefined;
-        c.status = "VERIFIED";
-        c.statusDetail = note;
-        const fill = Object.keys(state.slots).length === 0;
-        if (fill) {
-          for (const s of SLOTS) state.slots[s] = [{ connectionId: c.id, model: working }];
-        }
-        return json(route, 200, { status: "VERIFIED", latencyMs: 420, sampleModel: working, note, defaultSlotsSet: fill });
-      }
-    }
-    if (path === "/slots" && method === "GET") return json(route, 200, state.slots);
-    if (path === "/slots" && method === "PUT") {
-      state.slots = req.postDataJSON() as FakeState["slots"];
-      return json(route, 200, state.slots);
     }
     if (path === "/runs" && method === "POST") {
       const body = req.postDataJSON() as {
@@ -334,8 +213,9 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
       };
       state.runBodies.push(body);
       state.runKeys.push((await req.headerValue("idempotency-key")) ?? "");
-      const missing = ["PLAN", "WRITE"].find((slot) => !state.slots[slot]?.length);
-      if (missing) return problem(route, 422, "NO_MODEL_FOR_SLOT", `No AI model for ${missing}`);
+      if (state.aiStatus.runsUsedToday >= state.aiStatus.runsLimit) {
+        return problem(route, 429, "LLM_DAILY_LIMIT", "Daily research limit reached");
+      }
       const run = fakeRun({
         id: `r${++seq}`,
         status: "PLANNING",
@@ -618,19 +498,5 @@ function runView(run: FakeRun) {
     createdAt: "2026-11-11T06:00:00Z",
     updatedAt: "2026-11-11T06:00:00Z",
     reportId: run.status === "COMPLETED" ? (run.reportId ?? null) : null,
-  };
-}
-
-export function verifiedConnection(overrides: Partial<Conn> = {}): Conn {
-  return {
-    id: "c-existing",
-    kind: "LLM",
-    provider: "GROQ",
-    label: "My Groq",
-    baseUrl: "https://api.groq.com/openai/v1/",
-    keyLast4: "9XyZ",
-    status: "VERIFIED",
-    key: "gsk_existing",
-    ...overrides,
   };
 }

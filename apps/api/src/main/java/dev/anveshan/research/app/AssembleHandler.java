@@ -12,12 +12,12 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.CallContext;
-import dev.anveshan.byok.api.InvalidLlmOutputException;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.NoModelForSlotException;
-import dev.anveshan.byok.api.ProviderUnavailableException;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.CallContext;
+import dev.anveshan.llm.api.InvalidLlmOutputException;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.NoModelForSlotException;
+import dev.anveshan.llm.api.ProviderUnavailableException;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.report.api.Reports;
 import dev.anveshan.report.api.Reports.Assembled;
 import dev.anveshan.report.api.Reports.ConflictDraft;
@@ -27,7 +27,11 @@ import dev.anveshan.research.domain.ResearchEnums.StepStatus;
 import dev.anveshan.research.domain.RunOptions.Language;
 import dev.anveshan.research.infra.PromptFiles;
 import dev.anveshan.research.infra.RunStore;
+import dev.anveshan.research.domain.OpenQuestions;
+import dev.anveshan.research.infra.ReportQualityProperties;
 import dev.anveshan.research.infra.StepStore;
+import dev.anveshan.research.infra.SubQuestionStore;
+import dev.anveshan.sources.api.Embeddings;
 import dev.anveshan.sources.api.ClaimLibrary;
 import dev.anveshan.sources.api.ClaimLibrary.Conflict;
 import dev.anveshan.sources.api.SourceLibrary;
@@ -47,8 +51,6 @@ import tools.jackson.databind.json.JsonMapper;
 class AssembleHandler implements StepHandler {
 
 	static final int MAX_CONFLICTS = 20;
-	/** NO_SOURCE claims listed as open questions (by code, no LLM). */
-	static final int MAX_OPEN_QUESTIONS = 15;
 
 	record ReasonsOutput(@NotNull @Size(max = 40) List<@Valid Reason> reasons) {
 	}
@@ -65,10 +67,17 @@ class AssembleHandler implements StepHandler {
 	private final PromptFiles prompts;
 	private final JsonMapper json;
 	private final WriteHandler writer;
+	private final Embeddings embeddings;
+	private final SubQuestionStore subQuestions;
+	private final ReportQualityProperties quality;
 
 	AssembleHandler(Reports reports, ClaimLibrary claims, SourceLibrary sources, StepStore steps, RunStore runs,
-			LlmGateway gateway, PromptFiles prompts, JsonMapper json, WriteHandler writer) {
+			LlmGateway gateway, PromptFiles prompts, JsonMapper json, WriteHandler writer, Embeddings embeddings,
+			SubQuestionStore subQuestions, ReportQualityProperties quality) {
 		this.writer = writer;
+		this.embeddings = embeddings;
+		this.subQuestions = subQuestions;
+		this.quality = quality;
 		this.reports = reports;
 		this.claims = claims;
 		this.sources = sources;
@@ -109,8 +118,7 @@ class AssembleHandler implements StepHandler {
 					reasons.get("K" + (i + 1))));
 		}
 
-		List<Reports.OpenQuestionDraft> open = claims.openQuestions(step.runId(), MAX_OPEN_QUESTIONS).stream()
-				.map(q -> new Reports.OpenQuestionDraft(q.claimId(), q.text())).toList();
+		List<Reports.OpenQuestionDraft> open = openQuestions(step.runId(), run.topic());
 
 		Assembled a = reports.assemble(new Reports.AssembleInput(step.runId(), step.ownerId(), run.topic(),
 				config.language().name(), drafts, conflictDrafts, open));
@@ -163,13 +171,19 @@ class AssembleHandler implements StepHandler {
 				UUID src = sourceOf.get(UUID.fromString(id.asString()));
 				stale |= src != null && !used.contains(src);
 			}
-			if (stale) {
+			boolean failed = section.path("failed").asBoolean(false);
+			if (stale || failed) {
+				// a section whose writing failed is tried once more here (T-16-13), so a passing outage doesn't
+				// leave "This section couldn't be written" in the report
 				String markdown = rewrite(step, run, in);
 				var copy = (tools.jackson.databind.node.ObjectNode) section.deepCopy();
 				copy.put("markdown", markdown);
+				copy.remove("failed");
 				section = copy;
-				logs.add(new NewEvent("log", Map.of("stepId", step.stepId(), "level", "INFO", "message",
-						"Wrote \"" + in.path("title").asString("Section") + "\" again without the skipped source.")));
+				String title = in.path("title").asString("Section");
+				logs.add(new NewEvent("log", Map.of("stepId", step.stepId(), "level", "INFO", "message", stale
+						? "Wrote \"" + title + "\" again without the skipped source."
+						: "Tried writing \"" + title + "\" once more.")));
 			}
 			out.add(section);
 		}
@@ -187,8 +201,7 @@ class AssembleHandler implements StepHandler {
 					: "Not enough verified evidence was found for this section.";
 		}
 		catch (NoModelForSlotException e) {
-			throw new StepFailedException("No AI model is set for writing. Choose one for \"Write\" in Settings → AI, "
-					+ "then retry this step.");
+			throw new StepFailedException("The AI service is not set up on this server yet. Retry this step once it is online.");
 		}
 		catch (ProviderUnavailableException e) {
 			throw new StepFailedException("Your AI provider didn't answer — it was busy or down. Anveshan will try again.",
@@ -198,6 +211,23 @@ class AssembleHandler implements StepHandler {
 			return hindi ? "यह हिस्सा लिखा नहीं जा सका। रिपोर्ट स्टूडियो में इसे दोबारा लिखवाएँ।"
 					: "This section couldn't be written. You can regenerate it in the Report Studio.";
 		}
+	}
+
+	/**
+	 * Unconfirmed claims close in meaning to the question or a sub-question, most relevant first, capped — by code
+	 * with local embeddings, no LLM (T-16-16).
+	 */
+	private List<Reports.OpenQuestionDraft> openQuestions(UUID runId, String topic) {
+		List<float[]> questions = new ArrayList<>();
+		questions.add(embeddings.query(topic));
+		subQuestions.forRun(runId).forEach(q -> questions.add(embeddings.query(q.text())));
+		List<ClaimLibrary.OpenQuestion> all = claims.openQuestions(runId, questions);
+		Map<String, ClaimLibrary.OpenQuestion> byId = new HashMap<>();
+		all.forEach(q -> byId.put(q.claimId().toString(), q));
+		List<String> picked = OpenQuestions.pick(all.stream()
+				.map(q -> new OpenQuestions.Candidate(q.claimId().toString(), q.similarity())).toList(),
+				quality.openQuestionMinSimilarity(), quality.maxOpenQuestions());
+		return picked.stream().map(byId::get).map(q -> new Reports.OpenQuestionDraft(q.claimId(), q.text())).toList();
 	}
 
 	/** One WRITE call for every conflict's possible reason; any failure just leaves the reasons out. */

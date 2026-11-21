@@ -38,10 +38,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import dev.anveshan.TestcontainersConfig;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.LlmResult;
-import dev.anveshan.byok.api.Prompt;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.LlmResult;
+import dev.anveshan.llm.api.Prompt;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.identity.infra.security.SessionUser;
 import dev.anveshan.research.app.AssembleHandler.Reason;
 import dev.anveshan.research.app.AssembleHandler.ReasonsOutput;
@@ -104,12 +104,16 @@ class ReportFlowIT {
 	/** The user part of every section WRITE prompt, in order. */
 	final List<String> writePrompts = java.util.Collections.synchronizedList(new ArrayList<>());
 
+	/** The next this-many Introduction WRITE calls give an unusable answer (after the gateway's own retries). */
+	final java.util.concurrent.atomic.AtomicInteger introFailures = new java.util.concurrent.atomic.AtomicInteger();
+
 	@BeforeEach
 	void setUp() {
 		APIS.reset();
 		extractDelay.set(0);
 		writeDelay.set(0);
 		writePrompts.clear();
+		introFailures.set(0);
 		user = newUser();
 		// two preprints (MEDIUM tier) on the fake site; the other academic APIs find nothing
 		APIS.respond("openalex", """
@@ -298,6 +302,20 @@ class ReportFlowIT {
 		assertThat(after).as("sections written after the skip").isNotEmpty().noneMatch(p -> p.contains(title));
 	}
 
+	@Test
+	@DisplayName("T-16-13 a section whose writing failed is written once more at assembly; the report has its text")
+	void failedSectionRetriedAtAssembly() throws Exception {
+		introFailures.set(1);
+		UUID run = approvedRun();
+		awaitStatus(run, RunStatus.COMPLETED);
+		assertThat(jdbc.sql("""
+				SELECT count(*) FROM research_step WHERE run_id = :r AND kind = 'WRITE_SECTION'
+				   AND (output->>'failed')::boolean""").param("r", run).query(Long.class).single()).isEqualTo(1);
+		assertThat(logs(run)).anyMatch(m -> m.equals("Tried writing \"Introduction\" once more."));
+		String reportId = json.readTree(body(perform(get("/api/v1/runs/" + run)))).path("reportId").asString();
+		assertThat(body(perform(get("/api/v1/reports/" + reportId)))).doesNotContain("couldn't be written");
+	}
+
 	/** Approves a run and pauses it once its section steps exist (each WRITE call is slow meanwhile). */
 	UUID pausedWhileWriting() throws Exception {
 		writeDelay.set(2500);
@@ -362,10 +380,13 @@ class ReportFlowIT {
 			}
 			else {
 				Thread.sleep(writeDelay.get());
+				if (prompt.user().contains("Section to write: Introduction") && introFailures.getAndDecrement() > 0) {
+					throw new dev.anveshan.llm.api.InvalidLlmOutputException(TaskSlot.WRITE, "not JSON");
+				}
 				writePrompts.add(prompt.user());
 				value = write(prompt);
 			}
-			return new LlmResult<>(value, UUID.randomUUID(), "fake", 10, 10, 1);
+			return new LlmResult<>(value, "test", "fake", 10, 10, 1);
 		});
 	}
 
@@ -410,14 +431,6 @@ class ReportFlowIT {
 	UUID newUser() {
 		UUID u = jdbc.sql("INSERT INTO app_user (email, email_verified) VALUES (:e, true) RETURNING id")
 				.param("e", "reena-" + UUID.randomUUID() + "@example.com").query(UUID.class).single();
-		UUID llm = jdbc.sql("""
-				INSERT INTO ai_connection (owner_id, kind, provider, label, base_url, key_ciphertext, key_last4, status)
-				VALUES (:o, 'LLM', 'GROQ', 'Test', 'https://example.test/', :c, 'abcd', 'VERIFIED') RETURNING id""")
-				.param("o", u).param("c", new byte[] { 1 }).query(UUID.class).single();
-		for (String slot : List.of("PLAN", "WRITE", "EXTRACT", "VERIFY")) {
-			jdbc.sql("INSERT INTO slot_route (owner_id, slot, position, connection_id, model) VALUES (:o, :s, 0, :c, 'm')")
-					.param("o", u).param("s", slot).param("c", llm).update();
-		}
 		return u;
 	}
 

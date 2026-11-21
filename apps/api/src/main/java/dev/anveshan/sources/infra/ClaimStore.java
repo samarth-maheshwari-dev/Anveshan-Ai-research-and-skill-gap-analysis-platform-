@@ -131,17 +131,17 @@ public class ClaimStore {
 	}
 
 	/** NO_SOURCE claims whose source the run still USES, oldest first (the report's open questions). */
-	public List<dev.anveshan.sources.api.ClaimLibrary.OpenQuestion> openQuestions(UUID runId, int limit) {
+	/** NO_SOURCE claims (source still USED) with their cosine similarity to {@code v}, in a stable order. */
+	public List<dev.anveshan.sources.api.ClaimLibrary.OpenQuestion> openQuestions(UUID runId, float[] v) {
 		return jdbc.sql("""
-				SELECT cl.id, cl.text
+				SELECT cl.id, cl.text, 1 - (cl.embedding <=> CAST(:v AS vector)) AS similarity
 				  FROM run_claim rc JOIN claim cl ON cl.id = rc.claim_id
 				  JOIN run_source rs ON rs.run_id = rc.run_id AND rs.source_id = cl.source_id AND rs.status = 'USED'
 				 WHERE rc.run_id = :r AND rc.trust_label = 'NO_SOURCE'
-				 ORDER BY cl.created_at, cl.id
-				 LIMIT :n""")
-				.param("r", runId).param("n", limit)
+				 ORDER BY cl.created_at, cl.id""")
+				.param("v", SourceStore.vector(v)).param("r", runId)
 				.query((rs, n) -> new dev.anveshan.sources.api.ClaimLibrary.OpenQuestion(rs.getObject(1, UUID.class),
-						rs.getString(2)))
+						rs.getString(2), rs.getDouble(3)))
 				.list();
 	}
 

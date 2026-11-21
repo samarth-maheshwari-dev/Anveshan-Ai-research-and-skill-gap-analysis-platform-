@@ -5,7 +5,7 @@ import { csrfMiddleware, readCookie, unauthorizedMiddleware } from "@/lib/api/cl
 type Ctx = Parameters<NonNullable<ReturnType<typeof csrfMiddleware>["onRequest"]>>[0];
 
 function requestCtx(method: string): { request: Request } {
-  return { request: new Request("http://localhost:8080/api/v1/connections", { method }) };
+  return { request: new Request("http://localhost:8080/api/v1/me", { method }) };
 }
 
 async function runCsrf(method: string, cookie: string | undefined) {
@@ -48,8 +48,8 @@ describe("T-08-02 API client 401 middleware", () => {
   }
 
   test("401 → redirect to /login?expired=1 with the page to come back to", async () => {
-    const navigate = await respond(401, "/settings/ai");
-    expect(navigate).toHaveBeenCalledWith("/login?expired=1&next=%2Fsettings%2Fai");
+    const navigate = await respond(401, "/settings");
+    expect(navigate).toHaveBeenCalledWith("/login?expired=1&next=%2Fsettings");
   });
 
   test("no redirect loop on the login page, and no redirect for 403/404/500", async () => {

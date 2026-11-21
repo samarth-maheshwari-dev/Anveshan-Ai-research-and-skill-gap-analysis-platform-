@@ -72,6 +72,18 @@ public final class Urls {
 		}
 	}
 
+	/**
+	 * What a reference names as the publisher (T-16-15): the venue (journal) from the API metadata when known, else
+	 * the URL's host — but never a DOI resolver ({@code doi.org}), which says nothing about where the work appeared.
+	 */
+	public static String site(String venue, String url) {
+		if (venue != null && !venue.isBlank()) {
+			return venue.strip().replaceAll("\\s+", " ");
+		}
+		String h = host(url);
+		return h == null || h.equals("doi.org") || h.equals("dx.doi.org") ? null : h;
+	}
+
 	/** True when {@code url}'s host is {@code site} or one of its sub-domains. */
 	public static boolean onSite(String url, String site) {
 		String h = host(url);

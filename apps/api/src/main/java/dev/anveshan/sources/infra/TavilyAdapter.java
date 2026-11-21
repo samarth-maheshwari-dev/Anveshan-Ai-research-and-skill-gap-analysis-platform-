@@ -6,9 +6,9 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import dev.anveshan.byok.api.WebSearch;
-import dev.anveshan.byok.api.WebSearch.WebQuery;
-import dev.anveshan.byok.api.WebSearch.WebSearchFailedException;
+import dev.anveshan.llm.api.WebSearch;
+import dev.anveshan.llm.api.WebSearch.WebQuery;
+import dev.anveshan.llm.api.WebSearch.WebSearchFailedException;
 import dev.anveshan.sources.api.SourceSearch.Candidate;
 import dev.anveshan.sources.api.SourceSearch.CandidateType;
 import dev.anveshan.sources.api.SourceSearch.SourceKind;
@@ -17,8 +17,8 @@ import dev.anveshan.sources.infra.SearchHttp.SearchApiException;
 import dev.anveshan.sources.infra.SearchResilience.UpstreamException;
 
 /**
- * General web search with the user's own Tavily key (BYOK search). Only offered when the user has a verified key
- * (T-11-07); the key itself stays inside the byok module.
+ * General web search with the platform Tavily key (TAVILY_API_KEY). Only offered when the key is configured
+ * (T-11-07); the key itself stays inside the llm module.
  */
 @Component
 class TavilyAdapter implements SearchAdapter {

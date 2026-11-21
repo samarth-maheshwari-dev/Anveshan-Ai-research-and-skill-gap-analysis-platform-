@@ -63,7 +63,7 @@ public final class SafeHttp implements AutoCloseable {
 				.disableCookieManagement()
 				.disableAuthCaching()
 				// No automatic retries: HttpClient would otherwise sleep for a 429's Retry-After and resend.
-				// Callers decide (the BYOK router switches to another route instead of waiting).
+				// Callers decide (the LLM gateway chain switches to another route instead of waiting).
 				.disableAutomaticRetries()
 				// No useSystemProperties(): a system proxy would resolve DNS itself and bypass SafeDnsResolver.
 				.build();

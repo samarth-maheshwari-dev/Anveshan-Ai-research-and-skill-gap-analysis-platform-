@@ -110,7 +110,7 @@ class LoginFlowIT {
 		var me = b.get("/api/v1/me");
 		assertThat(me.statusCode()).isEqualTo(200);
 		assertThat(me.body()).contains("\"email\":\"" + as.email() + "\"", "\"identities\":[\"GITHUB\"]",
-				"\"hasVerifiedConnection\":false");
+				"\"onboarding\":{\"hasRun\":false}");
 		UUID id = idOf(me);
 		assertThat(jdbc.sql("SELECT count(*) FROM user_identity WHERE user_id = :u AND provider = 'GITHUB' AND provider_subject = :s")
 				.param("u", id).param("s", String.valueOf(as.id())).query(Long.class).single()).isEqualTo(1);

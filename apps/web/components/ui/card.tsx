@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 /** Card (DESIGN §9.4): dark surface, 1px hairline, 12px radius, no shadow — depth comes from contrast. */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -22,7 +22,7 @@ export function Overline({ className, ...props }: HTMLAttributes<HTMLParagraphEl
 }
 
 /** One number with a label (dashboard): honest values only — "—" when there is nothing to count yet. */
-type StatProps = { label: string; value: string; hint?: string; className?: string };
+type StatProps = { label: string; value: ReactNode; hint?: string; className?: string };
 
 export function Stat({ label, value, hint, className }: StatProps) {
   return (

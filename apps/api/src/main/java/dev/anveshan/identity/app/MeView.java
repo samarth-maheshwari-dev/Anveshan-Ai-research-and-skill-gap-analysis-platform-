@@ -8,7 +8,7 @@ public record MeView(UUID id, String email, String name, String avatarUrl, Strin
 		List<String> identities, Onboarding onboarding) {
 
 	/** {@code hasRun} stays false until the research module exists (P09). */
-	public record Onboarding(boolean hasVerifiedConnection, boolean hasRun) {
+	public record Onboarding(boolean hasRun) {
 	}
 
 }

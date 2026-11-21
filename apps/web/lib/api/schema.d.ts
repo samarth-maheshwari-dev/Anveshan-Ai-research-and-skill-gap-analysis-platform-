@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI service status
+         * @description ONLINE: can answer; BUSY: every endpoint is cooling down (runs pause and resume); OFFLINE: not set up on this server. Plus today's run allowance (UTC).
+         */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -15,70 +35,6 @@ export interface paths {
         put?: never;
         /** End the session */
         post: operations["logout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/connections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_1"];
-        put?: never;
-        post: operations["create_1"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/connections/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/connections/{id}/models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["models"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/connections/{id}/test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["test"];
         delete?: never;
         options?: never;
         head?: never;
@@ -124,7 +80,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_2"];
+        get: operations["get_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -268,7 +224,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_1"];
+        get: operations["get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -437,22 +393,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["get"];
-        put: operations["put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/templates": {
         parameters: {
             query?: never;
@@ -469,26 +409,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/usage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["usage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AiStatus: {
+            /** Format: int32 */
+            runsLimit: number;
+            /** Format: int32 */
+            runsUsedToday: number;
+            /** @enum {string} */
+            state: "ONLINE" | "BUSY" | "OFFLINE";
+        };
         AssistRequest: {
             /** @enum {string} */
             action: "SIMPLIFY" | "MORE_DETAIL" | "TRANSLATE_HI";
@@ -525,55 +457,6 @@ export interface components {
             text?: string;
             trustLabel?: string;
         };
-        ConnectionList: {
-            items?: components["schemas"]["ConnectionView"][];
-        };
-        ConnectionShare: {
-            /** Format: uuid */
-            connectionId?: string;
-            label?: string;
-            /** Format: double */
-            pctOfTodayRemaining?: number;
-            provider?: string;
-            /** Format: int32 */
-            remainingToday?: number;
-            /** Format: int32 */
-            requests?: number;
-            /** Format: int32 */
-            usedToday?: number;
-        };
-        ConnectionUsage: {
-            /** Format: uuid */
-            connectionId?: string;
-            days?: components["schemas"]["Day"][];
-        };
-        ConnectionView: {
-            baseUrl?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: uuid */
-            id?: string;
-            keyLast4?: string;
-            /** @enum {string} */
-            kind?: "LLM" | "SEARCH";
-            label?: string;
-            /** Format: date-time */
-            lastTestedAt?: string;
-            /** @enum {string} */
-            provider?: "GEMINI" | "GROQ" | "OPENROUTER" | "OPENAI" | "ANTHROPIC" | "CUSTOM" | "TAVILY";
-            /** @enum {string} */
-            status?: "UNVERIFIED" | "VERIFIED" | "FAILING" | "DISABLED";
-            statusDetail?: string;
-        };
-        CreateRequest: {
-            apiKey?: string;
-            baseUrl?: string;
-            /** @enum {string} */
-            kind?: "LLM" | "SEARCH";
-            label?: string;
-            /** @enum {string} */
-            provider?: "GEMINI" | "GROQ" | "OPENROUTER" | "OPENAI" | "ANTHROPIC" | "CUSTOM" | "TAVILY";
-        };
         CreateRunRequest: {
             /** @enum {string} */
             depth?: "QUICK" | "STANDARD" | "DEEP" | "CUSTOM";
@@ -601,33 +484,20 @@ export interface components {
             timeRange?: "ANY" | "LAST_1_YEAR" | "LAST_2_YEARS" | "LAST_5_YEARS" | "SINCE_YEAR";
             topic: string;
         };
-        Day: {
-            /** Format: date */
-            day?: string;
-            /** Format: int32 */
-            requests?: number;
-            /** Format: int32 */
-            tokensIn?: number;
-            /** Format: int32 */
-            tokensOut?: number;
-        };
         EstimateView: {
             /** Format: int32 */
             minutes?: number;
             /** Format: double */
             minutesPerQuestion?: number;
-            perConnection?: components["schemas"]["ConnectionShare"][];
             requests?: {
                 [key: string]: number;
             };
-            routes?: components["schemas"]["SlotRoute"][];
             /** Format: int32 */
             sections?: number;
             /** Format: int32 */
             sourcesPerQuestion?: number;
             /** Format: int32 */
             totalRequests?: number;
-            unroutedSlots?: string[];
         };
         EvidenceView: {
             credibilityTier?: string;
@@ -655,18 +525,8 @@ export interface components {
             onboarding?: components["schemas"]["Onboarding"];
             timezone?: string;
         };
-        ModelInfo: {
-            chat?: boolean;
-            displayName?: string;
-            free?: boolean;
-            id?: string;
-        };
-        ModelList: {
-            items?: components["schemas"]["ModelInfo"][];
-        };
         Onboarding: {
             hasRun?: boolean;
-            hasVerifiedConnection?: boolean;
         };
         PassageView: {
             chunkText?: string;
@@ -737,11 +597,6 @@ export interface components {
             sections?: components["schemas"]["SectionView"][];
             /** Format: int32 */
             version?: number;
-        };
-        RouteChoice: {
-            /** Format: uuid */
-            connectionId?: string;
-            model?: string;
         };
         RunPage: {
             items?: components["schemas"]["RunSummary"][];
@@ -836,11 +691,6 @@ export interface components {
             /** Format: int32 */
             to: number;
         };
-        SlotRoute: {
-            /** Format: uuid */
-            connectionId?: string;
-            slot?: string;
-        };
         SourceView: {
             credibilityReason?: string;
             credibilityTier?: string;
@@ -892,25 +742,10 @@ export interface components {
             name?: string;
             sections?: string[];
         };
-        TestRequest: {
-            model?: string;
-        };
-        TestResult: {
-            defaultSlotsSet?: boolean;
-            /** Format: int64 */
-            latencyMs?: number;
-            note?: string;
-            sampleModel?: string;
-            /** @enum {string} */
-            status?: "UNVERIFIED" | "VERIFIED" | "FAILING" | "DISABLED";
-        };
         UpdateSectionRequest: {
             contentDoc: {
                 [key: string]: unknown;
             };
-        };
-        Usage: {
-            byConnection?: components["schemas"]["ConnectionUsage"][];
         };
         VersionPage: {
             items?: components["schemas"]["VersionView"][];
@@ -932,6 +767,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+            /** @description Problem Details */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -947,165 +811,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    list_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConnectionList"];
-                };
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    create_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConnectionView"];
-                };
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    models: {
-        parameters: {
-            query?: {
-                freeOnly?: boolean;
-            };
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelList"];
-                };
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    test: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["TestRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TestResult"];
-                };
             };
             /** @description Problem Details */
             default: {
@@ -1178,7 +883,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1516,7 +1221,7 @@ export interface operations {
             };
         };
     };
-    get_1: {
+    get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1866,74 +1571,6 @@ export interface operations {
             };
         };
     };
-    get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: components["schemas"]["RouteChoice"][];
-                    };
-                };
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: components["schemas"]["RouteChoice"][];
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: components["schemas"]["RouteChoice"][];
-                    };
-                };
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
     templates: {
         parameters: {
             query?: never;
@@ -1950,38 +1587,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TemplateList"];
-                };
-            };
-            /** @description Problem Details */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    usage: {
-        parameters: {
-            query: {
-                from: string;
-                to: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Usage"];
                 };
             };
             /** @description Problem Details */

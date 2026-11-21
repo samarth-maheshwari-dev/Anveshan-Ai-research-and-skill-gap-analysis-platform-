@@ -10,10 +10,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { Overline } from "@/components/ui/card";
 
 const KEY_FACTS = [
-  ["Setup", "About two minutes with a free Gemini or Groq key"],
-  ["Storage", "Encrypted with AES-256-GCM"],
-  ["Shown back", "Only the last four characters"],
-  ["Used for", "Your own requests — nothing else"],
+  ["Setup", "None. Sign in and start researching"],
+  ["AI keys", "Not needed. Anveshan runs the AI for you"],
+  ["Daily limit", "5 research runs per day, per account"],
+  ["Sources", "Open scholarly databases, every claim cited"],
 ];
 
 /** S-01 Landing (APPFLOW §15): explain Anveshan in 10 seconds, get to sign-in. Static server component. */
@@ -50,7 +50,7 @@ export default function LandingPage() {
                 Start free <ArrowRight aria-hidden />
               </Link>
               <span className="text-micro font-medium uppercase text-muted-foreground">
-                Free · bring your own AI key
+                Free · no AI key needed
               </span>
             </div>
           </div>
@@ -111,7 +111,7 @@ export default function LandingPage() {
           <div className="lg:col-span-5">
             <Overline>Cost</Overline>
             <h2 id="free" className="mt-4 text-display-lg font-semibold">
-              Free, because you bring your own AI key.
+              Free. No keys, no setup.
             </h2>
             <Link href="/login" className={`${buttonVariants({ variant: "primary", size: "lg" })} mt-8`}>
               Start free <ArrowRight aria-hidden />

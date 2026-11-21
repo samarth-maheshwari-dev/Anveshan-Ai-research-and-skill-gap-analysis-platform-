@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { KeyRound, TriangleAlert } from "lucide-react";
+import { Info, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
@@ -11,7 +11,7 @@ type BannerProps = { banner: BannerModel };
 /** Global banner (DESIGN §9.9, APPFLOW §2.2): one at a time, icon + one sentence + one action. */
 export function Banner({ banner }: BannerProps) {
   const danger = banner.kind === "danger";
-  const Icon = danger ? TriangleAlert : KeyRound;
+  const Icon = danger ? TriangleAlert : Info;
   return (
     <div
       role="status"
@@ -28,26 +28,4 @@ export function Banner({ banner }: BannerProps) {
       </Link>
     </div>
   );
-}
-
-type Conn = { label?: string; status?: string };
-
-/** Highest-priority banner for the shell (APPFLOW §2.2 #2 and #3; #1 is the 401 redirect). */
-export function pickBanner(hasVerifiedConnection: boolean | undefined, connections: Conn[] | undefined): BannerModel | null {
-  if (hasVerifiedConnection === false) {
-    return {
-      kind: "info",
-      text: "Connect an AI provider to start researching.",
-      action: { label: "Connect AI", href: "/onboarding/connect-ai" },
-    };
-  }
-  const failing = connections?.find((c) => c.status === "FAILING");
-  if (failing) {
-    return {
-      kind: "danger",
-      text: failing.label ? `The key “${failing.label}” stopped working.` : "Your AI key stopped working.",
-      action: { label: "Fix", href: "/settings/ai" },
-    };
-  }
-  return null;
 }

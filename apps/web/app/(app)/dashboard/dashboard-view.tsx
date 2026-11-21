@@ -1,18 +1,15 @@
 "use client";
 
-import { CircleCheck, FlaskConical, KeyRound, Plus } from "lucide-react";
+import { CircleCheck, CircleDashed, CircleX, FlaskConical, Hourglass, Plus } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { ConnectionStatus } from "@/components/anveshan/connection-status";
 import { ErrorLine } from "@/components/anveshan/error-line";
 import { buttonVariants } from "@/components/ui/button";
 import { Overline, Skeleton, Stat } from "@/components/ui/card";
-import { useConnections, type Connection } from "@/lib/api/hooks/connections";
+import { useAiStatus, type AiStatus } from "@/lib/api/hooks/ai-status";
 import { runHref, useRuns, type RunSummary } from "@/lib/api/hooks/runs";
 import { useMe } from "@/lib/api/hooks/me";
-import { TASK_SLOTS, useSlots } from "@/lib/api/hooks/slots";
 import { timeAgo } from "@/lib/time";
 
 const EXAMPLES = [
@@ -21,38 +18,16 @@ const EXAMPLES = [
   "What does a junior backend developer need to know in 2026?",
 ];
 
-export const ONBOARDING_OFFERED_KEY = "anv.onboarding.offered";
-
-function offeredOnce(): boolean {
-  try {
-    if (window.sessionStorage.getItem(ONBOARDING_OFFERED_KEY)) return true;
-    window.sessionStorage.setItem(ONBOARDING_OFFERED_KEY, "1");
-    return false;
-  } catch {
-    return true; // storage blocked: never trap the user in a redirect loop
-  }
-}
-
 /**
  * S-04 Dashboard (APPFLOW §4.2 steps 4 and 10), laid out like the owner's reference design: stats, ongoing
  * research, recent activity. Only real numbers — research and knowledge show "—" until those modules exist.
  */
 export function DashboardView() {
-  const router = useRouter();
   const me = useMe();
-  const connections = useConnections();
-  const slots = useSlots();
+  const aiStatus = useAiStatus();
   const runs = useRuns(10);
-  const verified = me.data?.onboarding?.hasVerifiedConnection;
-
-  // First visit without a working key → offer the wizard once per browser session.
-  useEffect(() => {
-    if (verified === false && !offeredOnce()) router.replace("/onboarding/connect-ai");
-  }, [verified, router]);
 
   const firstName = me.data?.name?.split(" ")[0];
-  const verifiedCount = connections.data?.filter((c) => c.status === "VERIFIED").length ?? 0;
-  const routed = slots.data ? TASK_SLOTS.filter((s) => (slots.data[s]?.length ?? 0) > 0).length : null;
 
   return (
     <div>
@@ -68,12 +43,7 @@ export function DashboardView() {
       </div>
 
       <div className="mt-8 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
-        <Stat
-          label="AI connections"
-          value={connections.data ? `${verifiedCount}` : "—"}
-          hint={connections.data ? `${connections.data.length} connected · ${verifiedCount} verified` : undefined}
-        />
-        <Stat label="Tasks routed" value={routed === null ? "—" : `${routed} / ${TASK_SLOTS.length}`} hint="Plan, extract, verify, write, ask, interview" />
+        <AiStatusStat query={aiStatus} />
         <Stat
           label="Research"
           value={runs.data ? `${runs.data.items?.length ?? 0}${runs.data.nextCursor ? "+" : ""}` : "—"}
@@ -135,39 +105,9 @@ export function DashboardView() {
             <h2 id="activity" className="text-heading-sm font-semibold">
               Recent activity
             </h2>
-            <Activity connections={connections.data} />
+            <Activity runs={runs.data?.items} />
           </section>
 
-          <section aria-labelledby="ai-connections" className="rounded-lg border border-border bg-surface p-6">
-            <h2 id="ai-connections" className="text-heading-sm font-semibold">
-              AI connections
-            </h2>
-            {connections.isPending ? (
-              <div className="mt-4 space-y-2">
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-6 w-2/3" />
-              </div>
-            ) : connections.isError ? (
-              <ErrorLine message="Couldn't load your AI connections." onRetry={() => void connections.refetch()} />
-            ) : connections.data && connections.data.length > 0 ? (
-              <ul className="mt-4 space-y-2">
-                {connections.data.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2.5">
-                    <span className="truncate text-body-sm">{c.label}</span>
-                    <ConnectionStatus status={c.status} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-4 text-body-sm text-muted-foreground">No AI connected yet.</p>
-            )}
-            <Link
-              href={verified ? "/settings/ai" : "/onboarding/connect-ai"}
-              className={`${buttonVariants({ variant: verified ? "secondary" : "primary" })} mt-5 w-full`}
-            >
-              {verified ? "Manage AI" : "Connect AI"}
-            </Link>
-          </section>
         </div>
       </div>
     </div>
@@ -216,24 +156,54 @@ function RunRow({ run }: { run: RunSummary }) {
   );
 }
 
-type ActivityProps = { connections: Connection[] | undefined };
+const AI_STATE = {
+  ONLINE: { word: "Online", Icon: CircleCheck, tone: "text-primary" },
+  BUSY: { word: "Busy", Icon: Hourglass, tone: "text-muted-foreground" },
+  OFFLINE: { word: "Offline", Icon: CircleX, tone: "text-danger" },
+} as const;
 
-/** A timeline from what really happened so far: keys connected and verified (research events join in P10+). */
-function Activity({ connections }: ActivityProps) {
+type AiStatusStatProps = { query: ReturnType<typeof useAiStatus> };
+
+/** The platform AI gateway's state (icon + word, never colour alone) and today's research-run usage. */
+function AiStatusStat({ query }: AiStatusStatProps) {
+  if (query.isPending) return <Stat label="AI status" value={<Skeleton className="h-8 w-24" />} />;
+  if (query.isError) return <Stat label="AI status" value="—" hint="Couldn't check the AI right now." />;
+  const status: AiStatus = query.data;
+  const state = AI_STATE[status.state as keyof typeof AI_STATE];
+  const Icon = state?.Icon ?? CircleDashed;
+  return (
+    <Stat
+      label="AI status"
+      value={
+        <span className="inline-flex items-center gap-2">
+          <Icon aria-hidden className={`size-6 shrink-0 ${state?.tone ?? "text-muted-foreground"}`} />
+          {state?.word ?? "Unknown"}
+        </span>
+      }
+      hint={`${status.runsUsedToday} of ${status.runsLimit} research runs used today`}
+    />
+  );
+}
+
+type ActivityProps = { runs: RunSummary[] | undefined };
+
+/** A timeline from what really happened so far: research started and reports finished. */
+function Activity({ runs }: ActivityProps) {
   // "now" is read once per mount (render stays pure); minutes-ago only needs to be roughly right
   const [now] = useState(() => new Date());
-  const items = (connections ?? [])
-    .flatMap((c) => [
-      ...(c.createdAt ? [{ key: `${c.id}-c`, at: c.createdAt, text: `Connected ${c.label}`, done: false }] : []),
-      ...(c.lastTestedAt && c.status === "VERIFIED"
-        ? [{ key: `${c.id}-v`, at: c.lastTestedAt, text: `${c.label} verified`, done: true }]
-        : []),
-    ])
+  const items = (runs ?? [])
+    .filter((r) => r.id && r.updatedAt)
+    .map((r) => ({
+      key: r.id!,
+      at: r.updatedAt!,
+      text: r.status === "COMPLETED" ? `Report ready: ${r.topic}` : `Research: ${r.topic}`,
+      done: r.status === "COMPLETED",
+    }))
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 5);
 
   if (items.length === 0) {
-    return <p className="mt-4 text-body-sm text-muted-foreground">Nothing to show yet. Connecting keys and running research shows up here.</p>;
+    return <p className="mt-4 text-body-sm text-muted-foreground">Nothing to show yet. Your research shows up here.</p>;
   }
   return (
     <ol className="mt-4 space-y-4">
@@ -242,10 +212,10 @@ function Activity({ connections }: ActivityProps) {
           <span
             className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ${i.done ? "bg-primary-soft text-primary" : "bg-surface-2 text-muted-foreground"}`}
           >
-            {i.done ? <CircleCheck aria-hidden className="size-3.5" /> : <KeyRound aria-hidden className="size-3.5" />}
+            {i.done ? <CircleCheck aria-hidden className="size-3.5" /> : <FlaskConical aria-hidden className="size-3.5" />}
           </span>
           <div>
-            <p className="text-body-sm">{i.text}</p>
+            <p className="line-clamp-2 text-body-sm">{i.text}</p>
             <p className="text-caption text-subtle-foreground">{timeAgo(i.at, now)}</p>
           </div>
         </li>

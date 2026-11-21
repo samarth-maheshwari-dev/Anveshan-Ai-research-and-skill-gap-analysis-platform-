@@ -155,8 +155,14 @@ class DefaultClaimLibrary implements ClaimLibrary {
 	}
 
 	@Override
-	public List<OpenQuestion> openQuestions(UUID runId, int limit) {
-		return store.openQuestions(runId, limit);
+	public List<OpenQuestion> openQuestions(UUID runId, List<float[]> questions) {
+		java.util.Map<UUID, OpenQuestion> best = new java.util.LinkedHashMap<>();
+		for (float[] q : questions) {
+			for (OpenQuestion o : store.openQuestions(runId, q)) {
+				best.merge(o.claimId(), o, (a, b) -> a.similarity() >= b.similarity() ? a : b);
+			}
+		}
+		return List.copyOf(best.values());
 	}
 
 	/** The verdicts as the labeler sees them: a passage of the claim's own source is not independent (D-106). */

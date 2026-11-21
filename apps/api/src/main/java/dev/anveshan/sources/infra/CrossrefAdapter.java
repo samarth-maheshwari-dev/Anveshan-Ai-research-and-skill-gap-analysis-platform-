@@ -56,7 +56,7 @@ class CrossrefAdapter implements SearchAdapter {
 		Map<String, String> p = new LinkedHashMap<>();
 		p.put("query.bibliographic", q.text());
 		p.put("rows", Integer.toString(q.maxResults()));
-		p.put("select", "DOI,title,URL,abstract,issued,type,updated-by,update-to");
+		p.put("select", "DOI,title,URL,abstract,issued,type,updated-by,update-to,container-title");
 		p.put("filter", q.since() == null ? null : "from-pub-date:" + q.since());
 		p.put("mailto", props.contactEmail());
 		JsonNode root = http.getJson(AdapterSupport.uri(props.api(NAME).baseUrl(), "works", p), Map.of());
@@ -72,9 +72,13 @@ class CrossrefAdapter implements SearchAdapter {
 			out.add(new Candidate(title, doi, doi, AdapterSupport.text(AdapterSupport.str(item, "abstract")),
 					issued(item.path("issued").path("date-parts")),
 					"posted-content".equals(AdapterSupport.str(item, "type")) ? CandidateType.PREPRINT : CandidateType.PAPER,
-					NAME, 0, null, takesBack(item.path("updated-by"))));
+					NAME, 0, null, takesBack(item.path("updated-by")), container(item.path("container-title"))));
 		}
 		return out;
+	}
+
+	private static String container(JsonNode titles) {
+		return titles.isArray() && !titles.isEmpty() ? AdapterSupport.text(titles.get(0).asString("")) : null;
 	}
 
 	/** Any update in the list that retracts, withdraws or removes ({@code updated-by} on the paper, Retraction Watch). */

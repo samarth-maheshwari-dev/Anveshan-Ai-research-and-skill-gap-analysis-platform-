@@ -9,6 +9,36 @@
     "url" : "/"
   } ],
   "paths" : {
+    "/api/v1/ai/status" : {
+      "get" : {
+        "description" : "ONLINE: can answer; BUSY: every endpoint is cooling down (runs pause and resume); OFFLINE: not set up on this server. Plus today's run allowance (UTC).",
+        "operationId" : "status",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiStatus"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Problem Details"
+          }
+        },
+        "summary" : "AI service status",
+        "tags" : [ "AI" ]
+      }
+    },
     "/api/v1/auth/logout" : {
       "post" : {
         "operationId" : "logout",
@@ -28,191 +58,6 @@
           }
         },
         "summary" : "End the session"
-      }
-    },
-    "/api/v1/connections" : {
-      "get" : {
-        "operationId" : "list_1",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ConnectionList"
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "connection-controller" ]
-      },
-      "post" : {
-        "operationId" : "create_1",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/CreateRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "201" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ConnectionView"
-                }
-              }
-            },
-            "description" : "Created"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "connection-controller" ]
-      }
-    },
-    "/api/v1/connections/{id}" : {
-      "delete" : {
-        "operationId" : "delete",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid"
-          }
-        } ],
-        "responses" : {
-          "204" : {
-            "description" : "No Content"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "connection-controller" ]
-      }
-    },
-    "/api/v1/connections/{id}/models" : {
-      "get" : {
-        "operationId" : "models",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid"
-          }
-        }, {
-          "in" : "query",
-          "name" : "freeOnly",
-          "required" : false,
-          "schema" : {
-            "type" : "boolean",
-            "default" : false
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ModelList"
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "connection-controller" ]
-      }
-    },
-    "/api/v1/connections/{id}/test" : {
-      "post" : {
-        "operationId" : "test",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/TestRequest"
-              }
-            }
-          }
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/TestResult"
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "connection-controller" ]
       }
     },
     "/api/v1/health" : {
@@ -276,7 +121,7 @@
     },
     "/api/v1/reports/{id}" : {
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -755,7 +600,7 @@
     },
     "/api/v1/runs/{id}" : {
       "get" : {
-        "operationId" : "get_1",
+        "operationId" : "get",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1187,88 +1032,6 @@
         "tags" : [ "run-controller" ]
       }
     },
-    "/api/v1/slots" : {
-      "get" : {
-        "operationId" : "get",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "object",
-                  "additionalProperties" : {
-                    "type" : "array",
-                    "items" : {
-                      "$ref" : "#/components/schemas/RouteChoice"
-                    }
-                  }
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "slot-controller" ]
-      },
-      "put" : {
-        "operationId" : "put",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "type" : "object",
-                "additionalProperties" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/RouteChoice"
-                  }
-                }
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "object",
-                  "additionalProperties" : {
-                    "type" : "array",
-                    "items" : {
-                      "$ref" : "#/components/schemas/RouteChoice"
-                    }
-                  }
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "slot-controller" ]
-      }
-    },
     "/api/v1/templates" : {
       "get" : {
         "operationId" : "templates",
@@ -1296,55 +1059,28 @@
         },
         "tags" : [ "template-controller" ]
       }
-    },
-    "/api/v1/usage" : {
-      "get" : {
-        "operationId" : "usage",
-        "parameters" : [ {
-          "in" : "query",
-          "name" : "from",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "date"
-          }
-        }, {
-          "in" : "query",
-          "name" : "to",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "date"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Usage"
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description" : "Problem Details"
-          }
-        },
-        "tags" : [ "slot-controller" ]
-      }
     }
   },
   "components" : {
     "schemas" : {
+      "AiStatus" : {
+        "type" : "object",
+        "properties" : {
+          "runsLimit" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "runsUsedToday" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "state" : {
+            "type" : "string",
+            "enum" : [ "ONLINE", "BUSY", "OFFLINE" ]
+          }
+        },
+        "required" : [ "runsLimit", "runsUsedToday", "state" ]
+      },
       "AssistRequest" : {
         "type" : "object",
         "properties" : {
@@ -1419,126 +1155,6 @@
           },
           "trustLabel" : {
             "type" : "string"
-          }
-        }
-      },
-      "ConnectionList" : {
-        "type" : "object",
-        "properties" : {
-          "items" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ConnectionView"
-            }
-          }
-        }
-      },
-      "ConnectionShare" : {
-        "type" : "object",
-        "properties" : {
-          "connectionId" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "label" : {
-            "type" : "string"
-          },
-          "pctOfTodayRemaining" : {
-            "type" : "number",
-            "format" : "double"
-          },
-          "provider" : {
-            "type" : "string"
-          },
-          "remainingToday" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "requests" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "usedToday" : {
-            "type" : "integer",
-            "format" : "int32"
-          }
-        }
-      },
-      "ConnectionUsage" : {
-        "type" : "object",
-        "properties" : {
-          "connectionId" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "days" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/Day"
-            }
-          }
-        }
-      },
-      "ConnectionView" : {
-        "type" : "object",
-        "properties" : {
-          "baseUrl" : {
-            "type" : "string"
-          },
-          "createdAt" : {
-            "type" : "string",
-            "format" : "date-time"
-          },
-          "id" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "keyLast4" : {
-            "type" : "string"
-          },
-          "kind" : {
-            "type" : "string",
-            "enum" : [ "LLM", "SEARCH" ]
-          },
-          "label" : {
-            "type" : "string"
-          },
-          "lastTestedAt" : {
-            "type" : "string",
-            "format" : "date-time"
-          },
-          "provider" : {
-            "type" : "string",
-            "enum" : [ "GEMINI", "GROQ", "OPENROUTER", "OPENAI", "ANTHROPIC", "CUSTOM", "TAVILY" ]
-          },
-          "status" : {
-            "type" : "string",
-            "enum" : [ "UNVERIFIED", "VERIFIED", "FAILING", "DISABLED" ]
-          },
-          "statusDetail" : {
-            "type" : "string"
-          }
-        }
-      },
-      "CreateRequest" : {
-        "type" : "object",
-        "properties" : {
-          "apiKey" : {
-            "type" : "string"
-          },
-          "baseUrl" : {
-            "type" : "string"
-          },
-          "kind" : {
-            "type" : "string",
-            "enum" : [ "LLM", "SEARCH" ]
-          },
-          "label" : {
-            "type" : "string"
-          },
-          "provider" : {
-            "type" : "string",
-            "enum" : [ "GEMINI", "GROQ", "OPENROUTER", "OPENAI", "ANTHROPIC", "CUSTOM", "TAVILY" ]
           }
         }
       },
@@ -1644,27 +1260,6 @@
         },
         "required" : [ "topic" ]
       },
-      "Day" : {
-        "type" : "object",
-        "properties" : {
-          "day" : {
-            "type" : "string",
-            "format" : "date"
-          },
-          "requests" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "tokensIn" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "tokensOut" : {
-            "type" : "integer",
-            "format" : "int32"
-          }
-        }
-      },
       "EstimateView" : {
         "type" : "object",
         "properties" : {
@@ -1676,23 +1271,11 @@
             "type" : "number",
             "format" : "double"
           },
-          "perConnection" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ConnectionShare"
-            }
-          },
           "requests" : {
             "type" : "object",
             "additionalProperties" : {
               "type" : "integer",
               "format" : "int32"
-            }
-          },
-          "routes" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/SlotRoute"
             }
           },
           "sections" : {
@@ -1706,12 +1289,6 @@
           "totalRequests" : {
             "type" : "integer",
             "format" : "int32"
-          },
-          "unroutedSlots" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string"
-            }
           }
         }
       },
@@ -1785,41 +1362,10 @@
           }
         }
       },
-      "ModelInfo" : {
-        "type" : "object",
-        "properties" : {
-          "chat" : {
-            "type" : "boolean"
-          },
-          "displayName" : {
-            "type" : "string"
-          },
-          "free" : {
-            "type" : "boolean"
-          },
-          "id" : {
-            "type" : "string"
-          }
-        }
-      },
-      "ModelList" : {
-        "type" : "object",
-        "properties" : {
-          "items" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ModelInfo"
-            }
-          }
-        }
-      },
       "Onboarding" : {
         "type" : "object",
         "properties" : {
           "hasRun" : {
-            "type" : "boolean"
-          },
-          "hasVerifiedConnection" : {
             "type" : "boolean"
           }
         }
@@ -2036,18 +1582,6 @@
           "version" : {
             "type" : "integer",
             "format" : "int32"
-          }
-        }
-      },
-      "RouteChoice" : {
-        "type" : "object",
-        "properties" : {
-          "connectionId" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "model" : {
-            "type" : "string"
           }
         }
       },
@@ -2272,18 +1806,6 @@
         },
         "required" : [ "from", "to" ]
       },
-      "SlotRoute" : {
-        "type" : "object",
-        "properties" : {
-          "connectionId" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "slot" : {
-            "type" : "string"
-          }
-        }
-      },
       "SourceView" : {
         "type" : "object",
         "properties" : {
@@ -2417,36 +1939,6 @@
           }
         }
       },
-      "TestRequest" : {
-        "type" : "object",
-        "properties" : {
-          "model" : {
-            "type" : "string"
-          }
-        }
-      },
-      "TestResult" : {
-        "type" : "object",
-        "properties" : {
-          "defaultSlotsSet" : {
-            "type" : "boolean"
-          },
-          "latencyMs" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "note" : {
-            "type" : "string"
-          },
-          "sampleModel" : {
-            "type" : "string"
-          },
-          "status" : {
-            "type" : "string",
-            "enum" : [ "UNVERIFIED", "VERIFIED", "FAILING", "DISABLED" ]
-          }
-        }
-      },
       "UpdateSectionRequest" : {
         "type" : "object",
         "properties" : {
@@ -2456,17 +1948,6 @@
           }
         },
         "required" : [ "contentDoc" ]
-      },
-      "Usage" : {
-        "type" : "object",
-        "properties" : {
-          "byConnection" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ConnectionUsage"
-            }
-          }
-        }
       },
       "VersionPage" : {
         "type" : "object",

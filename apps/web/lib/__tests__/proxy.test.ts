@@ -12,9 +12,9 @@ function request(path: string, withSession: boolean) {
 
 describe("route protection proxy (TECHSPEC §9.3)", () => {
   test("app pages without a session cookie → /login?next=<page>", () => {
-    const res = proxy(request("/settings/ai", false));
+    const res = proxy(request("/settings", false));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("http://localhost:3000/login?next=%2Fsettings%2Fai");
+    expect(res.headers.get("location")).toBe("http://localhost:3000/login?next=%2Fsettings");
   });
 
   test("signed-in visitor on the landing page → dashboard", () => {

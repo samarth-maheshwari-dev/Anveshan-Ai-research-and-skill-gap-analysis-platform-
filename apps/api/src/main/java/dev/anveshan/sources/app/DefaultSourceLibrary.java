@@ -118,7 +118,7 @@ class DefaultSourceLibrary implements SourceLibrary {
 		}
 		String title = firstNonBlank(c.title(), page.title(), url);
 		NewDocument doc = new NewDocument("PUBLIC", null, url, c.doi(), null, Texts.contentHash(page.text()), title,
-				page.authors(), Urls.host(url), c.published() != null ? c.published() : page.published(),
+				page.authors(), Urls.site(c.venue(), url), c.published() != null ? c.published() : page.published(),
 				Credibility.documentType(c.type().name(), url, rules), rating.tier().name(), rating.reason(), metadata,
 				page.text());
 		List<NewChunk> chunks = embed(page.text(), page.pageStarts());

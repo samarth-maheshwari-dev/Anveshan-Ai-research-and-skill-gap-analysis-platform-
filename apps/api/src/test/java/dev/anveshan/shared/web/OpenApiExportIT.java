@@ -51,16 +51,14 @@ class OpenApiExportIT {
 		JsonNode root = json.readTree(spec);
 		assertThat(root.path("openapi").asString()).startsWith("3.1");
 		JsonNode paths = root.path("paths");
-		for (String p : List.of("/api/v1/me", "/api/v1/connections", "/api/v1/connections/{id}",
-				"/api/v1/connections/{id}/test", "/api/v1/connections/{id}/models", "/api/v1/slots", "/api/v1/usage",
-				"/api/v1/health")) {
+		for (String p : List.of("/api/v1/me", "/api/v1/ai/status", "/api/v1/health")) {
 			assertThat(paths.has(p)).as(p).isTrue();
 		}
 		JsonNode schemas = root.path("components").path("schemas");
 		assertThat(schemas.has("MeView")).isTrue();
-		assertThat(schemas.has("ConnectionView")).isTrue();
-		assertThat(schemas.has("TestResult")).isTrue();
-		assertThat(spec).as("no secrets or hosts leak into the spec").doesNotContain("localhost").doesNotContain("keyCiphertext");
+		assertThat(schemas.has("AiStatus")).isTrue();
+		assertThat(paths.has("/api/v1/connections")).as("BYOK endpoints are gone (P16)").isFalse();
+		assertThat(spec).as("no secrets or hosts leak into the spec").doesNotContain("localhost").doesNotContain("apiKey");
 
 		Path out = Path.of("target", "openapi.json");
 		Files.createDirectories(out.getParent());

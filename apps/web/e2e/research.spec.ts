@@ -1,14 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { fakeRun, installFakeApi, verifiedConnection } from "./fake-api";
-
-const ROUTED = {
-  PLAN: [{ connectionId: "c-existing", model: "llama-3.3-70b-versatile" }],
-  WRITE: [{ connectionId: "c-existing", model: "llama-3.3-70b-versatile" }],
-};
+import { fakeRun, installFakeApi } from "./fake-api";
 
 test("T-10-07 template → topic → start → delete a card → estimate drops → approve → live room", async ({ page, context }) => {
-  const api = await installFakeApi(page, context, { signedIn: true, connections: [verifiedConnection()], slots: ROUTED });
+  const api = await installFakeApi(page, context, { signedIn: true });
   await page.goto("/dashboard");
   await page.getByRole("main").getByRole("link", { name: "New research" }).click();
   await expect(page).toHaveURL(/\/research\/new$/);
@@ -58,8 +53,6 @@ test("T-10-07 template → topic → start → delete a card → estimate drops 
 test("T-10-08 /plan on a COMPLETED run redirects to the report", async ({ page, context }) => {
   await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [fakeRun({ id: "r-done", status: "COMPLETED", reportId: "rep-r-done" })],
   });
   await page.goto("/research/r-done/plan");
@@ -70,8 +63,6 @@ test("T-10-08 /plan on a COMPLETED run redirects to the report", async ({ page, 
 test("/research/[id] routes by status: AWAITING_APPROVAL → plan, RUNNING → live", async ({ page, context }) => {
   await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [fakeRun({ id: "r-wait" }), fakeRun({ id: "r-run", status: "RUNNING" })],
   });
   await page.goto("/research/r-wait");
@@ -80,21 +71,19 @@ test("/research/[id] routes by status: AWAITING_APPROVAL → plan, RUNNING → l
   await expect(page).toHaveURL(/\/research\/r-run\/live$/);
 });
 
-test("C-FR-3: without a PLAN/WRITE model the form explains and can't start", async ({ page, context }) => {
-  await installFakeApi(page, context, { signedIn: true, connections: [], slots: {} });
+test("P16: the daily research limit reached → the form says so in plain words", async ({ page, context }) => {
+  await installFakeApi(page, context, { signedIn: true, aiStatus: { state: "ONLINE", runsUsedToday: 5, runsLimit: 5 } });
   await page.goto("/research/new");
-  await expect(page.getByText(/Research needs an AI model for planning and writing/)).toBeVisible();
-  await expect(page.locator("#main").getByRole("link", { name: "Connect AI" })).toHaveAttribute("href", "/onboarding/connect-ai");
   await page.getByLabel("What do you want to research?").fill("Compare lost-and-found apps for college campuses");
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByRole("button", { name: "Start research" })).toBeDisabled();
+  await page.getByRole("button", { name: "Start research" }).click();
+  await expect(page.getByText("You've used today's research limit. Try again tomorrow.")).toBeVisible();
+  await expect(page).toHaveURL(/\/research\/new$/);
 });
 
 test("D-FR-3: a plan changed in another tab shows Reload instead of overwriting", async ({ page, context }) => {
   const api = await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [fakeRun({ id: "r-conflict" })],
   });
   await page.goto("/research/r-conflict/plan");
@@ -109,7 +98,7 @@ test("D-FR-3: a plan changed in another tab shows Reload instead of overwriting"
 });
 
 test("T-10-13 every choice has a 'your own' option: objective, depth, format, sections, sites, year, instructions", async ({ page, context }) => {
-  const api = await installFakeApi(page, context, { signedIn: true, connections: [verifiedConnection()], slots: ROUTED });
+  const api = await installFakeApi(page, context, { signedIn: true });
   await page.goto("/research/new");
   await page.getByLabel("What do you want to research?").fill("Compare lost-and-found apps for college campuses");
   await page.getByLabel("Anything else the AI should know? (optional)").fill("Focus on India, for 2nd-year students");
@@ -169,8 +158,6 @@ test("T-10-14 a failed plan shows a plain reason and 'Start again' re-creates th
   const reason = "Your AI provider didn't answer — it was busy or down.";
   const api = await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [
       fakeRun({
         id: "r-failed",
@@ -193,8 +180,6 @@ test("T-10-14 a failed plan shows a plain reason and 'Start again' re-creates th
 test("T-10-16 Regenerate plan with an instruction replaces the cards (1 request, behind one extra click)", async ({ page, context }) => {
   const api = await installFakeApi(page, context, {
     signedIn: true,
-    connections: [verifiedConnection()],
-    slots: ROUTED,
     runs: [fakeRun({ id: "r-regen" })],
   });
   await page.goto("/research/r-regen/plan");

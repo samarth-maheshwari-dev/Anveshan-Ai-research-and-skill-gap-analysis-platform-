@@ -34,9 +34,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import dev.anveshan.TestcontainersConfig;
-import dev.anveshan.byok.api.LlmGateway;
-import dev.anveshan.byok.api.LlmResult;
-import dev.anveshan.byok.api.TaskSlot;
+import dev.anveshan.llm.api.LlmGateway;
+import dev.anveshan.llm.api.LlmResult;
+import dev.anveshan.llm.api.TaskSlot;
 import dev.anveshan.identity.infra.security.SessionUser;
 import dev.anveshan.research.app.Planner.PlanItem;
 import dev.anveshan.research.app.Planner.PlanOutput;
@@ -86,11 +86,6 @@ class SearchStepIT {
 		resilience.reset();
 		user = jdbc.sql("INSERT INTO app_user (email, email_verified) VALUES (:e, true) RETURNING id")
 				.param("e", "reena-" + UUID.randomUUID() + "@example.com").query(UUID.class).single();
-		UUID llm = connection(user, "GROQ", "LLM");
-		for (String slot : List.of("PLAN", "WRITE")) {
-			jdbc.sql("INSERT INTO slot_route (owner_id, slot, position, connection_id, model) VALUES (:o, :s, 0, :c, 'm')")
-					.param("o", user).param("s", slot).param("c", llm).update();
-		}
 		// two sub-questions: one academic + web, one GitHub
 		List<PlanItem> plan = List.of(
 				new PlanItem("Which lost and found apps work best on college campuses?", List.of("ACADEMIC", "WEB"),
@@ -98,7 +93,7 @@ class SearchStepIT {
 				new PlanItem("Which open-source lost and found projects exist?", List.of("GITHUB"),
 						List.of("lost and found app")));
 		when(gateway.call(any(), eq(TaskSlot.PLAN), any(), eq(PlanOutput.class), any()))
-				.thenAnswer(inv -> new LlmResult<>(new PlanOutput(plan), UUID.randomUUID(), "fake", 10, 10, 1));
+				.thenAnswer(inv -> new LlmResult<>(new PlanOutput(plan), "test", "fake", 10, 10, 1));
 	}
 
 	@Test
@@ -130,7 +125,7 @@ class SearchStepIT {
 								List.of(query)),
 						new PlanItem("Which open-source lost and found projects exist?", List.of("GITHUB"),
 								List.of("lost and found app")))), // awaitSearch expects two SEARCH steps
-						UUID.randomUUID(), "fake", 10, 10, 1));
+						"test", "fake", 10, 10, 1));
 		FAKE.respond("openalex", """
 				{"results":[{"id":"W9","doi":"https://doi.org/10.1000/LOSTFOUND.2023",
 				 "display_name":"Lost and found management systems for university campuses","type":"article","is_retracted":true}]}""");
@@ -164,27 +159,11 @@ class SearchStepIT {
 	}
 
 	@Test
-	@DisplayName("T-11-07 no Tavily key → Tavily never called; with a verified key → called for web sub-questions, key never in output")
+	@DisplayName("T-11-07 no platform Tavily key (TAVILY_API_KEY blank) → Tavily is never called, other APIs still search")
 	void tavilyOnlyWithKey() throws Exception {
 		UUID run = approvedRun();
 		awaitSearch(run, "DONE");
 		assertThat(FAKE.requestsTo("tavily")).isEmpty();
-
-		// the same user adds a Tavily key (tested against the fake) → the next run uses it
-		String key = "tvly-" + UUID.randomUUID().toString().replace("-", "");
-		var created = perform(post("/api/v1/connections").contentType(MediaType.APPLICATION_JSON).content(
-				"{\"kind\":\"SEARCH\",\"provider\":\"TAVILY\",\"label\":\"My Tavily\",\"apiKey\":\"" + key + "\"}"));
-		assertThat(created.getResponse().getStatus()).as(body(created)).isEqualTo(201);
-		String id = json.readTree(body(created)).path("id").asString();
-		var tested = perform(post("/api/v1/connections/" + id + "/test").contentType(MediaType.APPLICATION_JSON).content("{}"));
-		assertThat(tested.getResponse().getStatus()).as(body(tested)).isEqualTo(200);
-		FAKE.reset();
-
-		UUID second = approvedRun();
-		List<JsonNode> outputs = awaitSearch(second, "DONE");
-		assertThat(FAKE.requestsTo("tavily")).as("only the ACADEMIC+WEB sub-question uses web search").hasSize(2);
-		assertThat(FAKE.requestsTo("tavily").get(0).headers().get("Authorization")).containsExactly("Bearer " + key);
-		assertThat(outputs.toString()).contains("https://university.example/lost-found").doesNotContain(key);
 	}
 
 	// --- helpers ---
@@ -221,15 +200,6 @@ class SearchStepIT {
 	RunStatus status(UUID run) {
 		return RunStatus.valueOf(jdbc.sql("SELECT status FROM research_run WHERE id = :id").param("id", run)
 				.query(String.class).single());
-	}
-
-	UUID connection(UUID owner, String provider, String kind) {
-		UUID id = jdbc.sql("""
-				INSERT INTO ai_connection (owner_id, kind, provider, label, base_url, key_ciphertext, key_last4, status)
-				VALUES (:o, :k, :p, 'Test', 'https://example.test/', :c, 'abcd', 'VERIFIED') RETURNING id""")
-				.param("o", owner).param("k", kind).param("p", provider).param("c", new byte[] { 1 }).query(UUID.class)
-				.single();
-		return id;
 	}
 
 	MvcResult perform(MockHttpServletRequestBuilder req) throws Exception {
