@@ -6,7 +6,7 @@ import { API, APP, installFakeApi } from "./fake-api";
 
 test("P16: AI status fails to load → the dashboard card says so instead of a fake state", async ({ page, context }) => {
   await installFakeApi(page, context, { signedIn: true });
-  await page.route(`${API}/api/ai/status`, (route) =>
+  await page.route(`${API}/api/v1/ai/status`, (route) =>
     route.fulfill({
       status: 500,
       contentType: "application/problem+json",
