@@ -184,7 +184,7 @@ class ExtractHandler implements StepHandler {
 					.append(Planner.data(p.text())).append("\n</source>\n\n");
 		});
 		Prompt prompt = prompts.load(PROMPT, PROMPT_VERSION,
-				Map.of("questions", questions.toString().strip(), "passages", blocks.toString().strip()), 0.1, 3000);
+				Map.of("questions", questions.toString().strip(), "passages", blocks.toString().strip()), 0.1, maxTokens(byAlias.size()));
 		try {
 			return gateway.call(step.ownerId(), TaskSlot.EXTRACT, prompt, ExtractOutput.class,
 					CallContext.step(step.runId(), step.stepId())).value();
@@ -199,6 +199,14 @@ class ExtractHandler implements StepHandler {
 		catch (InvalidLlmOutputException e) {
 			return null; // skip this batch's new claims; the rest of the research goes on
 		}
+	}
+
+	/**
+	 * Output budget for one call: up to 4 claims per passage (prompt rule), each claim + quote ≈ 200 tokens, plus JSON
+	 * overhead. A fixed 3000 cut the JSON off mid-way for batches of 10+ passages, so every claim was lost.
+	 */
+	static int maxTokens(int passageCount) {
+		return Math.clamp(1000 + 800L * passageCount, 3000, 16_000);
 	}
 
 	private static NewEvent log(String level, StepContext step, String message) {
