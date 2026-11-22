@@ -22,7 +22,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30   # full verify is ~10–14 min on a hosted runner; leaves room without hiding a real hang
     defaults:
       run:
         working-directory: apps/api
