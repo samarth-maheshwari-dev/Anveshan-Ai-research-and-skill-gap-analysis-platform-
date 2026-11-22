@@ -19,7 +19,7 @@ ADD --chmod=644 --checksum=sha256:0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd6
 
 FROM eclipse-temurin:21.0.12_8-jre-noble
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl \
+ && apt-get install -y --no-install-recommends curl fonts-dejavu-core fonts-noto-core \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --create-home anveshan
 WORKDIR /app

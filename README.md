@@ -4,7 +4,7 @@ Give Anveshan a question or a goal. It researches it, writes a report where **ev
 
 Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic or a custom provider), so the platform stays free.
 
-> **Status:** early development. Phases P00–P15 are done (P15 = Report Studio): sign in, connect your own AI key, start a research, review and approve the plan, watch it search and read sources, extract, verify and label claims, get a written report with numbered citations, then edit it with the exact source passage behind every citation. Export comes next, in P16. See [Progress](#progress).
+> **Status:** early development. Phases P00–P16 are done (P16 = built-in AI gateway, no user keys): sign in, start a research, review and approve the plan, watch it search and read sources, extract, verify and label claims, get a written report with numbered citations, then edit it with the exact source passage behind every citation. Export comes next, in P17. See [Progress](#progress).
 
 ## What works today
 
@@ -50,7 +50,7 @@ Every user brings their own AI key (Gemini, Groq, OpenRouter, OpenAI, Anthropic 
 ```
 apps/
 ├── api/    Spring Boot backend — one package per module under dev.anveshan
-│           (identity, byok, research, sources, report, knowledge, skills,
+│           (identity, llm, research, sources, report, knowledge, skills,
 │            team, notify, search, export, mcp, shared)
 │           DB migrations: src/main/resources/db/migration/<module>/
 └── web/    Next.js frontend
@@ -67,7 +67,9 @@ infra/
 
 ```bash
 cd infra
-cp .env.example .env               # set PG_PASSWORD (openssl rand -hex 24) and TINK_KEYSET_FILE
+cp .env.example .env               # set PG_PASSWORD (openssl rand -hex 24) and OAUTH_ENV_FILE
+# In the file OAUTH_ENV_FILE points to (outside the repo) add FREELLMAPI_KEY, GEMINI_API_KEY, TAVILY_API_KEY.
+# Run freellmapi on the host (port 3001); the API reaches it at host.docker.internal:3001.
 docker compose up -d --build --wait
 bash smoke-test.sh                 # expect: ALL SMOKE CHECKS PASSED
 ```
@@ -122,9 +124,9 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P01 | Monorepo skeleton + CI | ✅ Done |
 | P02 | Local Docker Compose stack, public health endpoint, backups | ✅ Done |
 | P03 | Embeddings: multilingual-e5-small (ONNX, in-JVM, CPU) — ~12 chunks/s on 2 threads | ✅ Done |
-| P04 | Database schema v1 (identity + BYOK), Flyway migrations | ✅ Done |
+| P04 | Database schema v1 (identity + AI keys; key tables removed in P16), Flyway migrations | ✅ Done |
 | P05 | Login with Google / GitHub, server-side sessions, CSRF, CORS, login rate limit | ✅ Done |
-| P06 | Shared security: SSRF-safe HTTP client, Tink encryption for user keys, log masking | ✅ Done |
+| P06 | Shared security: SSRF-safe HTTP client, Tink encryption for user keys (removed in P16), log masking | ✅ Done |
 | P07 | Bring-your-own-key backend: connections, model lists, task routing, LLM gateway with rate-limit fallback | ✅ Done |
 | P08 | Frontend foundation + connect-your-AI wizard: black-first 60·30·10 design, landing, login, wizard, dashboard, Settings → AI; key test that picks a working model and survives busy providers | ✅ Done |
 | P09 | Research run engine: state machine, durable background steps, pause / resume / stop / retry, live events (SSE) with replay, crash recovery | ✅ Done |
@@ -134,15 +136,16 @@ Health check: `http://localhost:8081/actuator/health` → `{"status":"UP", ...}`
 | P13 | Claims: atomic facts extracted with an exact quote whose position is found by code (exact / normalized / fuzzy), checked against other sources, trust-labelled by rules (Supported / Weak / Conflicting / No source); claims reused across runs; instructions hidden in web pages are ignored | ✅ Done |
 | P14 | Report: sections written from verified claims only, code-checked citation markers, numbering by first appearance, IEEE/APA references, Conflicts section by code; Live Room (steps, sources with Skip, conflicts, live log that survives closing the tab); read-only report page; research list on the dashboard | ✅ Done |
 | P15 | Report Studio: rich-text editing with live citation renumbering, citation panel with the exact passage, versions + restore, AI assist, regenerate, find better sources; independent-source labelling, open questions; skipped sources fully removed from the report; retracted papers left out at search | ✅ Done |
-| P16 | Export (PDF / DOCX) + golden-set evaluation | Next |
-| P17–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
+| P16 | Built-in AI gateway: users bring no keys; freellmapi → Gemini fallback with circuit breaker, daily run limit, AI status card; cleaner references, relevant open questions, more systematic writing | ✅ Done |
+| P17 | Export (PDF / DOCX) + golden-set evaluation | Next |
+| P18–P30 | Ask the Report, Sources Library, Knowledge Space, Skill Proof Engine, team workspace, release | Planned |
 
 ## Security
 
 - Sign-in only through Google / GitHub; sessions live server-side (HttpOnly cookie), CSRF and strict CORS on every API call.
 - Accounts are linked by email only when the provider has verified it (no account takeover via unverified emails).
-- User AI keys are encrypted at rest (Tink AES-256-GCM, bound to their row and owner) and never logged or returned (only the last 4 characters are shown); provider error messages are never passed through, since they can echo the key.
-- Every LLM call goes through one gateway: the reply must parse into a typed record and pass validation (max 3 tries), and a rate-limited key falls back to the user's next key instead of waiting. Each attempt is logged with counts and timings only (never prompts or keys).
+- Users never handle AI keys. The developer's keys live only in an env file outside the repo, are never logged or returned (config prints `****`), and provider error messages are never passed through, since they can echo a key.
+- Every LLM call goes through one gateway: the reply must parse into a typed record and pass validation (max 3 tries), and a rate-limited or failing endpoint falls back to the next one (freellmapi → Gemini); an endpoint that fails 3 times is skipped for 60 s, and each user gets a daily research limit. Each attempt is logged with counts and timings only (never prompts or keys).
 - Text from web pages is wrapped as untrusted data in prompts; an instruction hidden in a page ("ignore previous instructions…") can't add a claim, because every claim must quote the page exactly and stay about that quote.
 - What a user types (topic, instructions, section names) is treated as data in AI prompts: it is wrapped in tags and cannot close them, so it can't take over the prompt. AI output (like a plan) is checked by code before it is saved.
 - Plan edits and approval carry the version the user saw (`If-Match`); a change made elsewhere meanwhile is never silently overwritten. Starting research and asking for new plans are rate-limited per user.

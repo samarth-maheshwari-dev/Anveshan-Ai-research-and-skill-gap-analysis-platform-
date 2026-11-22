@@ -17,7 +17,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Stand-in for every search API (JDK HttpServer, like byok's FakeProvider). Each API has a path prefix and answers
+ * Stand-in for every search API (JDK HttpServer, like the llm FakeProvider). Each API has a path prefix and answers
  * with a response in its real shape (recorded from the public APIs, trimmed). {@link #fail} makes one API return an
  * HTTP status instead. Every request is recorded.
  */

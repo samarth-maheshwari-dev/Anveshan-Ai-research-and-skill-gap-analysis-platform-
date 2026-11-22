@@ -19,6 +19,7 @@ import dev.anveshan.report.api.Reports;
 import dev.anveshan.report.domain.CitationNumbering;
 import dev.anveshan.report.domain.Markers;
 import dev.anveshan.report.domain.References;
+import dev.anveshan.report.domain.ReportDocs;
 import dev.anveshan.report.domain.TipTapDoc;
 import dev.anveshan.report.domain.TipTapDoc.Citation;
 import dev.anveshan.report.infra.ReportStore;
@@ -144,6 +145,13 @@ class DefaultReports implements Reports {
 	@Override
 	public Optional<ReportRef> owned(UUID ownerId, UUID reportId) {
 		return store.findOwned(ownerId, reportId).map(r -> new ReportRef(r.id(), r.runId(), r.ownerId(), r.language()));
+	}
+
+	@Override
+	public Optional<ExportDoc> exportDoc(UUID ownerId, UUID reportId) {
+		return store.findOwned(ownerId, reportId).map(r -> new ExportDoc(r.title(), r.language(), r.citationStyle(),
+				r.createdAt(), store.sections(r.id()).stream()
+						.map(s -> new ExportSection(s.title(), ReportDocs.markdown(s.contentDoc()))).toList()));
 	}
 
 	@Override

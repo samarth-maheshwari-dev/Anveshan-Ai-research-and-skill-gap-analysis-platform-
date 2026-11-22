@@ -89,4 +89,18 @@ public interface Reports {
 	/** A claim's label changed (Find better sources): the report's citation labels follow. */
 	void refreshLabels(UUID reportId);
 
+	// ------------------------------------------------------------------ Export (P16b)
+
+	/** One section as Markdown, citations as {@code [n]}. */
+	record ExportSection(String title, String markdown) {
+	}
+
+	/** The report as the owner sees it now, ready for Markdown / PDF export. */
+	record ExportDoc(String title, String language, String citationStyle, java.time.Instant createdAt,
+			List<ExportSection> sections) {
+	}
+
+	/** The owner's report for export, or empty (another user's report is simply not found). */
+	Optional<ExportDoc> exportDoc(UUID ownerId, UUID reportId);
+
 }

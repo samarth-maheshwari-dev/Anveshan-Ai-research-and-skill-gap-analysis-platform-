@@ -159,6 +159,36 @@ class ReportStudioIT {
 	}
 
 	@Test
+	@DisplayName("T-16b-01 export: Markdown has title, sections, [n] citations, references + disclaimer; PDF opens and has the same text; other user → 404; bad format → 400")
+	void export() throws Exception {
+		JsonNode report = report(completedRun());
+		String reportId = report.path("id").asString();
+
+		var md = perform(get("/api/v1/reports/" + reportId + "/export").param("format", "md"));
+		assertThat(md.getResponse().getStatus()).as(body(md)).isEqualTo(200);
+		assertThat(md.getResponse().getContentType()).startsWith("text/markdown");
+		assertThat(md.getResponse().getHeader("Content-Disposition")).startsWith("attachment").contains(".md");
+		String text = md.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+		assertThat(text).startsWith("# ").contains("## References").contains("[1]")
+				.contains("AI-assisted research draft");
+
+		var pdf = perform(get("/api/v1/reports/" + reportId + "/export").param("format", "pdf"));
+		assertThat(pdf.getResponse().getStatus()).as(body(pdf)).isEqualTo(200);
+		assertThat(pdf.getResponse().getContentType()).isEqualTo("application/pdf");
+		try (var doc = org.apache.pdfbox.Loader.loadPDF(pdf.getResponse().getContentAsByteArray())) {
+			String pdfText = new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
+			assertThat(pdfText).contains("References").contains("AI-assisted research draft");
+		}
+
+		assertThat(perform(get("/api/v1/reports/" + reportId + "/export").param("format", "docx")).getResponse()
+				.getStatus()).isEqualTo(400);
+		assertThat(perform(get("/api/v1/reports/" + UUID.randomUUID() + "/export")).getResponse().getStatus())
+				.isEqualTo(404);
+		asOtherUser(() -> assertThat(perform(get("/api/v1/reports/" + reportId + "/export")).getResponse().getStatus())
+				.isEqualTo(404));
+	}
+
+	@Test
 	@DisplayName("T-15-02 two PATCHes with the same version → the second is 409 VERSION_CONFLICT; no If-Match → 400; other user → 404; signed out → 401")
 	void patchConflict() throws Exception {
 		JsonNode report = report(completedRun());
