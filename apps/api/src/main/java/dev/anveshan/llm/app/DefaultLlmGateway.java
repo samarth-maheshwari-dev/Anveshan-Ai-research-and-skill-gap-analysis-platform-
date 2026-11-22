@@ -1,6 +1,7 @@
 package dev.anveshan.llm.app;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -65,9 +66,10 @@ class DefaultLlmGateway implements LlmGateway {
 		var options = new CompletionOptions(prompt.temperature(), prompt.maxTokens(), true);
 
 		String lastProblem = "no attempt";
+		Set<String> gaveInvalid = new HashSet<>();
 		for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 			List<ChatMessage> snapshot = List.copyOf(messages);
-			var routed = chain.call(ownerId, slot, context, snapshot, options);
+			var routed = chain.call(ownerId, slot, context, snapshot, options, Set.copyOf(gaveInvalid));
 			var raw = routed.completion();
 
 			Optional<T> parsed = parse(raw.text(), outputType);
@@ -79,6 +81,7 @@ class DefaultLlmGateway implements LlmGateway {
 						raw.tokensOut(), attempt);
 			}
 			lastProblem = String.join("; ", problems);
+			gaveInvalid.add(routed.endpoint()); // next attempt asks a different model first
 			callLog.record(ownerId, slot, routed.endpoint(), routed.model(), raw.latencyMs(),
 					LlmCallStatus.INVALID_OUTPUT, raw.tokensIn(), raw.tokensOut(), "INVALID_OUTPUT", context);
 			messages.add(ChatMessage.assistant(truncate(raw.text(), 4000)));

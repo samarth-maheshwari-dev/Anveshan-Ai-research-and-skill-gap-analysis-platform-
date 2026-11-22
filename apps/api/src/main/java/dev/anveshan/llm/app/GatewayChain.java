@@ -2,8 +2,11 @@ package dev.anveshan.llm.app;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -73,10 +76,22 @@ public class GatewayChain {
 
 	public Routed call(UUID owner, TaskSlot slot, CallContext context, List<ChatMessage> messages,
 			CompletionOptions options) {
-		List<LlmProperties.Endpoint> eps = props.configured();
-		if (eps.isEmpty()) {
+		return call(owner, slot, context, messages, options, Set.of());
+	}
+
+	/**
+	 * Like {@link #call(UUID, TaskSlot, CallContext, List, CompletionOptions)}, but endpoints in {@code tryLast}
+	 * (they just gave an unusable answer) go to the back of the chain, so a validation retry reaches a different model
+	 * first. They are still tried when nothing else answers.
+	 */
+	public Routed call(UUID owner, TaskSlot slot, CallContext context, List<ChatMessage> messages,
+			CompletionOptions options, Set<String> tryLast) {
+		List<LlmProperties.Endpoint> configured = props.configured();
+		if (configured.isEmpty()) {
 			throw new NoModelForSlotException(slot);
 		}
+		List<LlmProperties.Endpoint> eps = new ArrayList<>(configured);
+		eps.sort(Comparator.comparingInt(e -> tryLast.contains(e.name()) ? 1 : 0)); // stable: keeps config order
 		Instant earliestRetry = null;
 		boolean tooLarge = false;
 		for (LlmProperties.Endpoint e : eps) {

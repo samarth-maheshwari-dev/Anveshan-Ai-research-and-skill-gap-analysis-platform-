@@ -96,6 +96,23 @@ class GatewayChainTest {
 	}
 
 	@Test
+	@DisplayName("T-16-19 an endpoint that just gave unusable output is tried last: the retry reaches gemini first, and freellmapi is still the fallback")
+	void invalidOutputEndpointTriedLast() {
+		fake.reply("freellmapi", Reply.chat("from free"));
+		fake.reply("gemini", Reply.chat("from gemini"));
+		var c = chain(endpoint("freellmapi", "free-key", "auto"), endpoint("gemini", "gem-key", "gemini-flash-latest"));
+
+		var retry = c.call(OWNER, TaskSlot.EXTRACT, CallContext.NONE, MESSAGES, OPTIONS, java.util.Set.of("freellmapi"));
+
+		assertThat(retry.endpoint()).isEqualTo("gemini");
+		assertThat(fake.requestsTo("freellmapi")).isEmpty();
+
+		fake.reply("gemini", Reply.rateLimited(30));
+		var fallback = c.call(OWNER, TaskSlot.EXTRACT, CallContext.NONE, MESSAGES, OPTIONS, java.util.Set.of("freellmapi"));
+		assertThat(fallback.endpoint()).isEqualTo("freellmapi");
+	}
+
+	@Test
 	@DisplayName("T-16-02 an endpoint with a blank key is skipped: never called, not counted as configured")
 	void blankKeySkipped() {
 		fake.reply("gemini", Reply.chat("x"));
