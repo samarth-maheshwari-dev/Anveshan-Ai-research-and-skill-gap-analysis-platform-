@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, History, X } from "lucide-react";
+import { ArrowLeft, Download, FileText, History, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -17,6 +17,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Overline, Skeleton } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/errors";
 import { useReport } from "@/lib/api/hooks/reports";
+import { exportUrl } from "@/lib/env";
 import { runHref, useRun } from "@/lib/api/hooks/runs";
 import { GENERATED_SECTIONS, countLabels } from "@/lib/report";
 import { cn } from "@/lib/utils";
@@ -103,14 +104,22 @@ export function ReportView() {
             {Object.keys(sources).length} sources · {Object.keys(claims).length} cited claims · {r.citationStyle} references
           </p>
         </div>
-        <Button
-          size="sm"
-          variant={aside?.kind === "versions" ? "primary" : "secondary"}
-          aria-expanded={aside?.kind === "versions"}
-          onClick={() => setAside(aside?.kind === "versions" ? null : { kind: "versions" })}
-        >
-          <History aria-hidden /> Versions
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <a href={exportUrl(reportId, "pdf")} download className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <Download aria-hidden /> PDF
+          </a>
+          <a href={exportUrl(reportId, "md")} download className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <FileText aria-hidden /> Markdown
+          </a>
+          <Button
+            size="sm"
+            variant={aside?.kind === "versions" ? "primary" : "secondary"}
+            aria-expanded={aside?.kind === "versions"}
+            onClick={() => setAside(aside?.kind === "versions" ? null : { kind: "versions" })}
+          >
+            <History aria-hidden /> Versions
+          </Button>
+        </div>
       </div>
 
       <EvidenceBar className="mt-6" counts={counts} />
