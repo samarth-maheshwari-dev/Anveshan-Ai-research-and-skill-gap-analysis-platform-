@@ -70,7 +70,7 @@ export function TopicStep({
       </Field>
 
       <Field
-        label="Anything else the AI should know? (optional)"
+        label="Anything else we should know? (optional)"
         error={errors.instructions}
         help={`Focus, audience, what to skip — e.g. "Focus on India, for 2nd-year students". Up to ${INSTRUCTIONS_MAX} characters.`}
       >
@@ -224,7 +224,7 @@ export function ObjectiveStep({ form, set, errors, template }: StepProps & { tem
             name="sections"
             checked={!form.ownSections}
             onChange={() => set({ ownSections: false })}
-            title={templateSections.length ? `Template's ${templateSections.length} sections` : "Let the AI decide"}
+            title={templateSections.length ? `Template's ${templateSections.length} sections` : "Let Anveshan decide"}
             help={templateSections.length ? templateSections.join(", ") : "A standard research report"}
           />
           <ChoiceCard
@@ -372,7 +372,7 @@ export function ReviewStep({
           {objective} · {depth} · {format}
         </Row>
         <Row term="Sections" onEdit={() => onEdit(1)}>
-          {sections.length ? sections.join(" → ") : "The AI decides"}
+          {sections.length ? sections.join(" → ") : "Anveshan decides"}
         </Row>
         <Row term="Sources" onEdit={() => onEdit(2)}>
           {form.sources.map((s) => SOURCE_LABEL[s]).join(", ")} · {time} · {label(LANGUAGES, form.language)}
@@ -384,14 +384,14 @@ export function ReviewStep({
         <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md bg-background px-4 py-3 text-body-sm">
           <span className="inline-flex items-center gap-2">
             <FileText aria-hidden className="size-4 text-muted-foreground" />
-            About <strong className="tabular">{preview.total}</strong> AI requests on your own keys
+            About <strong className="tabular">{preview.total}</strong> steps of work
           </span>
           <span className="inline-flex items-center gap-2">
             <Clock aria-hidden className="size-4 text-muted-foreground" />
             About <strong className="tabular">{preview.minutes}</strong> min
           </span>
           <span className="text-caption text-subtle-foreground">
-            First the AI writes a plan (1 request). Nothing else runs until you approve it.
+            First we write a short plan for you. Nothing else runs until you approve it.
           </span>
         </div>
       )}

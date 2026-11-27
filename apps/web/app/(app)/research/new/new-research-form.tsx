@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Rocket } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -77,9 +77,9 @@ export function NewResearchForm() {
       <Overline>
         New research · Step {step + 1} of {STEPS.length}
       </Overline>
-      <h1 className="mt-3 text-display-lg font-semibold">Start a new research</h1>
+      <h1 className="mt-3 text-display-lg font-semibold">Ask a new question</h1>
       <p className="mt-2 text-body text-muted-foreground">
-        Ask once. You will see the plan and what it costs before anything runs.
+        Answer a few easy questions. You will see the plan before anything starts.
       </p>
       <Stepper steps={STEPS} current={step} />
 
@@ -116,7 +116,7 @@ export function NewResearchForm() {
           </Button>
         ) : (
           <Button type="submit" variant="primary" loading={create.isPending} disabled={create.isSuccess}>
-            <Sparkles aria-hidden /> Start research
+            <Rocket aria-hidden /> Start research
           </Button>
         )}
       </div>

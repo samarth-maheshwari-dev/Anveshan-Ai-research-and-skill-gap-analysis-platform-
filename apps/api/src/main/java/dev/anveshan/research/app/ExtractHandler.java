@@ -43,9 +43,12 @@ import tools.jackson.databind.json.JsonMapper;
 class ExtractHandler implements StepHandler {
 
 	static final String PROMPT = "extractor";
-	static final int PROMPT_VERSION = 1;
+	static final int PROMPT_VERSION = 2;
 	static final String VERSION_TAG = PROMPT + "/v" + PROMPT_VERSION;
 	static final int MAX_CLAIMS_PER_CHUNK = 5;
+
+	/** Passages per EXTRACT call (P17). */
+	static final int BATCH = 5;
 
 	/** What the model must return; ids are the short passage aliases (P1, P2 …) from the prompt. */
 	record ExtractOutput(@NotNull @Size(max = 60) List<@Valid ExtractedClaim> claims) {
@@ -110,13 +113,16 @@ class ExtractHandler implements StepHandler {
 		int ignored = 0;
 		int calls = 0;
 		List<NewEvent> events = new ArrayList<>();
-		if (!fresh.isEmpty()) {
+		// P17: small batches. One call for 15+ passages made free models return a handful of claims (or broken JSON
+		// that lost the whole batch); 5 passages per call keeps answers complete and a failure costs only 5 passages.
+		for (int from = 0; from < fresh.size(); from += BATCH) {
+			List<Item> batch = fresh.subList(from, Math.min(fresh.size(), from + BATCH));
 			Map<String, Item> byAlias = new LinkedHashMap<>();
-			for (Item item : fresh) {
+			for (Item item : batch) {
 				byAlias.put("P" + (byAlias.size() + 1), item);
 			}
 			ExtractOutput out = call(step, byAlias, passages);
-			calls = 1;
+			calls++;
 			Map<UUID, Integer> perChunk = new HashMap<>();
 			for (ExtractedClaim c : out == null ? List.<ExtractedClaim>of() : out.claims()) {
 				Item item = byAlias.get(c.chunkId().strip());
@@ -135,7 +141,7 @@ class ExtractHandler implements StepHandler {
 				}
 			}
 			if (out == null) {
-				events.add(log("WARN", step, "The AI's answer for " + fresh.size()
+				events.add(log("WARN", step, "The answer for " + batch.size()
 						+ " passages wasn't usable — they were skipped."));
 			}
 		}

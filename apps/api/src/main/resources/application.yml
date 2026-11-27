@@ -77,11 +77,13 @@ anveshan:
   # An endpoint with a blank key is skipped. models: per-slot overrides of model (PLAN, EXTRACT, VERIFY, WRITE, ASK, INTERVIEW).
   llm:
     daily-runs-per-user: ${ANV_DAILY_RUNS_PER_USER:5}
-    timeout: 120s   # free models can be slow
+    timeout: 45s    # P17 speed: a call slower than this moves on to the next endpoint instead of stalling the step
     breaker: { failures: 3, open-for: 60s }   # skip an endpoint for 60 s after 3 failures in a row
     endpoints:
+      # P17 speed: fastest first. Every endpoint with a blank key is skipped, so adding a key is all it takes.
+      - { name: gemini, base-url: "https://generativelanguage.googleapis.com/v1beta/openai", api-key: "${GEMINI_API_KEY:}", model: "${GEMINI_MODEL:gemini-flash-latest}", json-mode: true }
+      - { name: groq, base-url: "https://api.groq.com/openai/v1", api-key: "${GROQ_API_KEY:}", model: "${GROQ_MODEL:openai/gpt-oss-120b}", json-mode: false }
       - { name: freellmapi, base-url: "${FREELLMAPI_URL:http://localhost:3001/v1}", api-key: "${FREELLMAPI_KEY:}", model: auto, json-mode: false }
-      - { name: gemini, base-url: "https://generativelanguage.googleapis.com/v1beta/openai", api-key: "${GEMINI_API_KEY:}", model: gemini-flash-latest, json-mode: true }
     tavily: { base-url: "https://api.tavily.com/", api-key: "${TAVILY_API_KEY:}" }   # platform web search key; blank = off
   outbound:
     allow-loopback: false     # tests only — lets a local fake provider count as "public"
@@ -100,8 +102,8 @@ anveshan:
     retry-wait: 1s              # 5xx/429/network: 3 attempts, 1 s then 2 s
     adapter-timeout: 45s        # an API slower than this for one sub-question counts as failed
     apis:
-      openalex:        { enabled: true, base-url: "https://api.openalex.org/", api-key: "${ANV_OPENALEX_KEY:}", limit-for-period: 5, limit-refresh-period: 1s, timeout: 10s, daily-budget: 10000 }
-      semanticscholar: { enabled: true, base-url: "https://api.semanticscholar.org/", api-key: "${ANV_S2_KEY:}", limit-for-period: 1, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
+      openalex:        { enabled: true, base-url: "https://api.openalex.org/", api-key: "${ANV_OPENALEX_KEY:${OPENALEX_API_KEY:}}", limit-for-period: 5, limit-refresh-period: 1s, timeout: 10s, daily-budget: 10000 }
+      semanticscholar: { enabled: true, base-url: "https://api.semanticscholar.org/", api-key: "${ANV_S2_KEY:${SEMANTIC_SCHOLAR_API_KEY:}}", limit-for-period: 1, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
       arxiv:           { enabled: true, base-url: "https://export.arxiv.org/", limit-for-period: 1, limit-refresh-period: 3s, timeout: 15s, daily-budget: 0 }
       crossref:        { enabled: true, base-url: "https://api.crossref.org/", limit-for-period: 3, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
       wikipedia:       { enabled: true, base-url: "https://en.wikipedia.org/", limit-for-period: 5, limit-refresh-period: 1s, timeout: 10s, daily-budget: 0 }
@@ -111,15 +113,15 @@ anveshan:
   # Fetch and clean (TECHSPEC §12.4). Credibility lists live in credibility.yml (imported above).
   fetch:
     min-text-chars: 200       # less readable text than this = paywall stub / empty shell → unavailable
-    max-pdf-pages: 60
-    parallel: 6               # pages fetched at once per sub-question (D-107: 4 → 6, FETCH was the slowest step)
-    max-chunks: 120           # only the first 120 chunks (~140k chars) of a long document are embedded (D-107)
+    max-pdf-pages: 15        # P17 speed: the first pages carry abstract + findings
+    parallel: 8               # pages fetched at once per sub-question (D-107: 4 → 6; P17: 6 → 8)
+    max-chunks: 30            # P17 speed: only 2–3 chunks per source reach the report; 120 → 30 cuts CPU embedding ~4×
     robots-ttl: 1d
     extra-ports: []           # tests only (local fake site); production allows 80/443 only
   # Research run engine (TECHSPEC §12.2)
   research:
     max-attempts: 3           # a step that throws 3× is FAILED → run FAILED; "Retry" restarts it (E-FR-4)
-    retry-backoff: 15s        # wait before attempt 2; attempt 3 waits 4× longer (60s) — busy free models (503) usually recover in 1–2 min
+    retry-backoff: 5s         # P17 speed: wait before attempt 2; attempt 3 waits 4× longer (20s). The next endpoint is tried first anyway
     stale-after: 10m          # a RUNNING step older than this is treated as crashed and re-queued (AC-E1)
     sweep-interval: 30s       # how often stale steps and due auto-resumes (AI limit reset) are checked
     sse-timeout: 30m          # the browser reconnects with Last-Event-ID after this

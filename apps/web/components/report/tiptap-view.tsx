@@ -20,7 +20,7 @@ type Props = { doc: unknown };
  */
 export function TipTapView({ doc }: Props) {
   const root = doc as TipTapNode;
-  return <div className="space-y-3 text-body leading-relaxed">{render(root.content ?? [], "n")}</div>;
+  return <div className="space-y-4 text-body-lg leading-8 text-foreground/90">{render(root.content ?? [], "n")}</div>;
 }
 
 function render(nodes: TipTapNode[], prefix: string): ReactNode[] {
@@ -34,19 +34,19 @@ function node(n: TipTapNode, key: string): ReactNode {
       return <p key={key}>{kids}</p>;
     case "heading":
       return (
-        <h3 key={key} className="pt-2 text-heading-sm font-semibold">
+        <h3 key={key} className="pt-4 font-display text-heading-md font-semibold text-foreground">
           {kids}
         </h3>
       );
     case "bulletList":
       return (
-        <ul key={key} className="list-disc space-y-1 pl-6">
+        <ul key={key} className="list-disc space-y-2 pl-6 marker:text-primary">
           {kids}
         </ul>
       );
     case "orderedList":
       return (
-        <ol key={key} className="list-decimal space-y-1 pl-6">
+        <ol key={key} className="list-decimal space-y-2 pl-6 marker:font-mono marker:text-primary">
           {kids}
         </ol>
       );
@@ -54,7 +54,7 @@ function node(n: TipTapNode, key: string): ReactNode {
       return <li key={key}>{kids}</li>;
     case "blockquote":
       return (
-        <blockquote key={key} className="border-l-2 border-border-strong pl-4 text-muted-foreground">
+        <blockquote key={key} className="rounded-r-lg border-l-2 border-primary bg-primary-soft px-5 py-4 text-foreground">
           {kids}
         </blockquote>
       );

@@ -128,3 +128,88 @@ export function labelExplanation(label: string | undefined, evidence: Evidence[]
       return "";
   }
 }
+
+/* ---------- Report visuals (P17): every number below is counted by code from the report, never by a model. ---------- */
+
+type SourceLike = { type?: string; publishedAt?: string; title?: string; site?: string; credibilityTier?: string };
+type CitationLike = { sourceId?: string; claimId?: string };
+type Bin = { key: string; label: string; value: number };
+
+const TYPE_WORDS: Record<string, string> = {
+  PAPER: "Research papers",
+  ARTICLE: "Articles",
+  WEB: "Web pages",
+  BLOG: "Blogs",
+  DOC: "Documentation",
+  DOCS: "Documentation",
+  BOOK: "Books",
+  REPO: "Code repositories",
+  GITHUB: "Code repositories",
+  NEWS: "News",
+  WIKI: "Encyclopedia",
+  PDF: "PDF documents",
+};
+
+function nice(type: string): string {
+  return TYPE_WORDS[type.toUpperCase()] ?? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase().replaceAll("_", " ");
+}
+
+/** How many sources of each type, largest first. */
+export function sourceTypes(sources: SourceLike[]): Bin[] {
+  const m = new Map<string, number>();
+  for (const s of sources) {
+    const k = nice(s.type || "Other");
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return [...m].map(([label, value]) => ({ key: label, label, value })).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+}
+
+/** Sources per publication year, oldest first, with empty years in between filled (so gaps show). Undated are left out. */
+export function sourceYears(sources: SourceLike[]): Bin[] {
+  const years = sources.map((s) => Number(s.publishedAt?.slice(0, 4))).filter((y) => Number.isInteger(y) && y > 1800);
+  if (years.length === 0) return [];
+  const lo = Math.max(Math.min(...years), Math.max(...years) - 14);
+  const hi = Math.max(...years);
+  const out: Bin[] = [];
+  for (let y = lo; y <= hi; y++) out.push({ key: String(y), label: String(y), value: 0 });
+  for (const y of years) {
+    const b = out.find((o) => o.key === String(Math.max(y, lo)));
+    if (b) b.value++;
+  }
+  return out;
+}
+
+/** The sources the report leans on most: distinct claims cited per source, top n. */
+export function topSources(citations: CitationLike[], sources: Record<string, SourceLike>, n = 5): Bin[] {
+  const claimsBySource = new Map<string, Set<string>>();
+  for (const c of citations) {
+    if (!c.sourceId || !sources[c.sourceId]) continue;
+    const set = claimsBySource.get(c.sourceId) ?? new Set<string>();
+    set.add(c.claimId ?? "");
+    claimsBySource.set(c.sourceId, set);
+  }
+  return [...claimsBySource]
+    .map(([id, set]) => ({ key: id, label: sources[id]!.title || sources[id]!.site || "Untitled source", value: set.size }))
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
+    .slice(0, n);
+}
+
+/** Citation nodes in a TipTap doc (the Report map counts them per section). */
+export function countCitations(node: unknown): number {
+  if (!node || typeof node !== "object") return 0;
+  const n = node as { type?: string; content?: unknown[] };
+  return (n.type === "citation" ? 1 : 0) + (n.content ?? []).reduce<number>((s, c) => s + countCitations(c), 0);
+}
+
+type ClaimLike = { text?: string; trustLabel?: string };
+
+/** "At a glance": the supported claims cited most often, shortest first among ties — picked by code, never by a model. */
+export function keyFindings(claims: Record<string, ClaimLike>, citations: CitationLike[], n = 3): { id: string; text: string }[] {
+  const uses = new Map<string, number>();
+  for (const c of citations) if (c.claimId) uses.set(c.claimId, (uses.get(c.claimId) ?? 0) + 1);
+  return Object.entries(claims)
+    .filter(([, c]) => c.trustLabel === "SUPPORTED" && c.text && c.text.length <= 240)
+    .sort(([a, ca], [b, cb]) => (uses.get(b) ?? 0) - (uses.get(a) ?? 0) || ca.text!.length - cb.text!.length)
+    .slice(0, n)
+    .map(([id, c]) => ({ id, text: c.text! }));
+}

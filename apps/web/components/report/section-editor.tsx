@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Check, Languages, ListPlus, RotateCcw, Sparkles, X } from "lucide-react";
+import { Check, Languages, ListPlus, RotateCcw, Feather, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert } from "@/components/anveshan/alert";
@@ -31,8 +31,8 @@ const EXTENSIONS = [
   Citation,
 ];
 
-const ASSIST: { action: AssistAction; label: string; Icon: typeof Sparkles }[] = [
-  { action: "SIMPLIFY", label: "Simplify", Icon: Sparkles },
+const ASSIST: { action: AssistAction; label: string; Icon: typeof Feather }[] = [
+  { action: "SIMPLIFY", label: "Simplify", Icon: Feather },
   { action: "MORE_DETAIL", label: "More detail", Icon: ListPlus },
   { action: "TRANSLATE_HI", label: "Hindi", Icon: Languages },
 ];

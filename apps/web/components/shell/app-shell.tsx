@@ -1,24 +1,13 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import {
-  BookOpen,
-  FlaskConical,
-  LayoutDashboard,
-  Library,
-  Menu,
-  Network,
-  Search,
-  Settings,
-  Trophy,
-  X,
-} from "lucide-react";
+import { FlaskConical, LayoutDashboard, Menu, Plus, Settings, Trophy, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import { Logo } from "@/components/anveshan/logo";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, Skeleton } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/errors";
 import { useMe, type Me } from "@/lib/api/hooks/me";
@@ -29,12 +18,9 @@ import { UserMenu } from "./user-menu";
 type NavItem = { href: string; label: string; Icon: typeof LayoutDashboard; soon?: boolean };
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { href: "/research/new", label: "New research", Icon: FlaskConical },
-  { href: "/sources", label: "Sources", Icon: Library, soon: true },
-  { href: "/knowledge", label: "Knowledge", Icon: BookOpen, soon: true },
-  { href: "/graph", label: "Graph", Icon: Network, soon: true },
-  { href: "/skills", label: "Skills", Icon: Trophy, soon: true },
+  { href: "/dashboard", label: "Home", Icon: LayoutDashboard },
+  { href: "/research/new", label: "Ask a new question", Icon: FlaskConical },
+  { href: "/skills", label: "Skill gap analysis", Icon: Trophy, soon: true },
 ];
 
 /** Signed-in area: QueryClient, motion, toasts + AuthGate + shell (TECHSPEC §9.1). */
@@ -60,7 +46,7 @@ function AuthGate({ children }: ChildrenProps) {
         <Card className="w-full text-center">
           <h1 className="text-heading-lg font-semibold">We couldn&apos;t load your account</h1>
           <p className="mt-2 text-body-sm text-muted-foreground">
-            Anveshan might be restarting. Check your connection and try again.
+            The site may be waking up. Check your internet and try again.
           </p>
           <Button variant="primary" className="mt-6" onClick={() => void me.refetch()}>
             Try again
@@ -100,7 +86,7 @@ function Shell({ me, children }: ShellProps) {
         id="app-nav"
         aria-label="Main"
         className={cn(
-          "z-40 flex w-64 shrink-0 flex-col border-r border-border bg-background px-3 py-4",
+          "z-40 flex w-64 shrink-0 flex-col border-r border-border bg-background px-4 py-5",
           "fixed inset-y-0 left-0 lg:sticky lg:top-0 lg:flex lg:h-screen",
           navOpen ? "flex" : "hidden",
         )}
@@ -108,7 +94,10 @@ function Shell({ me, children }: ShellProps) {
         <Link href="/dashboard" aria-label="Anveshan home" className="mb-6 inline-flex min-h-11 items-center px-3">
           <Logo />
         </Link>
-        <p className="px-3 pb-2 text-micro font-medium uppercase text-subtle-foreground">Workspace</p>
+        <Link href="/research/new" className={cn(buttonVariants({ variant: "secondary" }), "mb-6 w-full")}>
+          <Plus aria-hidden /> New question
+        </Link>
+        <p className="px-3 pb-2 text-micro font-medium uppercase text-subtle-foreground">Menu</p>
         <ul className="flex flex-col gap-1">
           {NAV.map((item) => (
             <li key={item.href}>
@@ -142,7 +131,7 @@ function Shell({ me, children }: ShellProps) {
           <Link href="/dashboard" aria-label="Anveshan home" className="inline-flex min-h-11 items-center lg:hidden">
             <Logo />
           </Link>
-          <SearchField />
+          <div className="flex-1" />
           <UserMenu me={me} />
         </header>
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-8 md:px-8 lg:px-10 lg:py-10">
@@ -153,28 +142,11 @@ function Shell({ me, children }: ShellProps) {
   );
 }
 
-/** Global search (Module M) arrives in a later phase: shown where it will live, clearly not usable yet. */
-function SearchField() {
-  return (
-    <div className="flex flex-1 justify-end md:justify-start">
-      <div
-        aria-disabled="true"
-        title="Search arrives in a later update"
-        className="hidden h-10 w-full max-w-xl items-center gap-2 rounded-md border border-border bg-surface px-3 text-body-sm text-subtle-foreground md:flex"
-      >
-        <Search aria-hidden className="size-4" />
-        <span className="flex-1">Search anything…</span>
-        <span className="rounded-xs bg-surface-2 px-1.5 text-micro">Soon</span>
-      </div>
-    </div>
-  );
-}
-
 type NavLinkProps = { item: NavItem; active: boolean };
 
 /** Active = filled row + a short green bar (the accent marks *where you are*, nothing else). */
 function NavLink({ item, active }: NavLinkProps) {
-  const base = "relative flex h-10 items-center gap-3 rounded-md px-3 text-body-sm max-sm:h-11";
+  const base = "relative flex h-11 items-center gap-3 rounded-md px-4 text-body-sm";
   if (item.soon) {
     return (
       <span aria-disabled="true" className={cn(base, "cursor-not-allowed text-subtle-foreground")}>
@@ -193,7 +165,7 @@ function NavLink({ item, active }: NavLinkProps) {
         active ? "bg-surface-2 font-medium text-foreground" : "text-muted-foreground hover:bg-surface hover:text-foreground",
       )}
     >
-      {active && <span aria-hidden className="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-primary" />}
+      {active && <span aria-hidden className="absolute inset-y-3 left-1.5 w-0.5 rounded-full bg-primary" />}
       <item.Icon aria-hidden className="size-4" />
       {item.label}
     </Link>

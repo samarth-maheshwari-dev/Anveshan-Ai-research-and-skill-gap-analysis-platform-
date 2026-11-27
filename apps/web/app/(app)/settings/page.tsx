@@ -28,7 +28,7 @@ export default function SettingsPage() {
         ) : (
           <Skeleton className="mt-4 h-10 w-2/3" />
         )}
-        <p className="mt-6 text-body-sm text-muted-foreground">Anveshan runs the AI for you. There are no keys to connect.</p>
+        <p className="mt-6 text-body-sm text-muted-foreground">Everything is set up for you. There is nothing to connect.</p>
       </section>
     </div>
   );

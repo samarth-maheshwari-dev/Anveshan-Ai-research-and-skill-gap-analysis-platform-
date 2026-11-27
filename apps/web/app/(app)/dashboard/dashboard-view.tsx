@@ -33,27 +33,27 @@ export function DashboardView() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Overline>Workspace</Overline>
-          <h1 className="mt-2 text-display-lg font-semibold">{firstName ? `Welcome, ${firstName}` : "Welcome"}</h1>
-          <p className="mt-1 text-body text-muted-foreground">Your research overview at a glance.</p>
+          <Overline>Home</Overline>
+          <h1 className="mt-2 text-display-lg font-semibold">{firstName ? `Hi ${firstName}` : "Hi there"}</h1>
+          <p className="mt-1 text-body text-muted-foreground">Ask a new question, or open one of your reports below.</p>
         </div>
         <Link href="/research/new" className={buttonVariants({ variant: "primary" })}>
-          <Plus aria-hidden /> New research
+          <Plus aria-hidden /> Ask a new question
         </Link>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-2">
         <AiStatusStat query={aiStatus} />
         <Stat
           label="Research"
           value={runs.data ? `${runs.data.items?.length ?? 0}${runs.data.nextCursor ? "+" : ""}` : "—"}
           hint={runs.data ? `${(runs.data.items ?? []).filter((r) => r.status === "COMPLETED").length} with a report` : undefined}
         />
-        <Stat label="Knowledge items" value="—" hint="Grows with every report" />
+        
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <section aria-labelledby="ongoing" className="rounded-lg border border-border bg-surface lg:col-span-2">
+        <section aria-labelledby="ongoing" className="rounded-xl border border-border bg-surface shadow-card lg:col-span-2">
           <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <h2 id="ongoing" className="text-heading-sm font-semibold">
               Your research
@@ -83,16 +83,18 @@ export function DashboardView() {
                 <div>
                   <h3 className="text-heading-sm font-semibold">Start your first research</h3>
                   <p className="mt-1 max-w-lg text-body-sm text-muted-foreground">
-                    Ask a question once. Anveshan plans it with you, reads the sources and writes a report where every
-                    claim shows its proof.
+                    Type a question. We make a short plan with you, read trusted sources and write a report where every
+                    line shows its proof.
                   </p>
                 </div>
               </div>
               <p className="mt-6 text-caption font-medium text-subtle-foreground">Try a topic like</p>
               <ul className="mt-2 space-y-2">
                 {EXAMPLES.map((t) => (
-                  <li key={t} className="rounded-md border border-border bg-background px-4 py-3 text-body-sm">
-                    {t}
+                  <li key={t}>
+                    <Link href="/research/new" className="block rounded-xl border border-border bg-background px-4 py-3 text-body-sm transition-colors hover:border-primary hover:text-primary">
+                      {t}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -101,7 +103,7 @@ export function DashboardView() {
         </section>
 
         <div className="space-y-6">
-          <section aria-labelledby="activity" className="rounded-lg border border-border bg-surface p-6">
+          <section aria-labelledby="activity" className="rounded-xl border border-border bg-surface p-6 shadow-card">
             <h2 id="activity" className="text-heading-sm font-semibold">
               Recent activity
             </h2>
@@ -166,14 +168,14 @@ type AiStatusStatProps = { query: ReturnType<typeof useAiStatus> };
 
 /** The platform AI gateway's state (icon + word, never colour alone) and today's research-run usage. */
 function AiStatusStat({ query }: AiStatusStatProps) {
-  if (query.isPending) return <Stat label="AI status" value={<Skeleton className="h-8 w-24" />} />;
-  if (query.isError) return <Stat label="AI status" value="—" hint="Couldn't check the AI right now." />;
+  if (query.isPending) return <Stat label="Service status" value={<Skeleton className="h-8 w-24" />} />;
+  if (query.isError) return <Stat label="Service status" value="—" hint="Couldn't check right now." />;
   const status: AiStatus = query.data;
   const state = AI_STATE[status.state as keyof typeof AI_STATE];
   const Icon = state?.Icon ?? CircleDashed;
   return (
     <Stat
-      label="AI status"
+      label="Service status"
       value={
         <span className="inline-flex items-center gap-2">
           <Icon aria-hidden className={`size-6 shrink-0 ${state?.tone ?? "text-muted-foreground"}`} />
