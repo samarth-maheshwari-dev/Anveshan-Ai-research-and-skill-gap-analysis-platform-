@@ -135,7 +135,7 @@ export function LiveView() {
         )}
         {r.status === "PAUSED" && r.pauseReason && r.pauseReason !== "USER" && (
           <span className="text-body-sm text-muted-foreground">
-            Your AI limit was reached. It resumes on its own
+            The service is busy right now. It resumes on its own
             {r.resumeAt ? ` at ${new Date(r.resumeAt).toLocaleTimeString()}` : ""}.
           </span>
         )}

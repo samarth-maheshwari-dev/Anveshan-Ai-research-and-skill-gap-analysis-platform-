@@ -12,6 +12,7 @@ import { CitationPanel } from "@/components/report/citation-panel";
 import { ReportContext } from "@/components/report/report-context";
 import { SectionEditor } from "@/components/report/section-editor";
 import { TipTapView } from "@/components/report/tiptap-view";
+import { ReportVisuals } from "@/components/report/report-visuals";
 import { VersionsPanel } from "@/components/report/versions-panel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Overline, Skeleton } from "@/components/ui/card";
@@ -95,15 +96,12 @@ export function ReportView() {
       <Link href="/dashboard" className={`${buttonVariants({ variant: "ghost", size: "sm" })} -ml-3`}>
         <ArrowLeft aria-hidden /> Dashboard
       </Link>
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <Overline>Research report</Overline>
-          <h1 className="mt-2 text-display-lg font-semibold">{r.title}</h1>
-          <p className="mt-2 text-body-sm text-muted-foreground">
-            {r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { dateStyle: "long" }) : ""} ·{" "}
-            {Object.keys(sources).length} sources · {Object.keys(claims).length} cited claims · {r.citationStyle} references
-          </p>
-        </div>
+      <header className="mt-4 border-b border-border pb-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <Overline>
+            Research report ·{" "}
+            {r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { dateStyle: "long" }) : ""}
+          </Overline>
         <div className="flex flex-wrap gap-2">
           <a href={exportUrl(reportId, "pdf")} download className={buttonVariants({ variant: "secondary", size: "sm" })}>
             <Download aria-hidden /> PDF
@@ -120,21 +118,47 @@ export function ReportView() {
             <History aria-hidden /> Versions
           </Button>
         </div>
+        </div>
+        <h1 className="mt-4 max-w-4xl font-display text-[clamp(2rem,4.5vw,3.5rem)] font-semibold leading-[1.08] tracking-tight">
+          {r.title}
+        </h1>
+        <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3">
+          {[
+            [Object.keys(sources).length, "sources read"],
+            [Object.keys(claims).length, "cited claims"],
+            [sections.length, "sections"],
+          ].map(([n, label]) => (
+            <div key={label} className="flex items-baseline gap-2">
+              <dt className="tabular font-display text-heading-lg font-semibold">{n}</dt>
+              <dd className="text-body-sm text-muted-foreground">{label}</dd>
+            </div>
+          ))}
+        </dl>
+        <EvidenceBar className="mt-6" counts={counts} />
+        <p className="mt-2 text-caption text-subtle-foreground">
+          Click a citation number to see the exact passage it comes from. Select text to simplify, expand or translate it.
+        </p>
+      </header>
+
+      <div className="mt-8">
+        <ReportVisuals report={r} counts={counts} onOpenClaim={openCitation} />
       </div>
 
-      <EvidenceBar className="mt-6" counts={counts} />
-      <p className="mt-2 text-caption text-subtle-foreground">
-        Click a citation to see the exact passage it comes from. Select text to simplify, expand or translate it.
-      </p>
+      <div className="mt-12 flex items-center gap-4">
+        <span className="font-mono text-micro uppercase text-subtle-foreground">The report</span>
+        <span aria-hidden className="h-px flex-1 bg-border" />
+      </div>
 
       <div className={cn("mt-8 xl:grid xl:gap-8", aside ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : "xl:grid-cols-[12rem_minmax(0,1fr)]")}>
         {!aside && (
           <nav aria-label="Sections" className="hidden xl:block">
-            <ol className="sticky top-4 space-y-1 border-l border-border text-body-sm">
-              {sections.map((s) => (
+            <p className="sticky top-20 mb-3 font-mono text-micro uppercase text-subtle-foreground">Contents</p>
+            <ol className="sticky top-28 space-y-1 border-l border-border text-body-sm">
+              {sections.map((s, i) => (
                 <li key={s.id}>
-                  <a href={`#section-${s.id}`} className="-ml-px block border-l border-transparent py-1 pl-3 text-muted-foreground hover:border-foreground hover:text-foreground">
-                    {s.title}
+                  <a href={`#section-${s.id}`} className="-ml-px flex gap-2 border-l border-transparent py-1 pl-3 text-muted-foreground hover:border-primary hover:text-foreground">
+                    <span className="tabular font-mono text-caption text-subtle-foreground">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="line-clamp-2">{s.title}</span>
                   </a>
                 </li>
               ))}
@@ -142,12 +166,12 @@ export function ReportView() {
           </nav>
         )}
 
-        <article className="min-w-0 space-y-12">
+        <article className="min-w-0 max-w-3xl space-y-14">
           {sections.map((s) =>
             GENERATED_SECTIONS.has(s.key ?? "") ? (
-              <section key={s.id} id={`section-${s.id}`} aria-labelledby={`sec-${s.id}`} className="scroll-mt-6" data-section-key={s.key}>
+              <section key={s.id} id={`section-${s.id}`} aria-labelledby={`sec-${s.id}`} className="scroll-mt-20" data-section-key={s.key}>
                 <div className="flex items-end justify-between gap-2 border-b border-border pb-2">
-                  <h2 id={`sec-${s.id}`} className="text-heading-lg font-semibold">
+                  <h2 id={`sec-${s.id}`} className="font-display text-heading-lg font-semibold">
                     {s.title}
                   </h2>
                   <span className="font-mono text-micro text-subtle-foreground">Built from the sources</span>
@@ -161,7 +185,7 @@ export function ReportView() {
             ),
           )}
           <p className="border-t border-border pt-4 text-caption text-subtle-foreground">
-            AI-assisted research draft. Verify before submitting it anywhere.
+            Research draft. Check important facts before you submit it anywhere.
           </p>
         </article>
 

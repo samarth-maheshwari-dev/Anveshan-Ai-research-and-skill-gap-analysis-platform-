@@ -5,7 +5,7 @@ import { fakeRun, installFakeApi } from "./fake-api";
 test("T-10-07 template → topic → start → delete a card → estimate drops → approve → live room", async ({ page, context }) => {
   const api = await installFakeApi(page, context, { signedIn: true });
   await page.goto("/dashboard");
-  await page.getByRole("main").getByRole("link", { name: "New research" }).click();
+  await page.getByRole("main").getByRole("link", { name: "Ask a new question" }).click();
   await expect(page).toHaveURL(/\/research\/new$/);
 
   // Step 1: template + topic (too short first: stays on the step with a message)
@@ -24,7 +24,7 @@ test("T-10-07 template → topic → start → delete a card → estimate drops 
 
   // Step 4: review with the estimate line, then start
   await expect(page.getByText("Competitor analysis")).toBeVisible();
-  await expect(page.getByText(/AI requests on your own keys/)).toBeVisible();
+  await expect(page.getByText(/steps of work/)).toBeVisible();
   await page.getByRole("button", { name: "Start research" }).click();
 
   await expect(page).toHaveURL(/\/research\/r\d+\/plan$/);
@@ -101,7 +101,7 @@ test("T-10-13 every choice has a 'your own' option: objective, depth, format, se
   const api = await installFakeApi(page, context, { signedIn: true });
   await page.goto("/research/new");
   await page.getByLabel("What do you want to research?").fill("Compare lost-and-found apps for college campuses");
-  await page.getByLabel("Anything else the AI should know? (optional)").fill("Focus on India, for 2nd-year students");
+  await page.getByLabel("Anything else we should know? (optional)").fill("Focus on India, for 2nd-year students");
   await page.getByRole("button", { name: "Next" }).click();
 
   // Objective: own words are required once "Something else" is picked

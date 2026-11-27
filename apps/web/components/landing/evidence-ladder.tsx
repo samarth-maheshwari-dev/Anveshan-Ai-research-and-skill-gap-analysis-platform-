@@ -1,9 +1,9 @@
 /** Skill Proof Engine evidence ladder (PRD Module K): strongest proof first. Static example. */
 const RUNGS = [
-  { name: "Project defense", body: "An AI viva on your own code. Hardest to fake.", width: "w-full" },
+  { name: "Project defense", body: "A live viva on your own code. Hardest to fake.", width: "w-full" },
   { name: "Passed challenge", body: "A timed, real task: predict, explain, debug, improve or build.", width: "w-4/5" },
   { name: "Repository evidence", body: "What your public GitHub code actually shows.", width: "w-3/5" },
-  { name: "Quiz", body: "Adaptive questions, graded by code — not by the AI.", width: "w-2/5" },
+  { name: "Quiz", body: "Adaptive questions, graded automatically.", width: "w-2/5" },
   { name: "Resume claim", body: "Shown as “Claimed, not verified”. Never counted as proof.", width: "w-1/5" },
 ];
 

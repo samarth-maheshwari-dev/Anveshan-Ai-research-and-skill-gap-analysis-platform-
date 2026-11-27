@@ -113,7 +113,7 @@ export function SectionsEditor({ sections, onChange, error }: SectionsEditorProp
         <Plus aria-hidden /> Add a section
       </Button>
       <p className={cn("mt-2 text-caption", error ? "text-danger" : "text-subtle-foreground")} role={error ? "alert" : undefined}>
-        {error ?? `Up to ${SECTIONS_MAX} sections. Each one is written separately (1 AI request each).`}
+        {error ?? `Up to ${SECTIONS_MAX} sections. Each one is written separately (each one takes a little time).`}
       </p>
     </div>
   );

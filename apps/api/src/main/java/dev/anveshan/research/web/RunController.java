@@ -12,6 +12,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -210,6 +211,13 @@ class RunController {
 	@ResponseStatus(HttpStatus.ACCEPTED)
 	void cancel(@PathVariable UUID id) {
 		runs.cancel(currentUser.id(), id);
+	}
+
+	/** Removes a research (and its report) from the history; a working run must be stopped first (409). */
+	@DeleteMapping("/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	void delete(@PathVariable UUID id) {
+		runs.delete(currentUser.id(), id);
 	}
 
 	/** E-FR-4: only a FAILED step; the run goes back to RUNNING. */

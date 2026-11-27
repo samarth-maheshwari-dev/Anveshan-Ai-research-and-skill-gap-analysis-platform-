@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, Clock, LoaderCircle, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Clock, LoaderCircle, Plus, RefreshCw, Rocket, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 
@@ -63,7 +63,7 @@ function PlanSkeleton({ title, topic }: { title: string; topic?: string }) {
       </h1>
       {topic && <p className="mt-2 max-w-3xl text-body text-muted-foreground">{topic}</p>}
       <p className="mt-1 text-body-sm text-subtle-foreground" role="status">
-        The AI is splitting your question into sub-questions. This usually takes a few seconds.
+        We are splitting your question into smaller questions. This usually takes a few seconds.
       </p>
       <div className="mt-8 space-y-3">
         {[0, 1, 2, 3].map((i) => (
@@ -202,7 +202,7 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
                 <span className="tabular text-display-lg font-semibold text-foreground" data-testid="estimate-total">
                   {est.total}
                 </span>{" "}
-                AI requests
+                work steps
               </p>
               <p className="mt-1 inline-flex items-center gap-2 text-body-sm text-muted-foreground">
                 <Clock aria-hidden className="size-4" /> About <span className="tabular">{est.minutes}</span> min
@@ -240,7 +240,7 @@ function PlanEditor({ run, onReload }: { run: Run; onReload: () => void }) {
           )}
           <div className="mt-6 flex flex-col gap-2 border-t border-border pt-5">
             <Button variant="primary" size="lg" loading={approve.isPending} disabled={busy || !est} onClick={() => void start()}>
-              {approve.isSuccess ? <Check aria-hidden /> : <Sparkles aria-hidden />} Approve and start
+              {approve.isSuccess ? <Check aria-hidden /> : <Rocket aria-hidden />} Approve and start
             </Button>
             {dirty && (
               <Button variant="secondary" loading={update.isPending} disabled={busy} onClick={() => void save().catch(() => {})}>
@@ -296,7 +296,7 @@ function RegeneratePanel({
         onChange={(e) => setInstruction(e.target.value)}
       />
       <p className="mt-1.5 text-caption text-subtle-foreground">
-        Uses 1 AI request and replaces the plan below, including edits you haven&apos;t saved.
+        Makes a fresh plan and replaces the one below, including edits you haven&apos;t saved.
       </p>
       <div className="mt-3 flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>

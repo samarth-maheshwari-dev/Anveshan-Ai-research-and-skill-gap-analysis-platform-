@@ -15,7 +15,7 @@ test("P16: AI status fails to load → the dashboard card says so instead of a f
     }),
   );
   await page.goto("/dashboard");
-  await expect(page.getByText("Couldn't check the AI right now.")).toBeVisible();
+  await expect(page.getByText("Couldn't check right now.")).toBeVisible();
 });
 
 test("P16: dashboard AI status card shows the state as a word and today's usage", async ({ page, context }) => {

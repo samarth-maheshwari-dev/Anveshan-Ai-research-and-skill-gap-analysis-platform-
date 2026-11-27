@@ -45,7 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
 class WriteHandler implements StepHandler {
 
 	static final String PROMPT = "writer";
-	static final int PROMPT_VERSION = 3;
+	static final int PROMPT_VERSION = 4;
 
 	record WriteOutput(@NotBlank @Size(max = 30_000) String markdown) {
 	}

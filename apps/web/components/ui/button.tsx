@@ -8,15 +8,15 @@ import type { ButtonHTMLAttributes } from "react";
  * black/white. Flat, 4px radius, ≥ 44px tall on phones. Destructive actions are never primary.
  */
 export const buttonVariants = cva(
-  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md border font-medium " +
-    "transition-[background-color,border-color,color,opacity] duration-150 ease-standard " +
+  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-full border font-semibold " +
+    "transition-[background-color,border-color,color,opacity,transform,box-shadow] duration-200 ease-standard active:scale-[0.97] " +
     "disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 " +
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover",
-        secondary: "border-border-strong bg-transparent text-foreground hover:border-foreground",
+        primary: "border-primary bg-primary text-primary-foreground shadow-card hover:-translate-y-0.5 hover:border-primary-hover hover:bg-primary-hover",
+        secondary: "border-border-strong bg-surface text-foreground hover:border-primary hover:text-primary",
         ghost: "border-transparent bg-transparent text-foreground hover:bg-surface-2",
         danger: "border-danger bg-transparent text-danger hover:bg-danger-soft",
         link: "h-auto border-transparent bg-transparent p-0 text-primary underline underline-offset-4 decoration-1 hover:decoration-2",
@@ -24,7 +24,7 @@ export const buttonVariants = cva(
       size: {
         sm: "h-8 px-3 text-body-sm max-sm:h-11 [&_svg]:size-4",
         md: "h-10 px-4 text-body max-sm:h-11 [&_svg]:size-4",
-        lg: "h-12 px-6 text-body [&_svg]:size-4",
+        lg: "h-14 px-7 text-body-lg [&_svg]:size-5",
         icon: "size-10 max-sm:size-11 [&_svg]:size-5",
       },
     },

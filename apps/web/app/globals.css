@@ -51,6 +51,7 @@
 
   /* Flat by design: depth comes from hairlines and contrast. Only floating layers (menus) get a shadow. */
   --shadow-float: 0 12px 32px -12px rgb(10 10 10 / 0.22);
+  --shadow-card: 0 1px 2px rgb(10 10 10 / 0.04), 0 8px 24px -14px rgb(10 10 10 / 0.18);
 }
 
 /* Dark (default) = black-dominant. */
@@ -84,6 +85,7 @@
   --trust-approved: #F5F5F5;   --trust-approved-bg: #262626;
 
   --shadow-float: 0 16px 40px -12px rgb(0 0 0 / 0.8);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -18px rgb(0 0 0 / 0.9);
 }
 
 @theme inline {
@@ -129,6 +131,7 @@
   --color-trust-approved-bg: var(--trust-approved-bg);
 
   /* One grotesk family for display + UI, its mono sibling for labels, numbers and IDs (DESIGN §3.1). */
+  --font-display: var(--font-display-face), var(--font-geist-sans), system-ui, sans-serif;
   --font-sans: var(--font-geist-sans), "Noto Sans Devanagari", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
@@ -138,8 +141,10 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  --radius-2xl: 24px;
 
   --shadow-float: var(--shadow-float);
+  --shadow-card: var(--shadow-card);
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
@@ -164,9 +169,10 @@
   html { @apply font-sans; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-size: 15px;
-    line-height: 24px;
+    font-size: 16px;
+    line-height: 26px;
   }
+  h1, h2, h3 { font-family: var(--font-display); }
   /* Visible focus everywhere, never removed (DESIGN §5.2, §13.1) */
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   ::selection { background: var(--primary); color: var(--primary-foreground); }
@@ -219,6 +225,12 @@
   background-size: 22px 22px;
   mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
+
+/* A highlighter stroke under a word (green marker token). */
+.hl { background-image: linear-gradient(var(--marker), var(--marker)); background-repeat: no-repeat; background-size: 100% 38%; background-position: 0 88%; padding: 0 0.08em; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+.marquee-track { display: flex; width: max-content; animation: marquee 40s linear infinite; }
+.marquee-track:hover { animation-play-state: paused; }
 
 /* Skeleton: a quiet pulse, no shimmer sweep (§9.10). */
 .skeleton {

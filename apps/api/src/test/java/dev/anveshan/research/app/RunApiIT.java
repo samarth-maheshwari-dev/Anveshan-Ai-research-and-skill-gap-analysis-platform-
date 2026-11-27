@@ -3,6 +3,7 @@ package dev.anveshan.research.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -171,6 +172,27 @@ class RunApiIT extends ResearchITBase {
 			out.add(Long.parseLong(m.group(1)));
 		}
 		return out;
+	}
+
+
+	@Test
+	@DisplayName("T-17-04 DELETE /runs/{id}: a stopped run and everything under it is gone (204, then 404); a working run "
+			+ "→ 409; someone else's → 404")
+	void deleteRun() throws Exception {
+		UUID run = startRun(alice);
+		assertThat(perform(bob, delete("/api/v1/runs/" + run)).getResponse().getStatus()).isEqualTo(404);
+
+		jdbc.sql("UPDATE research_run SET status = 'RUNNING' WHERE id = :id").param("id", run).update();
+		var busy = perform(alice, delete("/api/v1/runs/" + run));
+		assertThat(busy.getResponse().getStatus()).isEqualTo(409);
+		assertThat(busy.getResponse().getContentAsString()).contains("RUN_INVALID_STATE");
+
+		jdbc.sql("UPDATE research_run SET status = 'CANCELLED' WHERE id = :id").param("id", run).update();
+		assertThat(perform(alice, delete("/api/v1/runs/" + run)).getResponse().getStatus()).isEqualTo(204);
+		assertThat(perform(alice, get("/api/v1/runs/" + run)).getResponse().getStatus()).isEqualTo(404);
+		assertThat(jdbc.sql("SELECT count(*) FROM research_step WHERE run_id = :id").param("id", run)
+				.query(Long.class).single()).isZero();
+		assertThat(perform(alice, delete("/api/v1/runs/" + run)).getResponse().getStatus()).isEqualTo(404);
 	}
 
 }

@@ -119,6 +119,18 @@ export function useRunAction(id: string) {
   });
 }
 
+/** Removes a research and its report from the history. A working run must be stopped first (409). */
+export function useDeleteRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      unwrap(await api.DELETE("/api/v1/runs/{id}", { params: { path: { id } } }));
+    },
+    onSuccess: (_d, id) => qc.removeQueries({ queryKey: ["run", id] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["runs"] }),
+  });
+}
+
 export type RunSummary = components["schemas"]["RunSummary"];
 export type RunSource = components["schemas"]["RunSource"];
 

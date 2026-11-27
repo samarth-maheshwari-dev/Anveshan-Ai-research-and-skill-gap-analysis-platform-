@@ -6,7 +6,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       data-slot="card"
-      className={cn("rounded-lg border border-border bg-surface p-6 text-card-foreground", className)}
+      className={cn("rounded-xl border border-border bg-surface p-6 text-card-foreground shadow-card", className)}
       {...props}
     />
   );
@@ -26,7 +26,7 @@ type StatProps = { label: string; value: ReactNode; hint?: string; className?: s
 
 export function Stat({ label, value, hint, className }: StatProps) {
   return (
-    <div className={cn("rounded-lg border border-border bg-surface p-4 md:p-5", className)}>
+    <div className={cn("rounded-xl border border-border bg-surface p-4 shadow-card md:p-5", className)}>
       <p className="text-body-sm text-muted-foreground">{label}</p>
       <p className="tabular mt-2 text-heading-lg font-semibold md:text-display-lg">{value}</p>
       {hint && <p className="mt-1 text-caption text-subtle-foreground">{hint}</p>}
@@ -43,7 +43,7 @@ export function Badge({ className, ...props }: HTMLAttributes<HTMLSpanElement>) 
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center gap-1.5 rounded-sm px-2 text-caption font-medium [&_svg]:size-3.5",
+        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-caption font-medium [&_svg]:size-3.5",
         className,
       )}
       {...props}

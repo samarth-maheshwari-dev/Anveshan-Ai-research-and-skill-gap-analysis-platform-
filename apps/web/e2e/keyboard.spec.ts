@@ -34,7 +34,7 @@ test("T-08-07 keyboard only: login page controls reachable with a visible focus 
 test("T-08-07 skip link and user menu work from the keyboard; Esc closes the menu", async ({ page, context }) => {
   await installFakeApi(page, context, { signedIn: true });
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible(); // shell rendered after /me
+  await expect(page.getByRole("heading", { name: /Hi/ })).toBeVisible(); // shell rendered after /me
   await page.waitForLoadState("networkidle"); // data settled, nothing re-renders under the cursor
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();

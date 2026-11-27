@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.IntStream;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -122,6 +123,17 @@ class PlanApiIT {
 		alice = newUser("alice");
 		bob = newUser("bob");
 		answerPlan(5);
+	}
+
+	/**
+	 * A test that approves a run leaves it RUNNING: its SEARCH/EXTRACT steps (the fake gateway answers nothing for
+	 * them) kept the test JobRunr's 2 workers busy, so a later test's PLAN job waited past its 60 s deadline
+	 * (providerBusy was flaky). Cancelled runs' steps are skipped by the worker's claim, which frees the queue.
+	 */
+	@AfterEach
+	void cancelLeftoverRuns() {
+		jdbc.sql("UPDATE research_run SET status = 'CANCELLED', pause_reason = NULL, updated_at = now() "
+				+ "WHERE status IN ('PLANNING', 'RUNNING', 'PAUSED')").update();
 	}
 
 	/** The fake model answers with {@code n} sub-questions (plus junk the code must clean up). */

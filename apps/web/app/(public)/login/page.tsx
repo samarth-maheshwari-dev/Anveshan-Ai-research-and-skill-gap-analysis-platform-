@@ -26,13 +26,13 @@ export default function LoginPage() {
         </Link>
         <ResearchIllustration className="relative mx-auto w-full max-w-md" />
         <div className="relative">
-          <p className="text-display-xl font-semibold">
-            Research deeper.
+          <p className="font-display text-display-xl font-medium">
+            Ask anything.
             <br />
-            Prove every claim.
+            Get answers <em className="text-primary">with proof.</em>
           </p>
           <p className="mt-4 max-w-sm text-body-lg text-muted-foreground">
-            Your AI-powered research workspace — every sentence linked to the source behind it.
+            Your own research helper — every sentence linked to the place it came from.
           </p>
         </div>
       </aside>
@@ -42,9 +42,9 @@ export default function LoginPage() {
           <Logo />
         </Link>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
-          <h1 className="text-display-lg font-semibold">Welcome back</h1>
+          <h1 className="text-display-lg font-bold">Welcome</h1>
           <p className="mt-2 text-body text-muted-foreground">
-            Sign in to continue to Anveshan. Use your Google or GitHub account — no new password.
+            Pick one button below. If you are new, the same button makes your free account. No new password to remember.
           </p>
           <Suspense fallback={<div className="mt-8 h-28" />}>
             <LoginPanel />

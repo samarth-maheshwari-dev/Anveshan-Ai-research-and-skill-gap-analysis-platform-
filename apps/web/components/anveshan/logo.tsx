@@ -20,7 +20,7 @@ export function Logo({ className }: LogoProps) {
   return (
     <span className={cn("inline-flex items-center gap-2 text-foreground", className)}>
       <LogoMark />
-      <span className="text-heading-md font-semibold">Anveshan</span>
+      <span className="font-display text-heading-md font-semibold">Anveshan</span>
     </span>
   );
 }
