@@ -1,14 +1,14 @@
 "use client";
 
-import { CircleCheck, CircleDashed, CircleX, FlaskConical, Hourglass, Plus } from "lucide-react";
+import { CircleCheck, CircleDashed, CircleX, FlaskConical, Hourglass, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { ErrorLine } from "@/components/anveshan/error-line";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Overline, Skeleton, Stat } from "@/components/ui/card";
 import { useAiStatus, type AiStatus } from "@/lib/api/hooks/ai-status";
-import { runHref, useRuns, type RunSummary } from "@/lib/api/hooks/runs";
+import { runHref, useDeleteRun, useRuns, type RunSummary } from "@/lib/api/hooks/runs";
 import { useMe } from "@/lib/api/hooks/me";
 import { timeAgo } from "@/lib/time";
 
@@ -129,11 +129,14 @@ const RUN_STATUS: Record<string, string> = {
 /** One research in the list: topic, status in words, progress while it runs; opens the right screen (APPFLOW §1.3). */
 function RunRow({ run }: { run: RunSummary }) {
   const [now] = useState(() => new Date());
+  const [confirming, setConfirming] = useState(false);
+  const del = useDeleteRun();
   const working = run.status === "RUNNING" || run.status === "PAUSED";
+  const deletable = run.status !== "RUNNING" && run.status !== "PLANNING";
   const progress = Math.round(Number(run.progress ?? 0));
   return (
-    <li>
-      <Link href={runHref(run.id!, run.status)} className="block px-6 py-4 transition-colors hover:bg-surface-2">
+    <li className="group relative">
+      <Link href={runHref(run.id!, run.status)} className="block py-4 pl-6 pr-16 transition-colors hover:bg-surface-2">
         <div className="flex items-start justify-between gap-4">
           <p className="line-clamp-2 text-body-sm font-medium">{run.topic}</p>
           <span
@@ -154,6 +157,41 @@ function RunRow({ run }: { run: RunSummary }) {
           )}
         </div>
       </Link>
+      {deletable && !confirming && (
+        <button
+          type="button"
+          aria-label={`Delete "${run.topic}"`}
+          title="Delete"
+          onClick={() => setConfirming(true)}
+          className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-md text-subtle-foreground opacity-100 transition-[opacity,color,background-color] hover:bg-danger-soft hover:text-danger focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+        >
+          <Trash2 aria-hidden className="size-4" />
+        </button>
+      )}
+      {confirming && (
+        <div
+          role="alertdialog"
+          aria-label="Delete this research?"
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-danger-soft px-6 py-3"
+        >
+          <p className="text-body-sm text-foreground">
+            Delete this research{run.status === "COMPLETED" ? " and its report" : ""}? This can&apos;t be undone.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={del.isPending}>
+              Keep it
+            </Button>
+            <Button size="sm" variant="danger" loading={del.isPending} onClick={() => del.mutate(run.id!)}>
+              <Trash2 aria-hidden /> Delete
+            </Button>
+          </div>
+          {del.isError && (
+            <p role="alert" className="w-full text-caption text-danger">
+              Couldn&apos;t delete it. Stop the research first, or try again.
+            </p>
+          )}
+        </div>
+      )}
     </li>
   );
 }

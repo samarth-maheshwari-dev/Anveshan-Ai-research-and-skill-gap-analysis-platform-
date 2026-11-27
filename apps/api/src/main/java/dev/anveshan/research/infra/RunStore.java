@@ -112,6 +112,17 @@ public class RunStore {
 				.param("id", id).param("owner", owner).query(RunStore::row).optional();
 	}
 
+	/**
+	 * Deletes the caller's run unless it is working right now (PLANNING / RUNNING). Steps, sources, claims-in-run,
+	 * events and the report go with it (ON DELETE CASCADE); shared claims and source documents stay as cache.
+	 *
+	 * @return 1 when deleted, 0 when it doesn't exist, isn't the caller's, or is still working
+	 */
+	public int deleteOwnedIdle(UUID owner, UUID id) {
+		return jdbc.sql("DELETE FROM research_run WHERE id = :id AND owner_id = :owner "
+				+ "AND status NOT IN ('PLANNING', 'RUNNING')").param("id", id).param("owner", owner).update();
+	}
+
 	/** Engine-internal read by id (the run was already proven to exist / be the caller's). */
 	public Optional<RunRow> find(UUID id) {
 		return jdbc.sql("SELECT " + COLUMNS + " FROM research_run WHERE id = :id").param("id", id).query(RunStore::row)

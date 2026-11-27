@@ -310,6 +310,13 @@ export async function installFakeApi(page: Page, context: BrowserContext, init: 
           headers: { ...cors, "content-type": "application/json", etag: `"${run.version}"` },
           body: JSON.stringify(runView(run)),
         });
+      if (!sub && method === "DELETE") {
+        if (run.status === "RUNNING" || run.status === "PLANNING") {
+          return problem(route, 409, "RUN_INVALID_STATE", "Stop the research first");
+        }
+        state.runs.splice(state.runs.indexOf(run), 1);
+        return route.fulfill({ status: 204, headers: cors });
+      }
       if (!sub && method === "GET") {
         if (run.status === "PLANNING" && run.planningPolls-- <= 0) {
           run.status = "AWAITING_APPROVAL";

@@ -25,6 +25,7 @@ import dev.anveshan.research.domain.ResearchEnums.PauseReason;
 import dev.anveshan.research.domain.ResearchEnums.RunStatus;
 import dev.anveshan.research.domain.ResearchEnums.StepKind;
 import dev.anveshan.research.domain.ResearchEnums.StepStatus;
+import dev.anveshan.research.domain.RunInvalidStateException;
 import dev.anveshan.research.domain.RunStateMachine;
 import dev.anveshan.research.infra.RunEvents;
 import dev.anveshan.research.infra.RunStore;
@@ -271,6 +272,17 @@ public class RunService {
 
 	public void cancel(UUID owner, UUID id) {
 		engine.cancel(owned(owner, id));
+	}
+
+	/**
+	 * Deletes a research from the user's history. A run that is working (PLANNING / RUNNING) must be stopped first
+	 * → 409 RUN_INVALID_STATE; someone else's or unknown → 404.
+	 */
+	public void delete(UUID owner, UUID id) {
+		RunRow run = runs.findOwned(owner, id).orElseThrow(ApiException::notFound);
+		if (runs.deleteOwnedIdle(owner, id) == 0) {
+			throw new RunInvalidStateException(run.status(), RunStatus.CANCELLED);
+		}
 	}
 
 	public void retryStep(UUID owner, UUID id, UUID stepId) {
