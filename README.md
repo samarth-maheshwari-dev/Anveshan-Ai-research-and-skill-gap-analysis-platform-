@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/9d1fea14-8628-4af9-a20a-9e8e4b0b6f0f
+
 # Anveshan — AI research and skill gap analysis platform
 
 Give Anveshan a question or a goal. It researches it, writes a report where **every claim shows its source** (and says clearly when the evidence is weak), saves what it learned into your personal knowledge library, and — if the goal is a career skill — shows what you can already prove, what is missing, and what to learn next.
