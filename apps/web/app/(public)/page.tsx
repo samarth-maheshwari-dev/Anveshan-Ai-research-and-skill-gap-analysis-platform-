@@ -2,6 +2,7 @@ import { ArrowRight, ArrowDown } from "lucide-react";
 import Link from "next/link";
 
 import { Logo } from "@/components/anveshan/logo";
+import { ThemeToggle } from "@/components/anveshan/theme-toggle";
 import { Faq } from "@/components/landing/faq";
 import { HeroTyper } from "@/components/landing/hero-typer";
 import { ProofCard } from "@/components/landing/proof-card";
@@ -36,6 +37,7 @@ export default function LandingPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
           <Logo />
           <nav aria-label="Account" className="flex items-center gap-2">
+            <ThemeToggle />
             <Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Sign in
             </Link>
